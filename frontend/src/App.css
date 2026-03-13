@@ -1,0 +1,38 @@
+.app {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+button {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border: 2px solid #333;
+  border-radius: 6px;
+  background: #333;
+  color: #fff;
+}
+
+button:hover {
+  background: #555;
+}
+
+select {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+}

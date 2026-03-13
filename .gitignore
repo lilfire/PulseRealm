@@ -1,0 +1,34 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.DotSettings.user
+*.sln.docstates
+
+# Node.js
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Vite
+frontend/dist/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build output
+*.log
