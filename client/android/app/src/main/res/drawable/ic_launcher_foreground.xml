@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Heart/pulse icon centered in the adaptive icon safe zone (24dp inset = 72dp usable) -->
+    <group
+        android:translateX="24"
+        android:translateY="24">
+        <!-- Pulse line -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#E94560"
+            android:strokeWidth="3"
+            android:pathData="M0,30 L18,30 L24,10 L30,50 L36,20 L42,40 L48,30 L60,30" />
+        <!-- Small heart above the pulse -->
+        <path
+            android:fillColor="#E94560"
+            android:pathData="M30,18 C30,14 26,10 22,10 C18,10 14,14 14,18 C14,26 30,34 30,34 C30,34 46,26 46,18 C46,14 42,10 38,10 C34,10 30,14 30,18Z" />
+    </group>
+</vector>

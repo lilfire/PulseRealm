@@ -18,7 +18,7 @@ class SessionViewModel @Inject constructor(
     private val signalRClient: SignalRClient,
     private val sensorDataCollector: SensorDataCollector,
     savedStateHandle: SavedStateHandle
-) : AndroidViewModel() {
+) : AndroidViewModel(application) {
 
     val sessionId: String = savedStateHandle["sessionId"] ?: ""
     val clientId: String = savedStateHandle["clientId"] ?: ""
