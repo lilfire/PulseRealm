@@ -44,7 +44,7 @@ public class SessionManager
 
     private string GenerateJoinCode()
     {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No ambiguous chars
+        const string chars = "0123456789";
         var code = new string(Enumerable.Range(0, 6).Select(_ => chars[_random.Next(chars.Length)]).ToArray());
         return code;
     }

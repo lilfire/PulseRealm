@@ -42,7 +42,7 @@ class JoinViewModel @Inject constructor(
 
     fun updateJoinCode(code: String) {
         _uiState.value = _uiState.value.copy(
-            joinCode = code.uppercase().take(6),
+            joinCode = code.filter { it.isDigit() }.take(6),
             errorMessage = null
         )
     }
