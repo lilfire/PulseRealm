@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PulseRealm</string>
+    <string name="streaming_notification_channel">PulseRealm Streaming</string>
+    <string name="streaming_notification_title">PulseRealm Active</string>
+    <string name="streaming_notification_text">Streaming sensor data…</string>
+</resources>
