@@ -167,13 +167,12 @@ private fun NumberPad(
     onDelete: () -> Unit,
     onClear: () -> Unit
 ) {
-    // Simple alphanumeric input — join codes are uppercase alphanumeric
-    // Using a compact grid of common characters
+    // Numeric-only input — join codes are 6-digit numeric
     val rows = listOf(
-        listOf("1", "2", "3", "A", "B"),
-        listOf("4", "5", "6", "C", "D"),
-        listOf("7", "8", "9", "E", "F"),
-        listOf("0", "G", "H", "X", "⌫")
+        listOf("1", "2", "3"),
+        listOf("4", "5", "6"),
+        listOf("7", "8", "9"),
+        listOf("⌫", "0", "✓")
     )
 
     androidx.compose.foundation.layout.Column(
@@ -187,18 +186,23 @@ private fun NumberPad(
                 for (key in row) {
                     val onClick: () -> Unit = when (key) {
                         "⌫" -> onDelete
+                        "✓" -> onClear
                         else -> ({ onDigit(key) })
                     }
                     Button(
                         onClick = onClick,
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(44.dp),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (key == "⌫") Color(0xFF475569) else Color(0xFF1E293B)
+                            backgroundColor = when (key) {
+                                "⌫" -> Color(0xFF475569)
+                                "✓" -> Color(0xFF475569)
+                                else -> Color(0xFF1E293B)
+                            }
                         )
                     ) {
                         Text(
                             text = key,
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             color = Color.White,
                             textAlign = TextAlign.Center
                         )
