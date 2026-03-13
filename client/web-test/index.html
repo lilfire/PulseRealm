@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulseRealm — Web Test Client</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 16px 24px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #38bdf8;
+      white-space: nowrap;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-test { background: #854d0e; color: #fde047; }
+    .badge-disconnected { background: #991b1b; color: #fca5a5; }
+    .badge-connected { background: #166534; color: #86efac; }
+
+    .join-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .join-bar label { font-size: 13px; color: #94a3b8; }
+
+    .join-bar input {
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 100px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+      font-family: monospace;
+    }
+
+    .join-bar input:focus { outline: none; border-color: #38bdf8; }
+
+    button {
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover { background: #7dd3fc; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .stats-bar {
+      padding: 12px 24px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      gap: 32px;
+      font-size: 13px;
+    }
+
+    .stat {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .stat-label { color: #64748b; }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-value.hr { color: #f87171; }
+    .stat-value.steps { color: #34d399; }
+    .stat-value.sends { color: #a78bfa; }
+
+    .stat-unit { color: #64748b; font-size: 12px; }
+
+    #tracking-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: crosshair;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .tracking-hint {
+      text-align: center;
+      color: #475569;
+      pointer-events: none;
+    }
+
+    .tracking-hint .big {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #64748b;
+    }
+
+    .tracking-hint p { font-size: 14px; line-height: 1.6; }
+
+    .click-ripple {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid #34d399;
+      animation: ripple 0.6s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes ripple {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+
+    .log-panel {
+      height: 120px;
+      background: #0c0f1a;
+      border-top: 1px solid #334155;
+      overflow-y: auto;
+      padding: 8px 16px;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #64748b;
+    }
+
+    .log-panel .log-info { color: #38bdf8; }
+    .log-panel .log-warn { color: #fbbf24; }
+    .log-panel .log-error { color: #f87171; }
+    .log-panel .log-send { color: #a78bfa; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PulseRealm</h1>
+    <span class="badge badge-test">Test Client</span>
+    <span id="status-badge" class="badge badge-disconnected">Disconnected</span>
+    <div class="join-bar">
+      <label for="server-url">Server:</label>
+      <input type="text" id="server-url" value="http://localhost:5062" style="width:200px; text-transform:none; letter-spacing:normal; text-align:left;" />
+      <label for="join-code">Code:</label>
+      <input type="text" id="join-code" maxlength="6" placeholder="ABC123" />
+      <button id="join-btn" onclick="joinSession()">Join</button>
+      <button id="disconnect-btn" onclick="disconnect()" style="background:#ef4444;color:#fff;display:none;">Leave</button>
+    </div>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat">
+      <span class="stat-label">Heart Rate</span>
+      <span class="stat-value hr" id="hr-display">0</span>
+      <span class="stat-unit">bpm</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Steps</span>
+      <span class="stat-value steps" id="steps-display">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Sent</span>
+      <span class="stat-value sends" id="sends-display">0</span>
+      <span class="stat-unit">msgs</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Interval</span>
+      <span class="stat-value" id="interval-display" style="color:#fbbf24;font-size:16px;">1s</span>
+      <input type="range" id="interval-slider" min="200" max="5000" value="1000" step="100"
+             oninput="updateInterval(this.value)" style="width:100px;vertical-align:middle;" />
+    </div>
+  </div>
+
+  <div id="tracking-area">
+    <div class="tracking-hint" id="hint">
+      <div class="big">Click &amp; Move</div>
+      <p>
+        <strong>Mouse clicks</strong> → steps (each click = 1 step)<br />
+        <strong>Mouse movement</strong> → heart rate (speed maps to bpm)<br />
+        Join a session above to start sending data.
+      </p>
+    </div>
+  </div>
+
+  <div class="log-panel" id="log-panel"></div>
+
+  <script>
+    // --- State ---
+    let connection = null;
+    let sessionId = null;
+    const clientId = "web-test-" + Math.random().toString(36).slice(2, 8);
+    let steps = 0;
+    let heartRate = 0;
+    let sendCount = 0;
+    let sendIntervalMs = 1000;
+    let sendTimer = null;
+
+    // Mouse movement tracking for heart rate
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let lastMouseTime = 0;
+    let mouseSpeeds = [];
+
+    // --- Logging ---
+    const logPanel = document.getElementById("log-panel");
+
+    function log(msg, cls = "") {
+      const line = document.createElement("div");
+      line.className = cls;
+      const ts = new Date().toLocaleTimeString("en-US", { hour12: false, fractionalSecondDigits: 1 });
+      line.textContent = `[${ts}] ${msg}`;
+      logPanel.appendChild(line);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    // --- Connection ---
+    async function joinSession() {
+      const serverUrl = document.getElementById("server-url").value.replace(/\/+$/, "");
+      const joinCode = document.getElementById("join-code").value.trim().toUpperCase();
+
+      if (!joinCode) { log("Enter a join code first.", "log-warn"); return; }
+
+      log(`Connecting to ${serverUrl}/hubs/session ...`, "log-info");
+
+      try {
+        connection = new signalR.HubConnectionBuilder()
+          .withUrl(serverUrl + "/hubs/session")
+          .withAutomaticReconnect()
+          .configureLogging(signalR.LogLevel.Warning)
+          .build();
+
+        connection.on("ClientJoined", (cid) => {
+          log(`Client joined: ${cid}`, "log-info");
+        });
+
+        connection.on("WearableDataReceived", (data) => {
+          if (data.clientId !== clientId) {
+            log(`Data from ${data.clientId}: HR=${data.heartRate} Steps=${data.steps}`, "log-info");
+          }
+        });
+
+        connection.on("Error", (err) => {
+          log(`Server error: ${err.message}`, "log-error");
+        });
+
+        connection.on("JoinedSession", (sid) => {
+          log(`Confirmed in session: ${sid}`, "log-info");
+        });
+
+        connection.onclose(() => {
+          log("Connection closed.", "log-warn");
+          setConnectedUI(false);
+        });
+
+        connection.onreconnecting(() => {
+          log("Reconnecting...", "log-warn");
+          setConnectedUI(false);
+        });
+
+        connection.onreconnected(() => {
+          log("Reconnected.", "log-info");
+          setConnectedUI(true);
+        });
+
+        await connection.start();
+        log("SignalR connected. Joining session...", "log-info");
+
+        const result = await connection.invoke("JoinSession", joinCode, clientId);
+
+        if (result && result.error) {
+          log(`Join failed: ${result.error}`, "log-error");
+          await connection.stop();
+          return;
+        }
+
+        // The hub returns the session ID or adds client to group
+        // We need to figure out the session ID from the join code
+        const resp = await fetch(`${serverUrl}/api/session/${joinCode}`);
+        if (!resp.ok) {
+          log("Could not look up session info.", "log-error");
+          await connection.stop();
+          return;
+        }
+        const session = await resp.json();
+        sessionId = session.id;
+
+        log(`Joined session ${sessionId} (code: ${joinCode}) as ${clientId}`, "log-info");
+        setConnectedUI(true);
+        startSending();
+      } catch (err) {
+        log(`Connection failed: ${err.message}`, "log-error");
+      }
+    }
+
+    function disconnect() {
+      if (sendTimer) { clearInterval(sendTimer); sendTimer = null; }
+      if (connection) {
+        connection.stop();
+        connection = null;
+      }
+      sessionId = null;
+      setConnectedUI(false);
+      log("Disconnected.", "log-warn");
+    }
+
+    function setConnectedUI(on) {
+      const badge = document.getElementById("status-badge");
+      badge.textContent = on ? "Connected" : "Disconnected";
+      badge.className = "badge " + (on ? "badge-connected" : "badge-disconnected");
+      document.getElementById("join-btn").style.display = on ? "none" : "";
+      document.getElementById("disconnect-btn").style.display = on ? "" : "none";
+      document.getElementById("join-code").disabled = on;
+      document.getElementById("server-url").disabled = on;
+    }
+
+    // --- Sending data ---
+    function startSending() {
+      if (sendTimer) clearInterval(sendTimer);
+      sendTimer = setInterval(sendData, sendIntervalMs);
+    }
+
+    async function sendData() {
+      if (!connection || !sessionId) return;
+
+      const data = {
+        clientId: clientId,
+        heartRate: heartRate,
+        steps: steps,
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        await connection.invoke("SendWearableData", sessionId, data);
+        sendCount++;
+        document.getElementById("sends-display").textContent = sendCount;
+        log(`→ HR=${data.heartRate} Steps=${data.steps}`, "log-send");
+      } catch (err) {
+        log(`Send failed: ${err.message}`, "log-error");
+      }
+    }
+
+    function updateInterval(ms) {
+      sendIntervalMs = parseInt(ms);
+      const label = ms >= 1000 ? (ms / 1000) + "s" : ms + "ms";
+      document.getElementById("interval-display").textContent = label;
+      if (sendTimer) startSending();
+    }
+
+    // --- Mouse tracking ---
+    const trackingArea = document.getElementById("tracking-area");
+
+    trackingArea.addEventListener("click", (e) => {
+      steps++;
+      document.getElementById("steps-display").textContent = steps;
+
+      // Visual ripple
+      const ripple = document.createElement("div");
+      ripple.className = "click-ripple";
+      ripple.style.left = (e.clientX - trackingArea.getBoundingClientRect().left - 20) + "px";
+      ripple.style.top = (e.clientY - trackingArea.getBoundingClientRect().top - 20) + "px";
+      trackingArea.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 600);
+    });
+
+    trackingArea.addEventListener("mousemove", (e) => {
+      const now = performance.now();
+      if (lastMouseTime > 0) {
+        const dt = (now - lastMouseTime) / 1000; // seconds
+        if (dt > 0) {
+          const dx = e.clientX - lastMouseX;
+          const dy = e.clientY - lastMouseY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const speed = dist / dt; // px/s
+
+          mouseSpeeds.push(speed);
+          // Keep a rolling window of recent speeds
+          if (mouseSpeeds.length > 20) mouseSpeeds.shift();
+        }
+      }
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      lastMouseTime = now;
+    });
+
+    // Compute HR from mouse speed every 200ms
+    setInterval(() => {
+      if (mouseSpeeds.length === 0) {
+        // Decay toward resting HR when mouse is still
+        heartRate = Math.max(0, heartRate - 3);
+      } else {
+        const avgSpeed = mouseSpeeds.reduce((a, b) => a + b, 0) / mouseSpeeds.length;
+        // Map speed (0-2000 px/s) to HR (60-200 bpm)
+        heartRate = Math.round(Math.min(200, Math.max(60, 60 + (avgSpeed / 2000) * 140)));
+        mouseSpeeds = [];
+      }
+      document.getElementById("hr-display").textContent = heartRate;
+    }, 200);
+
+    // --- Init ---
+    log(`Client ID: ${clientId}`, "log-info");
+    log("Ready. Enter a join code and click Join to connect.", "log-info");
+  </script>
+</body>
+</html>
