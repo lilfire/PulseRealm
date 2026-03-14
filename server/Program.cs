@@ -21,7 +21,10 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapControllers();
 app.MapHub<SessionHub>("/hubs/session");
+app.MapFallbackToFile("index.html");
 
 app.Run();
