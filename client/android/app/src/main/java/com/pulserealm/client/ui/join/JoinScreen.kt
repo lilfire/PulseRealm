@@ -2,6 +2,7 @@ package com.pulserealm.client.ui.join
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -343,132 +346,94 @@ private fun JoinPage(
     connectionState: ConnectionState,
     viewModel: JoinViewModel
 ) {
-    val listState = rememberScalingLazyListState()
-
-    ScalingLazyColumn(
+    BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
-        state = listState,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        contentAlignment = Alignment.Center
     ) {
-        // Server info (compact)
-        item {
-            Button(
-                onClick = { viewModel.changeServer() },
+        val availableHeight = maxHeight
+        val availableWidth = maxWidth
+        // Code display gets ~15% of height, numpad gets ~80%, error gets ~5%
+        val codeHeight = availableHeight * 0.15f
+        val padHeight = availableHeight * 0.80f
+        // Numpad is 4 rows, each button is square — calculate button size from available space
+        val padSpacing = 2.dp
+        val buttonSize = minOf(
+            (padHeight - padSpacing * 3) / 4,  // fit 4 rows
+            (availableWidth - padSpacing * 2) / 3  // fit 3 columns
+        )
+        val fontSize = buttonSize * 0.38f
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = availableHeight * 0.05f, bottom = availableHeight * 0.02f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Join code display
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(0xFF1E293B)
-                )
+                    .fillMaxWidth()
+                    .height(codeHeight),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = uiState.serverUrl.removePrefix("http://"),
-                    color = Color(0xFF64748B),
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = if (uiState.joinCode.isNotEmpty()) uiState.joinCode else "------",
+                    style = MaterialTheme.typography.display3.copy(
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 4.sp
+                    ),
+                    color = Color.White,
+                    textAlign = TextAlign.Center
                 )
             }
-        }
 
-        // Join code display
-        item {
-            Text(
-                text = if (uiState.joinCode.isNotEmpty()) uiState.joinCode else "------",
-                style = MaterialTheme.typography.display3.copy(
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 4.sp
-                ),
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        // Number pad
-        item {
-            NumberPad(
-                onDigit = { digit ->
-                    if (uiState.joinCode.length < 6) {
-                        viewModel.updateJoinCode(uiState.joinCode + digit)
-                    }
-                },
-                onDelete = {
-                    if (uiState.joinCode.isNotEmpty()) {
-                        viewModel.updateJoinCode(uiState.joinCode.dropLast(1))
-                    }
-                },
-                onClear = { viewModel.updateJoinCode("") }
-            )
-        }
-
-        // Join button
-        item {
-            if (uiState.isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(28.dp),
-                    indicatorColor = Color(0xFF38BDF8)
-                )
-            } else {
-                Button(
-                    onClick = { viewModel.join() },
-                    modifier = Modifier.fillMaxWidth(0.65f),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF38BDF8)
-                    ),
-                    enabled = uiState.joinCode.length == 6
-                ) {
-                    Text(
-                        text = "JOIN",
-                        color = Color.Black
+            // Number pad or loading
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(buttonSize),
+                        indicatorColor = Color(0xFF38BDF8)
+                    )
+                } else {
+                    NumberPad(
+                        buttonSize = buttonSize,
+                        fontSize = fontSize,
+                        onDigit = { digit ->
+                            if (uiState.joinCode.length < 6) {
+                                viewModel.updateJoinCode(uiState.joinCode + digit)
+                            }
+                        },
+                        onDelete = {
+                            if (uiState.joinCode.isNotEmpty()) {
+                                viewModel.updateJoinCode(uiState.joinCode.dropLast(1))
+                            }
+                        },
+                        onConfirm = {
+                            if (uiState.joinCode.length == 6) {
+                                viewModel.join()
+                            } else {
+                                viewModel.updateJoinCode("")
+                            }
+                        },
+                        canJoin = uiState.joinCode.length == 6
                     )
                 }
             }
-        }
 
-        // Error message
-        if (uiState.errorMessage != null) {
-            item {
+            // Error message
+            if (uiState.errorMessage != null) {
                 Text(
                     text = uiState.errorMessage!!,
                     color = Color(0xFFF87171),
-                    style = MaterialTheme.typography.caption3,
+                    fontSize = 10.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-        }
-
-        // Connection status + swipe hint
-        item {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                val statusText = when (connectionState) {
-                    ConnectionState.CONNECTED -> "Connected"
-                    ConnectionState.CONNECTING -> "Connecting..."
-                    ConnectionState.RECONNECTING -> "Reconnecting..."
-                    ConnectionState.DISCONNECTED -> "Ready"
-                }
-                val statusColor = when (connectionState) {
-                    ConnectionState.CONNECTED -> Color(0xFF86EFAC)
-                    ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> Color(0xFFFBBF24)
-                    ConnectionState.DISCONNECTED -> Color(0xFF64748B)
-                }
-                Text(
-                    text = statusText,
-                    color = statusColor,
-                    style = MaterialTheme.typography.caption3,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "swipe left for settings",
-                    color = Color(0xFF475569),
-                    fontSize = 9.sp,
-                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -523,7 +488,17 @@ private fun SettingsPage(
             )
         }
 
-        // Server change
+        // Server info + change
+        item {
+            Text(
+                text = uiState.serverUrl.removePrefix("http://"),
+                color = Color(0xFF64748B),
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
         item {
             Button(
                 onClick = { viewModel.changeServer() },
@@ -607,9 +582,12 @@ private fun ProfileField(
 
 @Composable
 private fun NumberPad(
+    buttonSize: Dp,
+    fontSize: Dp,
     onDigit: (String) -> Unit,
     onDelete: () -> Unit,
-    onClear: () -> Unit
+    onConfirm: () -> Unit,
+    canJoin: Boolean
 ) {
     val rows = listOf(
         listOf("1", "2", "3"),
@@ -617,6 +595,7 @@ private fun NumberPad(
         listOf("7", "8", "9"),
         listOf("\u232B", "0", "\u2713")
     )
+    val textSize = with(LocalDensity.current) { fontSize.toSp() }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -629,24 +608,24 @@ private fun NumberPad(
                 for (key in row) {
                     val onClick: () -> Unit = when (key) {
                         "\u232B" -> onDelete
-                        "\u2713" -> onClear
+                        "\u2713" -> onConfirm
                         else -> ({ onDigit(key) })
                     }
                     Button(
                         onClick = onClick,
-                        modifier = Modifier.size(42.dp),
+                        modifier = Modifier.size(buttonSize),
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = when (key) {
                                 "\u232B" -> Color(0xFF475569)
-                                "\u2713" -> Color(0xFF475569)
+                                "\u2713" -> if (canJoin) Color(0xFF38BDF8) else Color(0xFF475569)
                                 else -> Color(0xFF1E293B)
                             }
                         )
                     ) {
                         Text(
                             text = key,
-                            fontSize = 14.sp,
-                            color = Color.White,
+                            fontSize = textSize,
+                            color = if (key == "\u2713" && canJoin) Color.Black else Color.White,
                             textAlign = TextAlign.Center
                         )
                     }
