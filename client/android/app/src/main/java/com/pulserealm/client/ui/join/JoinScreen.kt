@@ -352,9 +352,9 @@ private fun JoinPage(
     ) {
         val availableHeight = maxHeight
         val availableWidth = maxWidth
-        // Code display gets ~15% of height, numpad gets ~80%, error gets ~5%
-        val codeHeight = availableHeight * 0.15f
-        val padHeight = availableHeight * 0.80f
+        // Code display gets ~8% of height, numpad gets ~85%, error gets ~7%
+        val codeHeight = availableHeight * 0.08f
+        val padHeight = availableHeight * 0.85f
         // Numpad is 4 rows, each button is square — calculate button size from available space
         val padSpacing = 2.dp
         val buttonSize = minOf(
@@ -366,7 +366,7 @@ private fun JoinPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = availableHeight * 0.12f, bottom = availableHeight * 0.02f),
+                .padding(top = availableHeight * 0.08f, bottom = availableHeight * 0.02f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -380,7 +380,7 @@ private fun JoinPage(
             ) {
                 Text(
                     text = if (uiState.joinCode.isNotEmpty()) uiState.joinCode else "------",
-                    style = MaterialTheme.typography.display3.copy(
+                    style = MaterialTheme.typography.title1.copy(
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = 4.sp
                     ),
@@ -432,9 +432,11 @@ private fun JoinPage(
                 Text(
                     text = uiState.errorMessage!!,
                     color = Color(0xFFF87171),
-                    fontSize = 10.sp,
+                    fontSize = 13.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                 )
             }
         }
