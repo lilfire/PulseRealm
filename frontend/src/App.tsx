@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSessionHub } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
+import { Lobby, type StreetViewLocation } from "./components/Lobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
 import type { Session, SessionMode } from "./types/session";
@@ -15,6 +16,7 @@ function App() {
   const server = useServerConnection();
   const [session, setSession] = useState<Session | null>(null);
   const [selectedMode, setSelectedMode] = useState<SessionMode>("competition");
+  const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
@@ -22,7 +24,7 @@ function App() {
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/session`)
     : server.hubUrl;
 
-  const { connected, clients, clientProfiles, latestData } = useSessionHub(
+  const { connected, started, clients, clientProfiles, latestData, startSession } = useSessionHub(
     session?.id ?? null,
     hubUrl
   );
@@ -97,6 +99,34 @@ function App() {
     );
   }
 
+  // Show lobby until the session is started
+  if (!started) {
+    return (
+      <Lobby
+        joinCode={session.joinCode}
+        clients={clients}
+        clientProfiles={clientProfiles}
+        connected={connected}
+        mode={session.mode}
+        onStart={(location) => {
+          if (location) setStreetViewLocation(location);
+          startSession();
+        }}
+      />
+    );
+  }
+
+  if (session.mode === "streetview" && streetViewLocation) {
+    return (
+      <StreetViewMode
+        clients={clients}
+        clientProfiles={clientProfiles}
+        latestData={latestData}
+        startLocation={streetViewLocation}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <h1>PulseRealm</h1>
@@ -107,9 +137,6 @@ function App() {
 
       {session.mode === "competition" && (
         <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
-      )}
-      {session.mode === "streetview" && (
-        <StreetViewMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
     </div>
   );

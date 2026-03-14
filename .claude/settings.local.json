@@ -11,7 +11,17 @@
       "Bash(taskkill //F //IM PulseRealm.DesktopTest.exe 2>/dev/null; sleep 1 && dotnet build 2>&1 | tail -5)",
       "Bash(find /c/git/PulseRealm -name \"*.cs\" -o -name \"*.kt\" | xargs grep -l \"JoinSession\" | head -10)",
       "Bash(cd /c/git/PulseRealm/frontend && npx tsc --noEmit 2>&1 | tail -10)",
-      "Bash(ls /c/git/PulseRealm/frontend/node_modules/.bin/tsc 2>/dev/null && /c/git/PulseRealm/frontend/node_modules/.bin/tsc --noEmit --project /c/git/PulseRealm/frontend 2>&1 | tail -10 || echo \"tsc not available, skipping\")"
+      "Bash(ls /c/git/PulseRealm/frontend/node_modules/.bin/tsc 2>/dev/null && /c/git/PulseRealm/frontend/node_modules/.bin/tsc --noEmit --project /c/git/PulseRealm/frontend 2>&1 | tail -10 || echo \"tsc not available, skipping\")",
+      "Bash(cd /c/git/PulseRealm/frontend && npx tsc --noEmit 2>&1)",
+      "Bash(cd /c/git/PulseRealm/frontend && node_modules/.bin/tsc --noEmit 2>&1)",
+      "Bash(where node:*)",
+      "Bash(node --version 2>&1 && npm --version 2>&1)",
+      "Bash(cmd.exe /c \"node --version\" 2>&1 && cmd.exe /c \"npm --version\" 2>&1)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\" && node --version && npm --version)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\" && cd /c/git/PulseRealm/frontend && npx tsc --noEmit 2>&1)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\" && cd /c/git/PulseRealm/frontend && npm install 2>&1 && npx tsc --noEmit 2>&1)",
+      "Bash(find /c/git/PulseRealm -maxdepth 2 -name \"*.env*\" -o -name \".env\" 2>/dev/null | head -20)",
+      "Bash(find /c/git/PulseRealm -maxdepth 3 -type f \\\\\\( -name \"vite.config.*\" -o -name \"tsconfig.json\" -o -name \"*.config.*\" \\\\\\) 2>/dev/null | grep -v node_modules)"
     ]
   }
 }
