@@ -39,19 +39,20 @@ export function ServerConnect({
           <div className="search-spinner" />
           <p className="search-status">Searching for server…</p>
           <p className="search-progress">{searchProgress}</p>
-          {searchAttempt > 0 && (
+          {searchAttempt > 1 && (
             <p className="search-attempt">Attempt {searchAttempt}</p>
           )}
         </div>
       )}
 
-      {/* Not found state */}
+      {/* Not found — show retry + manual fallback */}
       {searchPhase === "not_found" && !showManual && (
         <div className="search-container">
           <div className="search-icon-fail">✕</div>
           <p className="search-status">No server found on the network</p>
           <p className="search-hint">
-            Make sure the PulseRealm server is running and reachable.
+            Make sure the PulseRealm server is running and on the same
+            local network.
           </p>
           <div className="search-actions">
             <button onClick={onRetrySearch} className="btn-retry">
@@ -63,26 +64,24 @@ export function ServerConnect({
           </div>
           {searchAttempt > 1 && (
             <p className="search-attempt">
-              Searched {searchAttempt} time{searchAttempt > 1 ? "s" : ""}
+              Searched {searchAttempt} time{searchAttempt !== 1 ? "s" : ""}
             </p>
           )}
         </div>
       )}
 
-      {/* Idle / manual entry */}
-      {(searchPhase === "idle" || showManual) && (
+      {/* Manual entry — only shown as fallback */}
+      {showManual && (
         <div className="manual-container">
-          {showManual && (
-            <button
-              className="btn-back"
-              onClick={() => {
-                setShowManual(false);
-                onRetrySearch();
-              }}
-            >
-              ← Back to search
-            </button>
-          )}
+          <button
+            className="btn-back"
+            onClick={() => {
+              setShowManual(false);
+              onRetrySearch();
+            }}
+          >
+            ← Back to search
+          </button>
           <p>Enter the address of a PulseRealm server.</p>
 
           <form onSubmit={handleSubmit} className="manual-form">
@@ -98,7 +97,11 @@ export function ServerConnect({
               />
             </label>
 
-            <button type="submit" disabled={checking || !url} className="btn-connect">
+            <button
+              type="submit"
+              disabled={checking || !url}
+              className="btn-connect"
+            >
               {checking ? "Connecting…" : "Connect"}
             </button>
           </form>
@@ -107,10 +110,19 @@ export function ServerConnect({
 
           <div className="manual-help">
             <p>
-              If the server is on your local network, use its local IP address
+              Use the IP address of the machine running PulseRealm server
               (e.g. <code>http://192.168.1.100:5062</code>).
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Idle — initial state before search starts */}
+      {searchPhase === "idle" && !showManual && (
+        <div className="search-container">
+          <button onClick={onRetrySearch} className="btn-retry">
+            Search for Server
+          </button>
         </div>
       )}
     </div>

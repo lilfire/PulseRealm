@@ -317,29 +317,84 @@
   <script>
     // --- Server Search ---
     let searchAttemptCount = 0;
-    const SEARCH_PORTS = [5062, 8080, 5000, 80];
+    const SERVER_PORT = 5062;
+    const PROBE_TIMEOUT = 1500;
+    const BATCH_SIZE = 20;
 
-    function buildSearchCandidates() {
+    function getLocalIp() {
+      return new Promise(resolve => {
+        const timeout = setTimeout(() => resolve(null), 3000);
+        try {
+          const pc = new RTCPeerConnection({ iceServers: [] });
+          pc.createDataChannel('');
+          pc.createOffer().then(offer => pc.setLocalDescription(offer));
+          pc.onicecandidate = event => {
+            if (!event.candidate) return;
+            const m = event.candidate.candidate.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+            if (m) {
+              const ip = m[1];
+              if (!ip.startsWith('127.') && !ip.startsWith('0.')) {
+                clearTimeout(timeout);
+                pc.close();
+                resolve(ip);
+              }
+            }
+          };
+          pc.onicegatheringstatechange = () => {
+            if (pc.iceGatheringState === 'complete') {
+              clearTimeout(timeout);
+              pc.close();
+              resolve(null);
+            }
+          };
+        } catch { clearTimeout(timeout); resolve(null); }
+      });
+    }
+
+    async function buildSearchCandidates(onProgress) {
       const candidates = [];
       const hostname = window.location.hostname;
+
+      // Same-origin first
       if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
         candidates.push(window.location.origin);
+        candidates.push('http://' + hostname + ':' + SERVER_PORT);
       }
-      for (const port of SEARCH_PORTS) {
-        candidates.push('http://localhost:' + port);
-        candidates.push('http://127.0.0.1:' + port);
-      }
-      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        for (const port of SEARCH_PORTS) {
-          candidates.push('http://' + hostname + ':' + port);
+
+      // Detect local IP and scan /24 subnet
+      if (onProgress) onProgress('Detecting local network…');
+      const localIp = await getLocalIp();
+
+      if (localIp) {
+        const subnet = localIp.split('.').slice(0, 3).join('.');
+        if (onProgress) onProgress('Found network ' + subnet + '.0/24');
+
+        // Priority IPs first
+        for (const oct of [1, 2, 100, 50, 10, 200, 150, 254]) {
+          const url = 'http://' + subnet + '.' + oct + ':' + SERVER_PORT;
+          if (!candidates.includes(url)) candidates.push(url);
+        }
+
+        // Full /24 scan
+        for (let i = 1; i <= 254; i++) {
+          const url = 'http://' + subnet + '.' + i + ':' + SERVER_PORT;
+          if (!candidates.includes(url)) candidates.push(url);
         }
       }
+
+      // Localhost fallback
+      candidates.push('http://localhost:' + SERVER_PORT);
+      candidates.push('http://127.0.0.1:' + SERVER_PORT);
+      for (const port of [8080, 5000, 80]) {
+        candidates.push('http://localhost:' + port);
+      }
+
       return [...new Set(candidates)];
     }
 
     async function probeServer(url) {
       try {
-        const res = await fetch(url.replace(/\/+$/, '') + '/api/discovery', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch(url.replace(/\/+$/, '') + '/api/discovery', { signal: AbortSignal.timeout(PROBE_TIMEOUT) });
         if (!res.ok) return null;
         const info = await res.json();
         return info.name === 'PulseRealm' ? { url: url.replace(/\/+$/, ''), info } : null;
@@ -354,10 +409,15 @@
       document.getElementById('search-manual').style.display = 'none';
       document.getElementById('search-attempt-text').textContent = searchAttemptCount > 1 ? 'Attempt ' + searchAttemptCount : '';
 
-      const candidates = buildSearchCandidates();
-      for (let i = 0; i < candidates.length; i += 4) {
-        const batch = candidates.slice(i, i + 4);
-        document.getElementById('search-progress-text').textContent = 'Scanning ' + batch[0] + ' …';
+      const candidates = await buildSearchCandidates(msg => {
+        document.getElementById('search-progress-text').textContent = msg;
+      });
+
+      const total = candidates.length;
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = candidates.slice(i, i + BATCH_SIZE);
+        const scanned = Math.min(i + BATCH_SIZE, total);
+        document.getElementById('search-progress-text').textContent = 'Scanning network… ' + scanned + '/' + total + ' addresses';
         const results = await Promise.all(batch.map(u => probeServer(u)));
         const found = results.find(r => r !== null);
         if (found) {
