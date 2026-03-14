@@ -304,8 +304,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
+                .align(Alignment.Center)
         ) {
             Box(
                 modifier = Modifier
@@ -413,7 +412,7 @@ private fun JoinPage(
         val availableHeight = maxHeight
         val availableWidth = maxWidth
         // Code display gets ~8% of height, numpad gets the rest
-        val codeHeight = availableHeight * 0.08f
+        val codeHeight = availableHeight * 0.14f
         val padHeight = availableHeight * 0.62f
         // Numpad is 4 rows, each button is square — calculate button size from available space
         val padSpacing = 2.dp
@@ -494,8 +493,7 @@ private fun JoinPage(
             visible = showError,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter)
-                .padding(bottom = availableHeight * 0.08f)
+            modifier = Modifier.align(Alignment.Center)
         ) {
             Box(
                 modifier = Modifier
