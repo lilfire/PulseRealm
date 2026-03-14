@@ -353,9 +353,16 @@
 
     async function buildSearchCandidates(onProgress) {
       const candidates = [];
+
+      // Cached URL first — most likely to succeed
+      const cached = localStorage.getItem('pulserealm_server_url');
+      if (cached) {
+        candidates.push(cached);
+      }
+
       const hostname = window.location.hostname;
 
-      // Same-origin first
+      // Same-origin
       if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
         candidates.push(window.location.origin);
         candidates.push('http://' + hostname + ':' + SERVER_PORT);

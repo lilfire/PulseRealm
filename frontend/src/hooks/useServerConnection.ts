@@ -57,14 +57,22 @@ async function getLocalIp(): Promise<string | null> {
 
 /**
  * Build the list of candidate URLs to probe.
- * 1. Same-origin (if served from a non-localhost host)
- * 2. Full /24 subnet scan based on detected local IP
- * 3. Localhost fallback
+ * 1. Cached URL from previous successful connection
+ * 2. Same-origin (if served from a non-localhost host)
+ * 3. Full /24 subnet scan based on detected local IP
+ * 4. Localhost fallback
  */
 async function buildCandidateUrls(
   onProgress?: (msg: string) => void
 ): Promise<string[]> {
   const candidates: string[] = [];
+
+  // Cached URL first — most likely to succeed
+  const cached = localStorage.getItem(STORAGE_KEY);
+  if (cached) {
+    candidates.push(cached);
+  }
+
   const hostname = window.location.hostname;
 
   // If we're served from a non-localhost origin, try same-origin first
@@ -128,10 +136,12 @@ export function useServerConnection() {
   const [searchProgress, setSearchProgress] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
-  // On mount, if we have a saved URL verify it, otherwise auto-search
+  // On mount, try cached URL first — if it fails, fall through to search
   useEffect(() => {
     if (serverUrl) {
-      verifyServer(serverUrl);
+      verifyServer(serverUrl).then((ok) => {
+        if (!ok) searchForServer();
+      });
     } else {
       searchForServer();
     }
