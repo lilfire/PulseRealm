@@ -31,8 +31,187 @@ button:hover {
   background: #555;
 }
 
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 select {
   padding: 0.5rem;
   font-size: 1rem;
   border-radius: 4px;
+}
+
+/* --- Server Search UI --- */
+
+.search-container {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.search-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border, #e5e4e7);
+  border-top-color: var(--accent, #aa3bff);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.search-status {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--text-h, #333);
+}
+
+.search-progress {
+  font-size: 0.85rem;
+  color: var(--text, #888);
+  font-family: var(--mono, monospace);
+}
+
+.search-attempt {
+  font-size: 0.8rem;
+  color: var(--text, #888);
+}
+
+.search-icon-fail {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.search-hint {
+  font-size: 0.9rem;
+  color: var(--text, #888);
+  max-width: 360px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.btn-retry {
+  background: var(--accent, #aa3bff);
+  border-color: var(--accent, #aa3bff);
+  color: #fff;
+}
+
+.btn-retry:hover {
+  opacity: 0.85;
+  background: var(--accent, #aa3bff);
+}
+
+.btn-manual {
+  background: transparent;
+  border: 2px solid var(--border, #555);
+  color: var(--text-h, #ccc);
+}
+
+.btn-manual:hover {
+  background: var(--accent-bg, rgba(170, 59, 255, 0.1));
+}
+
+/* --- Manual entry --- */
+
+.manual-container {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-back {
+  background: transparent;
+  border: none;
+  color: var(--accent, #aa3bff);
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.btn-back:hover {
+  text-decoration: underline;
+  background: transparent;
+}
+
+.manual-form {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.manual-form label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--text, #888);
+}
+
+.input-url {
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 2px solid var(--border, #555);
+  width: 100%;
+  min-width: 320px;
+  max-width: 420px;
+  background: var(--code-bg, #1a1a1a);
+  color: var(--text-h, #fff);
+  font-family: var(--mono, monospace);
+}
+
+.input-url:focus {
+  outline: none;
+  border-color: var(--accent, #aa3bff);
+}
+
+.btn-connect {
+  background: var(--accent, #aa3bff);
+  border-color: var(--accent, #aa3bff);
+  color: #fff;
+}
+
+.btn-connect:hover {
+  opacity: 0.85;
+  background: var(--accent, #aa3bff);
+}
+
+.error-message {
+  color: #f87171;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.manual-help {
+  margin-top: 1.5rem;
+  color: var(--text, #888);
+  font-size: 0.85rem;
+  max-width: 400px;
+}
+
+.manual-help p + p {
+  margin-top: 0.4rem;
 }

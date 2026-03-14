@@ -172,9 +172,98 @@
     .log-panel .log-warn { color: #fbbf24; }
     .log-panel .log-error { color: #f87171; }
     .log-panel .log-send { color: #a78bfa; }
+
+    /* Server search overlay */
+    .search-overlay {
+      position: fixed;
+      inset: 0;
+      background: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      gap: 16px;
+    }
+    .search-overlay.hidden { display: none; }
+    .search-overlay h1 { font-size: 28px; color: #38bdf8; margin-bottom: 8px; }
+    .search-spinner-wt {
+      width: 40px; height: 40px;
+      border: 4px solid #334155;
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin-wt 0.7s linear infinite;
+    }
+    @keyframes spin-wt { to { transform: rotate(360deg); } }
+    .search-overlay .status-text { font-size: 15px; color: #94a3b8; }
+    .search-overlay .progress-text { font-size: 12px; color: #64748b; font-family: monospace; }
+    .search-overlay .fail-icon {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(248,113,113,0.15); color: #f87171;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+    }
+    .search-overlay .actions { display: flex; gap: 12px; margin-top: 8px; }
+    .search-overlay .btn-secondary {
+      background: transparent; border: 1px solid #475569; color: #94a3b8;
+      padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .search-overlay .btn-secondary:hover { border-color: #38bdf8; color: #e2e8f0; }
+    .search-overlay .manual-form { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 8px; }
+    .search-overlay .manual-form input {
+      background: #1e293b; border: 1px solid #475569; color: #e2e8f0;
+      padding: 8px 12px; border-radius: 6px; font-size: 14px; width: 300px;
+      font-family: monospace;
+    }
+    .search-overlay .manual-form input:focus { outline: none; border-color: #38bdf8; }
+    .search-overlay .error-text { color: #f87171; font-size: 13px; }
+    .search-overlay .attempt-text { color: #64748b; font-size: 12px; }
+    .search-overlay .btn-back {
+      background: none; border: none; color: #38bdf8; font-size: 13px; cursor: pointer; padding: 4px 8px;
+    }
+    .search-overlay .btn-back:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
+  <!-- Server search overlay -->
+  <div class="search-overlay" id="search-overlay">
+    <h1>PulseRealm</h1>
+    <div id="search-searching">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div class="search-spinner-wt"></div>
+        <p class="status-text">Searching for server…</p>
+        <p class="progress-text" id="search-progress-text"></p>
+        <p class="attempt-text" id="search-attempt-text"></p>
+      </div>
+    </div>
+    <div id="search-not-found" style="display:none;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div class="fail-icon">✕</div>
+        <p class="status-text">No server found on the network</p>
+        <p class="progress-text">Make sure the PulseRealm server is running and reachable.</p>
+        <div class="actions">
+          <button onclick="startServerSearch()">Retry Search</button>
+          <button class="btn-secondary" onclick="showManualEntry()">Enter Manually</button>
+        </div>
+        <p class="attempt-text" id="search-fail-attempt"></p>
+      </div>
+    </div>
+    <div id="search-manual" style="display:none;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <button class="btn-back" onclick="startServerSearch()">← Back to search</button>
+        <p class="status-text">Enter server address</p>
+        <div class="manual-form">
+          <input type="text" id="manual-server-url" value="http://" placeholder="http://192.168.1.100:5062" />
+          <button onclick="manualConnect()">Connect</button>
+        </div>
+        <p class="error-text" id="manual-error" style="display:none;"></p>
+        <p class="progress-text" style="margin-top:8px;">
+          Use the local IP of the machine running the server<br/>(e.g. http://192.168.1.100:5062)
+        </p>
+      </div>
+    </div>
+  </div>
+
   <header>
     <h1>PulseRealm</h1>
     <span class="badge badge-test">Test Client</span>
@@ -226,6 +315,86 @@
   <div class="log-panel" id="log-panel"></div>
 
   <script>
+    // --- Server Search ---
+    let searchAttemptCount = 0;
+    const SEARCH_PORTS = [5062, 8080, 5000, 80];
+
+    function buildSearchCandidates() {
+      const candidates = [];
+      const hostname = window.location.hostname;
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        candidates.push(window.location.origin);
+      }
+      for (const port of SEARCH_PORTS) {
+        candidates.push('http://localhost:' + port);
+        candidates.push('http://127.0.0.1:' + port);
+      }
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        for (const port of SEARCH_PORTS) {
+          candidates.push('http://' + hostname + ':' + port);
+        }
+      }
+      return [...new Set(candidates)];
+    }
+
+    async function probeServer(url) {
+      try {
+        const res = await fetch(url.replace(/\/+$/, '') + '/api/discovery', { signal: AbortSignal.timeout(3000) });
+        if (!res.ok) return null;
+        const info = await res.json();
+        return info.name === 'PulseRealm' ? { url: url.replace(/\/+$/, ''), info } : null;
+      } catch { return null; }
+    }
+
+    async function startServerSearch() {
+      searchAttemptCount++;
+      document.getElementById('search-overlay').classList.remove('hidden');
+      document.getElementById('search-searching').style.display = '';
+      document.getElementById('search-not-found').style.display = 'none';
+      document.getElementById('search-manual').style.display = 'none';
+      document.getElementById('search-attempt-text').textContent = searchAttemptCount > 1 ? 'Attempt ' + searchAttemptCount : '';
+
+      const candidates = buildSearchCandidates();
+      for (let i = 0; i < candidates.length; i += 4) {
+        const batch = candidates.slice(i, i + 4);
+        document.getElementById('search-progress-text').textContent = 'Scanning ' + batch[0] + ' …';
+        const results = await Promise.all(batch.map(u => probeServer(u)));
+        const found = results.find(r => r !== null);
+        if (found) {
+          document.getElementById('server-url').value = found.url;
+          localStorage.setItem('pulserealm_server_url', found.url);
+          document.getElementById('search-overlay').classList.add('hidden');
+          log('Server found at ' + found.url + ' (v' + found.info.version + ')', 'log-info');
+          return;
+        }
+      }
+      // Not found
+      document.getElementById('search-searching').style.display = 'none';
+      document.getElementById('search-not-found').style.display = '';
+      document.getElementById('search-fail-attempt').textContent = searchAttemptCount > 1 ? 'Searched ' + searchAttemptCount + ' times' : '';
+    }
+
+    function showManualEntry() {
+      document.getElementById('search-searching').style.display = 'none';
+      document.getElementById('search-not-found').style.display = 'none';
+      document.getElementById('search-manual').style.display = '';
+    }
+
+    async function manualConnect() {
+      const url = document.getElementById('manual-server-url').value.replace(/\/+$/, '');
+      document.getElementById('manual-error').style.display = 'none';
+      const result = await probeServer(url);
+      if (result) {
+        document.getElementById('server-url').value = result.url;
+        localStorage.setItem('pulserealm_server_url', result.url);
+        document.getElementById('search-overlay').classList.add('hidden');
+        log('Connected to ' + result.url + ' (v' + result.info.version + ')', 'log-info');
+      } else {
+        document.getElementById('manual-error').textContent = 'Could not reach a PulseRealm server at that address.';
+        document.getElementById('manual-error').style.display = '';
+      }
+    }
+
     // --- State ---
     let connection = null;
     let sessionId = null;
@@ -438,17 +607,31 @@
     }, 200);
 
     // --- Server URL persistence ---
-    const savedServerUrl = localStorage.getItem("pulserealm_server_url");
-    if (savedServerUrl) {
-      document.getElementById("server-url").value = savedServerUrl;
-    }
     document.getElementById("server-url").addEventListener("change", (e) => {
       localStorage.setItem("pulserealm_server_url", e.target.value);
     });
 
     // --- Init ---
     log(`Client ID: ${clientId}`, "log-info");
-    log("Ready. Enter a join code and click Join to connect.", "log-info");
+
+    // Check saved URL first; if it works skip search, otherwise auto-search
+    (async function init() {
+      const savedUrl = localStorage.getItem("pulserealm_server_url");
+      if (savedUrl) {
+        const result = await probeServer(savedUrl);
+        if (result) {
+          document.getElementById("server-url").value = result.url;
+          document.getElementById("search-overlay").classList.add("hidden");
+          log("Reconnected to " + result.url, "log-info");
+          log("Ready. Enter a join code and click Join to connect.", "log-info");
+          return;
+        }
+      }
+      // No saved URL or it's unreachable — start searching
+      startServerSearch().then(() => {
+        log("Ready. Enter a join code and click Join to connect.", "log-info");
+      });
+    })();
   </script>
 </body>
 </html>
