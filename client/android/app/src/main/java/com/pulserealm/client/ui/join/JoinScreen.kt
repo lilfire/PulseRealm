@@ -414,12 +414,13 @@ private fun JoinPage(
         val availableWidth = maxWidth
         // Code display gets ~8% of height, numpad gets the rest
         val codeHeight = availableHeight * 0.08f
-        val padHeight = availableHeight * 0.88f
+        val padHeight = availableHeight * 0.62f
         // Numpad is 4 rows, each button is square — calculate button size from available space
         val padSpacing = 2.dp
         val buttonSize = minOf(
             (padHeight - padSpacing * 3) / 4,  // fit 4 rows
-            (availableWidth - padSpacing * 2) / 3  // fit 3 columns
+            (availableWidth - padSpacing * 2) / 3, // fit 3 columns
+            36.dp                                   // hard cap for small screens
         )
         val fontSize = buttonSize * 0.38f
 
