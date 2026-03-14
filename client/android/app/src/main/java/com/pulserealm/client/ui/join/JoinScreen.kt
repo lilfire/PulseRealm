@@ -64,6 +64,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val discoveredServers by viewModel.discoveredServers.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+    val scanAttempt by viewModel.scanAttempt.collectAsState()
 
     val listState = rememberScalingLazyListState()
 
@@ -86,34 +87,77 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 )
             }
 
-            // Scan button
-            item {
-                Button(
-                    onClick = { viewModel.scanForServers() },
-                    modifier = Modifier.fillMaxWidth(0.8f),
-                    enabled = !isScanning,
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF1E293B)
-                    )
-                ) {
-                    Text(
-                        text = if (isScanning) "Scanning..." else "Find Local Server",
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
             if (isScanning) {
+                // Scanning state
                 item {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         indicatorColor = Color(0xFF38BDF8)
                     )
                 }
+                item {
+                    Text(
+                        text = "Searching for server…",
+                        color = Color(0xFF94A3B8),
+                        style = MaterialTheme.typography.caption3,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                if (scanAttempt > 1) {
+                    item {
+                        Text(
+                            text = "Attempt $scanAttempt",
+                            color = Color(0xFF64748B),
+                            style = MaterialTheme.typography.caption3,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else if (discoveredServers.isEmpty()) {
+                // Not found state — show retry
+                item {
+                    Text(
+                        text = "No server found",
+                        color = Color(0xFFF87171),
+                        style = MaterialTheme.typography.caption3,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                item {
+                    Button(
+                        onClick = { viewModel.scanForServers() },
+                        modifier = Modifier.fillMaxWidth(0.8f),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF38BDF8)
+                        )
+                    ) {
+                        Text(
+                            text = "Retry Search",
+                            color = Color.Black,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            } else {
+                // Discovered servers
+                item {
+                    Button(
+                        onClick = { viewModel.scanForServers() },
+                        modifier = Modifier.fillMaxWidth(0.8f),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF1E293B)
+                        )
+                    ) {
+                        Text(
+                            text = "Scan Again",
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
             }
 
-            // Discovered servers
+            // Show discovered servers list
             for (server in discoveredServers) {
                 item {
                     DiscoveredServerItem(
@@ -123,7 +167,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 }
             }
 
-            // Separator
+            // Separator — manual entry always available
             item {
                 Text(
                     text = "— or enter address —",

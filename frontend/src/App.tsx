@@ -34,6 +34,10 @@ function App() {
         onConnect={server.connect}
         checking={server.checking}
         error={server.error}
+        searchPhase={server.searchPhase}
+        searchProgress={server.searchProgress}
+        searchAttempt={server.searchAttempt}
+        onRetrySearch={server.searchForServer}
       />
     );
   }

@@ -80,7 +80,16 @@ class JoinViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showServerConfig = true, errorMessage = null)
     }
 
+    private var _scanAttempt = MutableStateFlow(0)
+    val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
+
+    init {
+        // Auto-scan for servers on startup
+        scanForServers()
+    }
+
     fun scanForServers() {
+        _scanAttempt.value++
         viewModelScope.launch {
             discoveryClient.scan()
         }
