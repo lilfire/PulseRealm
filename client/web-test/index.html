@@ -373,19 +373,32 @@
       const localIp = await getLocalIp();
 
       if (localIp) {
-        const subnet = localIp.split('.').slice(0, 3).join('.');
-        if (onProgress) onProgress('Found network ' + subnet + '.0/24');
+        const parts = localIp.split('.').map(Number);
+        const subnet = parts[0] + '.' + parts[1] + '.' + parts[2];
+        if (onProgress) onProgress('Found local IP ' + localIp);
 
-        // Priority IPs first
+        // Priority IPs on own /24
         for (const oct of [1, 2, 100, 50, 10, 200, 150, 254]) {
-          const url = 'http://' + subnet + '.' + oct + ':' + SERVER_PORT;
-          if (!candidates.includes(url)) candidates.push(url);
+          if (oct !== parts[3]) {
+            const url = 'http://' + subnet + '.' + oct + ':' + SERVER_PORT;
+            if (!candidates.includes(url)) candidates.push(url);
+          }
         }
 
-        // Full /24 scan
+        // Full /24 scan of own subnet
         for (let i = 1; i <= 254; i++) {
           const url = 'http://' + subnet + '.' + i + ':' + SERVER_PORT;
           if (!candidates.includes(url)) candidates.push(url);
+        }
+
+        // Wider scan: nearby /24 subnets (covers /16 and /8 networks)
+        for (let thirdOctet = 0; thirdOctet <= 255; thirdOctet++) {
+          if (thirdOctet === parts[2]) continue;
+          for (const hostOctet of [1, 2, 100]) {
+            candidates.push(
+              'http://' + parts[0] + '.' + parts[1] + '.' + thirdOctet + '.' + hostOctet + ':' + SERVER_PORT
+            );
+          }
         }
       }
 

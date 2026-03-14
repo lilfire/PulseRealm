@@ -87,24 +87,34 @@ async function buildCandidateUrls(
   const localIp = await getLocalIp();
 
   if (localIp) {
-    const subnet = localIp.split(".").slice(0, 3).join(".");
-    onProgress?.(`Found local network ${subnet}.0/24`);
+    const parts = localIp.split(".").map(Number);
+    const subnet = `${parts[0]}.${parts[1]}.${parts[2]}`;
+    onProgress?.(`Found local IP ${localIp}`);
 
-    // Common server IPs first (gateway, low IPs, the host itself)
+    // Common server IPs on the same /24 first
     const priority = [1, 2, 100, 50, 10, 200, 150, 254];
-    const lastOctet = parseInt(localIp.split(".")[3], 10);
     for (const oct of priority) {
-      if (oct !== lastOctet) {
+      if (oct !== parts[3]) {
         candidates.push(`http://${subnet}.${oct}:${SERVER_PORT}`);
       }
     }
 
-    // Then scan the rest of the /24
+    // Full /24 scan of own subnet
     for (let i = 1; i <= 254; i++) {
-      const ip = `${subnet}.${i}`;
-      const url = `http://${ip}:${SERVER_PORT}`;
+      const url = `http://${subnet}.${i}:${SERVER_PORT}`;
       if (!candidates.includes(url)) {
         candidates.push(url);
+      }
+    }
+
+    // Wider scan: nearby /24 subnets (covers /16 and /8 networks)
+    // Scan .1 (common gateway/server IP) on neighboring third octets
+    for (let thirdOctet = 0; thirdOctet <= 255; thirdOctet++) {
+      if (thirdOctet === parts[2]) continue;
+      for (const hostOctet of [1, 2, 100]) {
+        candidates.push(
+          `http://${parts[0]}.${parts[1]}.${thirdOctet}.${hostOctet}:${SERVER_PORT}`
+        );
       }
     }
   }
