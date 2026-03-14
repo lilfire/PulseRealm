@@ -34,6 +34,7 @@ data class JoinUiState(
     val clientId: String = "wear-" + java.util.UUID.randomUUID().toString().take(8),
     val showServerConfig: Boolean = true,
     val showProfileSettings: Boolean = false,
+    val showManualEntry: Boolean = false,
 )
 
 @HiltViewModel
@@ -159,6 +160,14 @@ class JoinViewModel @Inject constructor(
 
     fun toggleProfileSettings() {
         _uiState.value = _uiState.value.copy(showProfileSettings = !_uiState.value.showProfileSettings)
+    }
+
+    fun toggleManualEntry() {
+        val show = !_uiState.value.showManualEntry
+        _uiState.value = _uiState.value.copy(
+            showManualEntry = show,
+            serverUrl = if (show && _uiState.value.serverUrl.isBlank()) "http://" else _uiState.value.serverUrl
+        )
     }
 
     fun updatePlayerName(name: String) {

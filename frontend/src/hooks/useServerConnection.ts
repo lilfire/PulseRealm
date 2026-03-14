@@ -8,6 +8,7 @@ const SERVER_PORT = 5062;
 export interface ServerInfo {
   name: string;
   version: string;
+  hostname: string;
   hubPath: string;
   apiPath: string;
 }
@@ -252,7 +253,7 @@ export function useServerConnection() {
       });
       if (!res.ok) return null;
       const info: ServerInfo = await res.json();
-      if (info.name !== "PulseRealm") return null;
+      if (!info.name || !info.hubPath) return null;
       return info;
     } catch {
       return null;
@@ -268,7 +269,7 @@ export function useServerConnection() {
       });
       if (!res.ok) throw new Error("Server responded with " + res.status);
       const info: ServerInfo = await res.json();
-      if (info.name !== "PulseRealm") throw new Error("Not a PulseRealm server");
+      if (!info.name || !info.hubPath) throw new Error("Not a PulseRealm server");
       setServerInfo(info);
       setIsConnected(true);
       setChecking(false);

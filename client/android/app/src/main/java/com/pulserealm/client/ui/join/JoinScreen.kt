@@ -1,12 +1,18 @@
 package com.pulserealm.client.ui.join
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,8 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -94,7 +102,6 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
             }
 
             if (isScanning) {
-                // Scanning state
                 item {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
@@ -103,7 +110,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 }
                 item {
                     Text(
-                        text = "Searching for server…",
+                        text = "Searching for server...",
                         color = Color(0xFF94A3B8),
                         style = MaterialTheme.typography.caption3,
                         textAlign = TextAlign.Center
@@ -120,7 +127,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                     }
                 }
             } else if (discoveredServers.isEmpty()) {
-                // Not found state — show retry
+                // No servers found
                 item {
                     Text(
                         text = "No server found",
@@ -142,6 +149,93 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                             color = Color.Black,
                             fontSize = 12.sp
                         )
+                    }
+                }
+                // Manual entry button
+                item {
+                    Button(
+                        onClick = { viewModel.toggleManualEntry() },
+                        modifier = Modifier.fillMaxWidth(0.8f),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF1E293B)
+                        )
+                    ) {
+                        Text(
+                            text = if (uiState.showManualEntry) "Hide Manual Entry" else "Enter Manually",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                // Manual entry with on-screen keyboard
+                if (uiState.showManualEntry) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(0.9f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Server address",
+                                color = Color(0xFF94A3B8),
+                                style = MaterialTheme.typography.caption3,
+                                textAlign = TextAlign.Center
+                            )
+                            BasicTextField(
+                                value = uiState.serverUrl,
+                                onValueChange = { viewModel.updateServerUrl(it) },
+                                textStyle = TextStyle(
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    textAlign = TextAlign.Center
+                                ),
+                                cursorBrush = SolidColor(Color(0xFF38BDF8)),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Uri,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = { viewModel.confirmServer() }
+                                ),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .padding(horizontal = 4.dp),
+                                decorationBox = { innerTextField ->
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (uiState.serverUrl.isEmpty()) {
+                                            Text(
+                                                text = "http://...",
+                                                color = Color(0xFF475569),
+                                                fontSize = 13.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    // Confirm button
+                    item {
+                        Button(
+                            onClick = { viewModel.confirmServer() },
+                            modifier = Modifier.fillMaxWidth(0.7f),
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFF38BDF8)
+                            ),
+                            enabled = uiState.serverUrl.isNotBlank()
+                        ) {
+                            Text(text = "OK", color = Color.Black)
+                        }
                     }
                 }
             } else {
@@ -170,52 +264,6 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         server = server,
                         onClick = { viewModel.selectDiscoveredServer(server) }
                     )
-                }
-            }
-
-            // Separator — manual entry always available
-            item {
-                Text(
-                    text = "— or enter address —",
-                    color = Color(0xFF64748B),
-                    style = MaterialTheme.typography.caption3,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
-
-            // Manual URL input hint
-            item {
-                Text(
-                    text = uiState.serverUrl.ifEmpty { "http://..." },
-                    style = MaterialTheme.typography.body2.copy(
-                        fontFamily = FontFamily.Monospace
-                    ),
-                    color = if (uiState.serverUrl.isEmpty()) Color(0xFF475569) else Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // URL digit-entry: for Wear OS, provide IP input via number pad
-            item {
-                IpAddressPad(
-                    currentUrl = uiState.serverUrl,
-                    onUrlChanged = { viewModel.updateServerUrl(it) }
-                )
-            }
-
-            // Confirm button
-            item {
-                Button(
-                    onClick = { viewModel.confirmServer() },
-                    modifier = Modifier.fillMaxWidth(0.7f),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF38BDF8)
-                    ),
-                    enabled = uiState.serverUrl.isNotBlank()
-                ) {
-                    Text(text = "OK", color = Color.Black)
                 }
             }
 
@@ -248,7 +296,7 @@ private fun DiscoveredServerItem(
         )
     ) {
         Text(
-            text = "${server.hostname}\n${server.address.hostAddress}",
+            text = "${server.name}\n${server.address.hostAddress}",
             color = Color.White,
             fontSize = 11.sp,
             textAlign = TextAlign.Center,
@@ -258,254 +306,150 @@ private fun DiscoveredServerItem(
 }
 
 @Composable
-private fun IpAddressPad(
-    currentUrl: String,
-    onUrlChanged: (String) -> Unit
+private fun JoinCodeScreen(
+    uiState: JoinUiState,
+    connectionState: ConnectionState,
+    viewModel: JoinViewModel
 ) {
-    val keys = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
-        listOf(".", "0", "⌫"),
-    )
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
 
-    // If empty, start with http:// prefix
-    val effectiveUrl = currentUrl.ifEmpty { "http://" }
-
-    androidx.compose.foundation.layout.Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
     ) {
-        for (row in keys) {
-            androidx.compose.foundation.layout.Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                for (key in row) {
-                    val onClick: () -> Unit = when (key) {
-                        "⌫" -> ({
-                            if (effectiveUrl.length > "http://".length) {
-                                onUrlChanged(effectiveUrl.dropLast(1))
-                            }
-                        })
-                        else -> ({ onUrlChanged(effectiveUrl + key) })
-                    }
-                    Button(
-                        onClick = onClick,
-                        modifier = Modifier.size(40.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = when (key) {
-                                "⌫" -> Color(0xFF475569)
-                                "." -> Color(0xFF475569)
-                                else -> Color(0xFF1E293B)
-                            }
-                        )
-                    ) {
-                        Text(
-                            text = key,
-                            fontSize = 13.sp,
-                            color = Color.White,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        }
-        // Port shortcut row
-        androidx.compose.foundation.layout.Row(
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Button(
-                onClick = { onUrlChanged(effectiveUrl + ":") },
-                modifier = Modifier.size(width = 40.dp, height = 32.dp),
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF475569))
-            ) {
-                Text(text = ":", fontSize = 13.sp, color = Color.White)
-            }
-            Button(
-                onClick = { onUrlChanged(effectiveUrl + ":5062") },
-                modifier = Modifier.size(width = 84.dp, height = 32.dp),
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B))
-            ) {
-                Text(text = ":5062", fontSize = 11.sp, color = Color(0xFF38BDF8))
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                0 -> JoinPage(
+                    uiState = uiState,
+                    connectionState = connectionState,
+                    viewModel = viewModel
+                )
+                1 -> SettingsPage(
+                    uiState = uiState,
+                    viewModel = viewModel
+                )
             }
         }
     }
 }
 
 @Composable
-private fun JoinCodeScreen(
+private fun JoinPage(
     uiState: JoinUiState,
     connectionState: ConnectionState,
     viewModel: JoinViewModel
 ) {
     val listState = rememberScalingLazyListState()
 
-    Scaffold(
-        timeText = { TimeText() },
-        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    ScalingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = listState,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Title
-            item {
-                Text(
-                    text = "PulseRealm",
-                    style = MaterialTheme.typography.title2,
-                    color = Color(0xFF38BDF8),
-                    textAlign = TextAlign.Center
+        // Server info (compact)
+        item {
+            Button(
+                onClick = { viewModel.changeServer() },
+                modifier = Modifier
+                    .fillMaxWidth(0.75f)
+                    .height(28.dp),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = Color(0xFF1E293B)
                 )
-            }
-
-            // Server info
-            item {
-                Button(
-                    onClick = { viewModel.changeServer() },
-                    modifier = Modifier.fillMaxWidth(0.8f),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF1E293B)
-                    )
-                ) {
-                    Text(
-                        text = uiState.serverUrl.removePrefix("http://"),
-                        color = Color(0xFF64748B),
-                        fontSize = 10.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Profile settings toggle
-            item {
-                Button(
-                    onClick = { viewModel.toggleProfileSettings() },
-                    modifier = Modifier.fillMaxWidth(0.8f),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF1E293B)
-                    )
-                ) {
-                    Text(
-                        text = if (uiState.playerName.isNotBlank()) uiState.playerName else "Profile Settings",
-                        color = if (uiState.playerName.isNotBlank()) Color(0xFF86EFAC) else Color(0xFF94A3B8),
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Profile settings (expandable)
-            if (uiState.showProfileSettings) {
-                item {
-                    ProfileField(
-                        label = "Name",
-                        value = uiState.playerName,
-                        onValueChange = { viewModel.updatePlayerName(it) },
-                        keyboardType = KeyboardType.Text
-                    )
-                }
-                item {
-                    ProfileField(
-                        label = "Height (cm)",
-                        value = uiState.heightCm,
-                        onValueChange = { viewModel.updateHeightCm(it) },
-                        keyboardType = KeyboardType.Number
-                    )
-                }
-                item {
-                    ProfileField(
-                        label = "Weight (kg)",
-                        value = uiState.weightKg,
-                        onValueChange = { viewModel.updateWeightKg(it) },
-                        keyboardType = KeyboardType.Number
-                    )
-                }
-                item {
-                    Text(
-                        text = "v${com.pulserealm.client.BuildConfig.VERSION_NAME}",
-                        color = Color(0xFF475569),
-                        style = MaterialTheme.typography.caption3,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Join code display
-            item {
+            ) {
                 Text(
-                    text = if (uiState.joinCode.isNotEmpty()) uiState.joinCode else "------",
-                    style = MaterialTheme.typography.display3.copy(
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 4.sp
-                    ),
-                    color = Color.White,
+                    text = uiState.serverUrl.removePrefix("http://"),
+                    color = Color(0xFF64748B),
+                    fontSize = 10.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+        }
 
-            // Number pad (3x3 + bottom row)
-            item {
-                NumberPad(
-                    onDigit = { digit ->
-                        if (uiState.joinCode.length < 6) {
-                            viewModel.updateJoinCode(uiState.joinCode + digit)
-                        }
-                    },
-                    onDelete = {
-                        if (uiState.joinCode.isNotEmpty()) {
-                            viewModel.updateJoinCode(uiState.joinCode.dropLast(1))
-                        }
-                    },
-                    onClear = { viewModel.updateJoinCode("") }
-                )
-            }
+        // Join code display
+        item {
+            Text(
+                text = if (uiState.joinCode.isNotEmpty()) uiState.joinCode else "------",
+                style = MaterialTheme.typography.display3.copy(
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 4.sp
+                ),
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
-            // Join button
-            item {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        indicatorColor = Color(0xFF38BDF8)
-                    )
-                } else {
-                    Button(
-                        onClick = { viewModel.join() },
-                        modifier = Modifier.fillMaxWidth(0.7f),
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF38BDF8)
-                        ),
-                        enabled = uiState.joinCode.length == 6
-                    ) {
-                        Text(
-                            text = "JOIN",
-                            color = Color.Black
-                        )
+        // Number pad
+        item {
+            NumberPad(
+                onDigit = { digit ->
+                    if (uiState.joinCode.length < 6) {
+                        viewModel.updateJoinCode(uiState.joinCode + digit)
                     }
-                }
-            }
+                },
+                onDelete = {
+                    if (uiState.joinCode.isNotEmpty()) {
+                        viewModel.updateJoinCode(uiState.joinCode.dropLast(1))
+                    }
+                },
+                onClear = { viewModel.updateJoinCode("") }
+            )
+        }
 
-            // Error message
-            if (uiState.errorMessage != null) {
-                item {
+        // Join button
+        item {
+            if (uiState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    indicatorColor = Color(0xFF38BDF8)
+                )
+            } else {
+                Button(
+                    onClick = { viewModel.join() },
+                    modifier = Modifier.fillMaxWidth(0.65f),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF38BDF8)
+                    ),
+                    enabled = uiState.joinCode.length == 6
+                ) {
                     Text(
-                        text = uiState.errorMessage!!,
-                        color = Color(0xFFF87171),
-                        style = MaterialTheme.typography.caption3,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        text = "JOIN",
+                        color = Color.Black
                     )
                 }
             }
+        }
 
-            // Connection status
+        // Error message
+        if (uiState.errorMessage != null) {
             item {
+                Text(
+                    text = uiState.errorMessage!!,
+                    color = Color(0xFFF87171),
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
+
+        // Connection status + swipe hint
+        item {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 val statusText = when (connectionState) {
                     ConnectionState.CONNECTED -> "Connected"
-                    ConnectionState.CONNECTING -> "Connecting…"
-                    ConnectionState.RECONNECTING -> "Reconnecting…"
+                    ConnectionState.CONNECTING -> "Connecting..."
+                    ConnectionState.RECONNECTING -> "Reconnecting..."
                     ConnectionState.DISCONNECTED -> "Ready"
                 }
                 val statusColor = when (connectionState) {
@@ -519,7 +463,91 @@ private fun JoinCodeScreen(
                     style = MaterialTheme.typography.caption3,
                     textAlign = TextAlign.Center
                 )
+                Text(
+                    text = "swipe left for settings",
+                    color = Color(0xFF475569),
+                    fontSize = 9.sp,
+                    textAlign = TextAlign.Center
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsPage(
+    uiState: JoinUiState,
+    viewModel: JoinViewModel
+) {
+    val listState = rememberScalingLazyListState()
+
+    ScalingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item {
+            Text(
+                text = "Settings",
+                style = MaterialTheme.typography.title3,
+                color = Color(0xFF38BDF8),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        // Profile fields
+        item {
+            ProfileField(
+                label = "Name",
+                value = uiState.playerName,
+                onValueChange = { viewModel.updatePlayerName(it) },
+                keyboardType = KeyboardType.Text
+            )
+        }
+        item {
+            ProfileField(
+                label = "Height (cm)",
+                value = uiState.heightCm,
+                onValueChange = { viewModel.updateHeightCm(it) },
+                keyboardType = KeyboardType.Number
+            )
+        }
+        item {
+            ProfileField(
+                label = "Weight (kg)",
+                value = uiState.weightKg,
+                onValueChange = { viewModel.updateWeightKg(it) },
+                keyboardType = KeyboardType.Number
+            )
+        }
+
+        // Server change
+        item {
+            Button(
+                onClick = { viewModel.changeServer() },
+                modifier = Modifier.fillMaxWidth(0.85f),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = Color(0xFF1E293B)
+                )
+            ) {
+                Text(
+                    text = "Change Server",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        // Version
+        item {
+            Text(
+                text = "v${com.pulserealm.client.BuildConfig.VERSION_NAME}",
+                color = Color(0xFF475569),
+                style = MaterialTheme.typography.caption3,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -531,7 +559,7 @@ private fun ProfileField(
     onValueChange: (String) -> Unit,
     keyboardType: KeyboardType
 ) {
-    androidx.compose.foundation.layout.Column(
+    Column(
         modifier = Modifier.fillMaxWidth(0.85f),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -557,13 +585,13 @@ private fun ProfileField(
                 .height(32.dp)
                 .padding(horizontal = 8.dp),
             decorationBox = { innerTextField ->
-                androidx.compose.foundation.layout.Box(
+                Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     if (value.isEmpty()) {
                         Text(
-                            text = "—",
+                            text = "---",
                             color = Color(0xFF475569),
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center
@@ -582,35 +610,34 @@ private fun NumberPad(
     onDelete: () -> Unit,
     onClear: () -> Unit
 ) {
-    // Numeric-only input — join codes are 6-digit numeric
     val rows = listOf(
         listOf("1", "2", "3"),
         listOf("4", "5", "6"),
         listOf("7", "8", "9"),
-        listOf("⌫", "0", "✓")
+        listOf("\u232B", "0", "\u2713")
     )
 
-    androidx.compose.foundation.layout.Column(
+    Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         for (row in rows) {
-            androidx.compose.foundation.layout.Row(
+            Row(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 for (key in row) {
                     val onClick: () -> Unit = when (key) {
-                        "⌫" -> onDelete
-                        "✓" -> onClear
+                        "\u232B" -> onDelete
+                        "\u2713" -> onClear
                         else -> ({ onDigit(key) })
                     }
                     Button(
                         onClick = onClick,
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(42.dp),
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = when (key) {
-                                "⌫" -> Color(0xFF475569)
-                                "✓" -> Color(0xFF475569)
+                                "\u232B" -> Color(0xFF475569)
+                                "\u2713" -> Color(0xFF475569)
                                 else -> Color(0xFF1E293B)
                             }
                         )

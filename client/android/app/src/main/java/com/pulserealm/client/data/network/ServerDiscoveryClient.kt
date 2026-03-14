@@ -11,6 +11,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 
 data class DiscoveredServer(
+    val name: String,
     val hostname: String,
     val urls: String,
     val version: String,
@@ -70,6 +71,7 @@ class ServerDiscoveryClient {
 
                     if (obj.optString("service") == "PulseRealm") {
                         val server = DiscoveredServer(
+                            name = obj.optString("name", "PulseRealm"),
                             hostname = obj.optString("hostname", "Unknown"),
                             urls = obj.optString("urls", ""),
                             version = obj.optString("version", ""),
