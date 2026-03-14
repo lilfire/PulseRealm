@@ -18,7 +18,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData }: Props) 
       {latestData && (
         <p>
           Latest: {clientProfiles[latestData.clientId]?.name || latestData.clientId} — {latestData.steps} steps,{" "}
-          {latestData.heartRate} bpm
+          {latestData.heartRate} bpm, {latestData.speedKmh} km/h
         </p>
       )}
       <p>

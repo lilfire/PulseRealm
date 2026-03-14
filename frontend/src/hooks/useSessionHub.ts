@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   HubConnection,
   HubConnectionBuilder,
@@ -11,6 +11,7 @@ const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 export function useSessionHub(sessionId: string | null, hubUrl?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
   const [connected, setConnected] = useState(false);
+  const [started, setStarted] = useState(false);
   const [clients, setClients] = useState<string[]>([]);
   const [clientProfiles, setClientProfiles] = useState<Record<string, ClientProfile>>({});
   const [latestData, setLatestData] = useState<WearableData | null>(null);
@@ -35,6 +36,10 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
       setLatestData(data);
     });
 
+    connection.on("SessionStarted", () => {
+      setStarted(true);
+    });
+
     connection
       .start()
       .then(() => {
@@ -50,5 +55,9 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
     };
   }, [sessionId, resolvedUrl]);
 
-  return { connected, clients, clientProfiles, latestData };
+  const startSession = useCallback(() => {
+    connectionRef.current?.invoke("StartSession", sessionId);
+  }, [sessionId]);
+
+  return { connected, started, clients, clientProfiles, latestData, startSession };
 }

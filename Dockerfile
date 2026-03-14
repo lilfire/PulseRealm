@@ -12,6 +12,7 @@ RUN npm install
 
 # Copy frontend source and build
 COPY frontend/ ./
+COPY .env /app/.env
 # When served from the same origin, use relative URLs
 ENV VITE_API_URL=""
 ENV VITE_HUB_URL="/hubs/session"

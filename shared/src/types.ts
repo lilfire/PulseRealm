@@ -24,6 +24,8 @@ export interface WearableData {
   heartRate: number;
   steps: number;
   timestamp: string;
+  /** Estimated speed in km/h, calculated server-side from steps and client height. */
+  speedKmh: number;
 }
 
 /** Request body for creating a new session. */
