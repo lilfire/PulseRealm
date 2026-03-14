@@ -128,7 +128,7 @@ select {
   background: var(--accent-bg, rgba(170, 59, 255, 0.1));
 }
 
-/* --- Manual entry --- */
+/* --- Manual entry (fallback only) --- */
 
 .manual-container {
   margin-top: 1.5rem;

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 const STORAGE_KEY = "pulserealm_server_url";
+const PROBE_TIMEOUT = 1500;
+const BATCH_SIZE = 20;
+const SERVER_PORT = 5062;
 
 export interface ServerInfo {
   name: string;
@@ -11,32 +14,120 @@ export interface ServerInfo {
 
 export type SearchPhase = "idle" | "searching" | "found" | "not_found";
 
-// Common addresses to probe when searching for a server on the local network
-const COMMON_PORTS = [5062, 8080, 5000, 80];
+/**
+ * Attempt to discover the browser's local IP address using WebRTC.
+ * Returns the IP or null if unavailable.
+ */
+async function getLocalIp(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(null), 3000);
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        const match = event.candidate.candidate.match(
+          /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/
+        );
+        if (match) {
+          const ip = match[1];
+          // Skip link-local and loopback
+          if (!ip.startsWith("127.") && !ip.startsWith("0.")) {
+            clearTimeout(timeout);
+            pc.close();
+            resolve(ip);
+          }
+        }
+      };
+      // If gathering completes without finding a private IP
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete") {
+          clearTimeout(timeout);
+          pc.close();
+          resolve(null);
+        }
+      };
+    } catch {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
+}
 
-function buildCandidateUrls(): string[] {
+/**
+ * Build the list of candidate URLs to probe.
+ * 1. Cached URL from previous successful connection
+ * 2. Same-origin (if served from a non-localhost host)
+ * 3. Full /24 subnet scan based on detected local IP
+ * 4. Localhost fallback
+ */
+async function buildCandidateUrls(
+  onProgress?: (msg: string) => void
+): Promise<string[]> {
   const candidates: string[] = [];
+
+  // Cached URL first — most likely to succeed
+  const cached = localStorage.getItem(STORAGE_KEY);
+  if (cached) {
+    candidates.push(cached);
+  }
+
   const hostname = window.location.hostname;
 
   // If we're served from a non-localhost origin, try same-origin first
   if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
     candidates.push(window.location.origin);
+    // Also try the known server port on the same host
+    candidates.push(`http://${hostname}:${SERVER_PORT}`);
   }
 
-  // Always try localhost with common ports
-  for (const port of COMMON_PORTS) {
-    candidates.push(`http://localhost:${port}`);
-    candidates.push(`http://127.0.0.1:${port}`);
-  }
+  // Try to detect local IP and scan the subnet
+  onProgress?.("Detecting local network…");
+  const localIp = await getLocalIp();
 
-  // Try the current hostname with common ports (useful on LAN)
-  if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
-    for (const port of COMMON_PORTS) {
-      candidates.push(`http://${hostname}:${port}`);
+  if (localIp) {
+    const parts = localIp.split(".").map(Number);
+    const subnet = `${parts[0]}.${parts[1]}.${parts[2]}`;
+    onProgress?.(`Found local IP ${localIp}`);
+
+    // Common server IPs on the same /24 first
+    const priority = [1, 2, 100, 50, 10, 200, 150, 254];
+    for (const oct of priority) {
+      if (oct !== parts[3]) {
+        candidates.push(`http://${subnet}.${oct}:${SERVER_PORT}`);
+      }
+    }
+
+    // Full /24 scan of own subnet
+    for (let i = 1; i <= 254; i++) {
+      const url = `http://${subnet}.${i}:${SERVER_PORT}`;
+      if (!candidates.includes(url)) {
+        candidates.push(url);
+      }
+    }
+
+    // Wider scan: nearby /24 subnets (covers /16 and /8 networks)
+    // Scan .1 (common gateway/server IP) on neighboring third octets
+    for (let thirdOctet = 0; thirdOctet <= 255; thirdOctet++) {
+      if (thirdOctet === parts[2]) continue;
+      for (const hostOctet of [1, 2, 100]) {
+        candidates.push(
+          `http://${parts[0]}.${parts[1]}.${thirdOctet}.${hostOctet}:${SERVER_PORT}`
+        );
+      }
     }
   }
 
-  // Deduplicate
+  // Localhost fallback
+  candidates.push(`http://localhost:${SERVER_PORT}`);
+  candidates.push(`http://127.0.0.1:${SERVER_PORT}`);
+
+  // Also try common alternative ports on localhost
+  for (const port of [8080, 5000, 80]) {
+    candidates.push(`http://localhost:${port}`);
+  }
+
   return [...new Set(candidates)];
 }
 
@@ -55,19 +146,24 @@ export function useServerConnection() {
   const [searchProgress, setSearchProgress] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
-  // On mount, if we have a saved URL verify it, otherwise auto-search
+  // On mount, try cached URL first — if it fails, fall through to search
   useEffect(() => {
     if (serverUrl) {
-      verifyServer(serverUrl);
+      verifyServer(serverUrl).then((ok) => {
+        if (!ok) searchForServer();
+      });
     } else {
       searchForServer();
     }
   }, []);
 
-  async function probeUrl(url: string, signal?: AbortSignal): Promise<ServerInfo | null> {
+  async function probeUrl(
+    url: string,
+    signal?: AbortSignal
+  ): Promise<ServerInfo | null> {
     try {
       const res = await fetch(`${url.replace(/\/+$/, "")}/api/discovery`, {
-        signal: signal || AbortSignal.timeout(3000),
+        signal: signal || AbortSignal.timeout(PROBE_TIMEOUT),
       });
       if (!res.ok) return null;
       const info: ServerInfo = await res.json();
@@ -111,16 +207,27 @@ export function useServerConnection() {
     setError(null);
     setSearchAttempt((prev) => prev + 1);
 
-    const candidates = buildCandidateUrls();
+    const candidates = await buildCandidateUrls((msg) => setSearchProgress(msg));
 
-    // Probe all candidates in parallel batches
-    for (let i = 0; i < candidates.length; i += 4) {
+    if (controller.signal.aborted) return;
+
+    const total = candidates.length;
+
+    // Probe in parallel batches
+    for (let i = 0; i < total; i += BATCH_SIZE) {
       if (controller.signal.aborted) return;
-      const batch = candidates.slice(i, i + 4);
-      setSearchProgress(`Scanning ${batch[0]} ...`);
+      const batch = candidates.slice(i, i + BATCH_SIZE);
+      const scanned = Math.min(i + BATCH_SIZE, total);
+      setSearchProgress(
+        `Scanning network… ${scanned}/${total} addresses`
+      );
 
       const results = await Promise.all(
-        batch.map((url) => probeUrl(url, controller.signal).then((info) => (info ? { url, info } : null)))
+        batch.map((url) =>
+          probeUrl(url, controller.signal).then((info) =>
+            info ? { url, info } : null
+          )
+        )
       );
 
       const found = results.find((r) => r !== null);

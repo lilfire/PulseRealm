@@ -1,5 +1,6 @@
 package com.pulserealm.client.ui.join
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulserealm.client.data.network.ConnectionState
@@ -16,6 +17,8 @@ import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import com.pulserealm.client.data.network.SessionApi
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 
 data class JoinUiState(
@@ -31,8 +34,13 @@ data class JoinUiState(
 
 @HiltViewModel
 class JoinViewModel @Inject constructor(
-    private val signalRClient: SignalRClient
+    private val signalRClient: SignalRClient,
+    private val prefs: SharedPreferences
 ) : ViewModel() {
+
+    companion object {
+        private const val PREF_SERVER_URL = "cached_server_url"
+    }
 
     private val _uiState = MutableStateFlow(JoinUiState())
     val uiState: StateFlow<JoinUiState> = _uiState.asStateFlow()
@@ -42,6 +50,56 @@ class JoinViewModel @Inject constructor(
     private val discoveryClient = ServerDiscoveryClient()
     val discoveredServers: StateFlow<List<DiscoveredServer>> = discoveryClient.discoveredServers
     val isScanning: StateFlow<Boolean> = discoveryClient.isScanning
+
+    private var _scanAttempt = MutableStateFlow(0)
+    val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
+
+    init {
+        // Try cached server URL first, then fall back to UDP scan
+        val cachedUrl = prefs.getString(PREF_SERVER_URL, null)
+        if (cachedUrl != null) {
+            _uiState.value = _uiState.value.copy(serverUrl = cachedUrl)
+            verifyCachedServer(cachedUrl)
+        } else {
+            scanForServers()
+        }
+    }
+
+    /**
+     * Quickly probe the cached server URL via /api/discovery.
+     * If reachable, skip straight to the join code screen.
+     * If not, fall back to UDP broadcast scan.
+     */
+    private fun verifyCachedServer(url: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val conn = URL("${url.trimEnd('/')}/api/discovery").openConnection() as HttpURLConnection
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.requestMethod = "GET"
+
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    if (body.contains("PulseRealm")) {
+                        // Cached server is still reachable — skip to join code
+                        _uiState.value = _uiState.value.copy(
+                            serverUrl = url,
+                            showServerConfig = false,
+                            errorMessage = null
+                        )
+                        return@launch
+                    }
+                }
+                conn.disconnect()
+            } catch (_: Exception) {
+                // Probe failed
+            }
+
+            // Cached URL unreachable — fall back to scan
+            scanForServers()
+        }
+    }
 
     fun updateServerUrl(url: String) {
         _uiState.value = _uiState.value.copy(serverUrl = url)
@@ -60,6 +118,7 @@ class JoinViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(errorMessage = "Enter a server address")
             return
         }
+        saveServerUrl(url)
         _uiState.value = _uiState.value.copy(
             serverUrl = url,
             showServerConfig = false,
@@ -69,6 +128,7 @@ class JoinViewModel @Inject constructor(
 
     fun selectDiscoveredServer(server: DiscoveredServer) {
         val url = discoveryClient.buildServerUrl(server)
+        saveServerUrl(url)
         _uiState.value = _uiState.value.copy(
             serverUrl = url,
             showServerConfig = false,
@@ -80,19 +140,15 @@ class JoinViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showServerConfig = true, errorMessage = null)
     }
 
-    private var _scanAttempt = MutableStateFlow(0)
-    val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
-
-    init {
-        // Auto-scan for servers on startup
-        scanForServers()
-    }
-
     fun scanForServers() {
         _scanAttempt.value++
         viewModelScope.launch {
             discoveryClient.scan()
         }
+    }
+
+    private fun saveServerUrl(url: String) {
+        prefs.edit().putString(PREF_SERVER_URL, url).apply()
     }
 
     fun join() {
@@ -138,6 +194,9 @@ class JoinViewModel @Inject constructor(
 
                 val api = retrofit.create(SessionApi::class.java)
                 val sessionInfo = api.getSession(state.joinCode)
+
+                // Cache the server URL on successful join
+                saveServerUrl(state.serverUrl)
 
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
