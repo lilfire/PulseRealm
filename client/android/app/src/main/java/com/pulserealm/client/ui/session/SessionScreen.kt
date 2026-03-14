@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -32,6 +34,7 @@ import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import com.pulserealm.client.data.network.ConnectionState
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SessionScreen(
     onDisconnected: () -> Unit,
@@ -51,110 +54,162 @@ fun SessionScreen(
         }
     }
 
-    val listState = rememberScalingLazyListState()
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
 
     Scaffold(
         timeText = { TimeText() },
         vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
     ) {
-        ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = listState,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Connection indicator
-            item {
-                val statusColor = when (connectionState) {
-                    ConnectionState.CONNECTED -> Color(0xFF86EFAC)
-                    ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> Color(0xFFFBBF24)
-                    ConnectionState.DISCONNECTED -> Color(0xFFF87171)
-                }
-                val statusText = when (connectionState) {
-                    ConnectionState.CONNECTED -> "LIVE"
-                    ConnectionState.CONNECTING -> "CONNECTING"
-                    ConnectionState.RECONNECTING -> "RECONNECTING"
-                    ConnectionState.DISCONNECTED -> "DISCONNECTED"
-                }
-                Text(
-                    text = statusText,
-                    color = statusColor,
-                    style = MaterialTheme.typography.caption3,
-                    fontWeight = FontWeight.Bold
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                0 -> LivePage(
+                    heartRate = heartRate,
+                    steps = steps,
+                    sendCount = sendCount,
+                    connectionState = connectionState,
+                    sensorsAvailable = sensorsAvailable
                 )
-            }
-
-            // Heart Rate — large center display
-            item {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "$heartRate",
-                        color = Color(0xFFF87171),
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "BPM",
-                        color = Color(0xFFF87171).copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.caption3
-                    )
-                }
-            }
-
-            // Steps and send count
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    StatItem(
-                        value = "$steps",
-                        label = "STEPS",
-                        color = Color(0xFF34D399)
-                    )
-                    StatItem(
-                        value = "$sendCount",
-                        label = "SENT",
-                        color = Color(0xFFA78BFA)
-                    )
-                }
-            }
-
-            // Sensor status
-            if (!sensorsAvailable) {
-                item {
-                    Text(
-                        text = "Simulated sensors",
-                        color = Color(0xFFFBBF24),
-                        style = MaterialTheme.typography.caption3,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Disconnect button
-            item {
-                Button(
-                    onClick = {
+                1 -> SessionSettingsPage(
+                    onLeave = {
                         viewModel.disconnect()
                         onDisconnected()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .padding(top = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFFEF4444)
-                    )
-                ) {
-                    Text(
-                        text = "LEAVE",
-                        color = Color.White
-                    )
-                }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LivePage(
+    heartRate: Int,
+    steps: Int,
+    sendCount: Int,
+    connectionState: ConnectionState,
+    sensorsAvailable: Boolean
+) {
+    val listState = rememberScalingLazyListState()
+
+    ScalingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // Connection indicator
+        item {
+            val statusColor = when (connectionState) {
+                ConnectionState.CONNECTED -> Color(0xFF86EFAC)
+                ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> Color(0xFFFBBF24)
+                ConnectionState.DISCONNECTED -> Color(0xFFF87171)
+            }
+            val statusText = when (connectionState) {
+                ConnectionState.CONNECTED -> "LIVE"
+                ConnectionState.CONNECTING -> "CONNECTING"
+                ConnectionState.RECONNECTING -> "RECONNECTING"
+                ConnectionState.DISCONNECTED -> "DISCONNECTED"
+            }
+            Text(
+                text = statusText,
+                color = statusColor,
+                style = MaterialTheme.typography.caption3,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Heart Rate — large center display
+        item {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "$heartRate",
+                    color = Color(0xFFF87171),
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "BPM",
+                    color = Color(0xFFF87171).copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.caption3
+                )
+            }
+        }
+
+        // Steps and send count
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatItem(
+                    value = "$steps",
+                    label = "STEPS",
+                    color = Color(0xFF34D399)
+                )
+                StatItem(
+                    value = "$sendCount",
+                    label = "SENT",
+                    color = Color(0xFFA78BFA)
+                )
+            }
+        }
+
+        // Sensor status
+        if (!sensorsAvailable) {
+            item {
+                Text(
+                    text = "Simulated sensors",
+                    color = Color(0xFFFBBF24),
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionSettingsPage(
+    onLeave: () -> Unit
+) {
+    val listState = rememberScalingLazyListState()
+
+    ScalingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item {
+            Text(
+                text = "Settings",
+                style = MaterialTheme.typography.title3,
+                color = Color(0xFF38BDF8),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        // Leave button at the top of settings
+        item {
+            Button(
+                onClick = onLeave,
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .padding(vertical = 4.dp),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = Color(0xFFEF4444)
+                )
+            ) {
+                Text(
+                    text = "LEAVE",
+                    color = Color.White
+                )
             }
         }
     }

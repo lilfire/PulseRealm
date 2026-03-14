@@ -366,7 +366,7 @@ private fun JoinPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = availableHeight * 0.05f, bottom = availableHeight * 0.02f),
+                .padding(top = availableHeight * 0.12f, bottom = availableHeight * 0.02f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -374,6 +374,7 @@ private fun JoinPage(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .height(codeHeight),
                 contentAlignment = Alignment.Center
             ) {
