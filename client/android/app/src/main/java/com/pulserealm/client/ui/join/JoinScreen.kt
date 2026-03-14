@@ -95,10 +95,26 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
 
     val listState = rememberScalingLazyListState()
 
+    // Toast-style error message
+    var showError by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf("") }
+
+    LaunchedEffect(uiState.errorMessage) {
+        if (uiState.errorMessage != null) {
+            errorText = uiState.errorMessage!!
+            showError = true
+            delay(3000)
+            showError = false
+        } else {
+            showError = false
+        }
+    }
+
     Scaffold(
         timeText = { TimeText() },
         vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
     ) {
+        Box(modifier = Modifier.fillMaxSize()) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,
@@ -280,18 +296,37 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 }
             }
 
-            // Error
-            if (uiState.errorMessage != null) {
-                item {
-                    Text(
-                        text = uiState.errorMessage!!,
-                        color = Color(0xFFF87171),
-                        style = MaterialTheme.typography.caption3,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+        }
+
+        // Toast overlay
+        AnimatedVisibility(
+            visible = showError,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .background(
+                        color = Color(0xDD7F1D1D),
+                        shape = RoundedCornerShape(16.dp)
                     )
-                }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = errorText,
+                    color = Color(0xFFFECACA),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
+        }
         }
     }
 }
