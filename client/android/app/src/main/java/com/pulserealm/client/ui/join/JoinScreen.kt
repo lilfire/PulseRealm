@@ -305,6 +305,7 @@ private fun DiscoveredServerItem(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun JoinCodeScreen(
     uiState: JoinUiState,
