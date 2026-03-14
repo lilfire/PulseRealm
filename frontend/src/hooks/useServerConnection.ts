@@ -106,15 +106,28 @@ async function buildCandidateUrls(
         candidates.push(url);
       }
     }
-
-    // Wider scan: nearby /24 subnets (covers /16 and /8 networks)
-    // Scan .1 (common gateway/server IP) on neighboring third octets
-    for (let thirdOctet = 0; thirdOctet <= 255; thirdOctet++) {
-      if (thirdOctet === parts[2]) continue;
-      for (const hostOctet of [1, 2, 100]) {
-        candidates.push(
-          `http://${parts[0]}.${parts[1]}.${thirdOctet}.${hostOctet}:${SERVER_PORT}`
-        );
+  } else {
+    // WebRTC IP detection failed (common in modern browsers due to privacy).
+    // Scan the most common private network subnets as a fallback.
+    onProgress?.("Scanning common LAN subnets…");
+    const commonSubnets = [
+      "192.168.1",
+      "192.168.0",
+      "192.168.2",
+      "192.168.10",
+      "192.168.50",
+      "192.168.100",
+      "10.0.0",
+      "10.0.1",
+      "10.1.0",
+      "10.1.1",
+      "172.16.0",
+      "172.16.1",
+    ];
+    const priorityHosts = [1, 2, 100, 50, 10, 200, 150, 254];
+    for (const subnet of commonSubnets) {
+      for (const oct of priorityHosts) {
+        candidates.push(`http://${subnet}.${oct}:${SERVER_PORT}`);
       }
     }
   }
