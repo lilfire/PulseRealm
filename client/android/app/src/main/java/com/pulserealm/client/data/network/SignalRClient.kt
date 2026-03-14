@@ -71,12 +71,18 @@ class SignalRClient {
         }
     }
 
-    fun joinSession(joinCode: String, clientId: String) {
+    fun joinSession(joinCode: String, clientId: String, name: String = "", heightCm: Double = 0.0, weightKg: Double = 0.0) {
         currentJoinCode = joinCode
         currentClientId = clientId
 
         try {
-            hubConnection?.invoke("JoinSession", joinCode, clientId)?.blockingAwait()
+            val profile = HashMap<String, Any>().apply {
+                put("clientId", clientId)
+                put("name", name)
+                put("heightCm", heightCm)
+                put("weightKg", weightKg)
+            }
+            hubConnection?.invoke("JoinSession", joinCode, clientId, profile)?.blockingAwait()
         } catch (e: Exception) {
             _error.value = "Join failed: ${e.message}"
         }

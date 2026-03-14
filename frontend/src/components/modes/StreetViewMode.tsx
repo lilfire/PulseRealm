@@ -1,11 +1,12 @@
-import type { WearableData } from "../../types/session";
+import type { ClientProfile, WearableData } from "../../types/session";
 
 interface Props {
   clients: string[];
+  clientProfiles: Record<string, ClientProfile>;
   latestData: WearableData | null;
 }
 
-export function StreetViewMode({ clients, latestData }: Props) {
+export function StreetViewMode({ clients, clientProfiles, latestData }: Props) {
   // TODO: Implement Google Street View rendering
   // - Integrate Google Maps Street View API
   // - Calculate distance from step data and pace
@@ -17,7 +18,7 @@ export function StreetViewMode({ clients, latestData }: Props) {
       <p>Connected runners: {clients.length}</p>
       {latestData && (
         <p>
-          Latest: {latestData.clientId} — {latestData.steps} steps,{" "}
+          Latest: {clientProfiles[latestData.clientId]?.name || latestData.clientId} — {latestData.steps} steps,{" "}
           {latestData.heartRate} bpm
         </p>
       )}

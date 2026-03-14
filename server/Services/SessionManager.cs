@@ -34,12 +34,36 @@ public class SessionManager
         return session;
     }
 
-    public void AddClient(string sessionId, string clientId)
+    public void AddClient(string sessionId, string clientId, ClientProfile? profile = null)
     {
         if (_sessions.TryGetValue(sessionId, out var session))
         {
             session.ConnectedClientIds.Add(clientId);
+            if (profile != null)
+            {
+                profile.ClientId = clientId;
+                session.ClientProfiles[clientId] = profile;
+            }
         }
+    }
+
+    public ClientProfile? GetClientProfile(string sessionId, string clientId)
+    {
+        if (_sessions.TryGetValue(sessionId, out var session))
+        {
+            session.ClientProfiles.TryGetValue(clientId, out var profile);
+            return profile;
+        }
+        return null;
+    }
+
+    public Dictionary<string, ClientProfile> GetClientProfiles(string sessionId)
+    {
+        if (_sessions.TryGetValue(sessionId, out var session))
+        {
+            return new Dictionary<string, ClientProfile>(session.ClientProfiles);
+        }
+        return new();
     }
 
     private string GenerateJoinCode()

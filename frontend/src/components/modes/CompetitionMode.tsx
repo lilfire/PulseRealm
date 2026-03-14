@@ -1,11 +1,12 @@
-import type { WearableData } from "../../types/session";
+import type { ClientProfile, WearableData } from "../../types/session";
 
 interface Props {
   clients: string[];
+  clientProfiles: Record<string, ClientProfile>;
   latestData: WearableData | null;
 }
 
-export function CompetitionMode({ clients, latestData }: Props) {
+export function CompetitionMode({ clients, clientProfiles, latestData }: Props) {
   // TODO: Implement live leaderboard rendering
   // - Track cumulative steps per client
   // - Sort and display ranked leaderboard
@@ -16,7 +17,7 @@ export function CompetitionMode({ clients, latestData }: Props) {
       <p>Connected runners: {clients.length}</p>
       {latestData && (
         <p>
-          Latest: {latestData.clientId} — {latestData.steps} steps,{" "}
+          Latest: {clientProfiles[latestData.clientId]?.name || latestData.clientId} — {latestData.steps} steps,{" "}
           {latestData.heartRate} bpm
         </p>
       )}

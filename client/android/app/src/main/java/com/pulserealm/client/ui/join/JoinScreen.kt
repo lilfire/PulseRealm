@@ -3,15 +3,21 @@ package com.pulserealm.client.ui.join
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -372,6 +378,60 @@ private fun JoinCodeScreen(
                 }
             }
 
+            // Profile settings toggle
+            item {
+                Button(
+                    onClick = { viewModel.toggleProfileSettings() },
+                    modifier = Modifier.fillMaxWidth(0.8f),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF1E293B)
+                    )
+                ) {
+                    Text(
+                        text = if (uiState.playerName.isNotBlank()) uiState.playerName else "Profile Settings",
+                        color = if (uiState.playerName.isNotBlank()) Color(0xFF86EFAC) else Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            // Profile settings (expandable)
+            if (uiState.showProfileSettings) {
+                item {
+                    ProfileField(
+                        label = "Name",
+                        value = uiState.playerName,
+                        onValueChange = { viewModel.updatePlayerName(it) },
+                        keyboardType = KeyboardType.Text
+                    )
+                }
+                item {
+                    ProfileField(
+                        label = "Height (cm)",
+                        value = uiState.heightCm,
+                        onValueChange = { viewModel.updateHeightCm(it) },
+                        keyboardType = KeyboardType.Number
+                    )
+                }
+                item {
+                    ProfileField(
+                        label = "Weight (kg)",
+                        value = uiState.weightKg,
+                        onValueChange = { viewModel.updateWeightKg(it) },
+                        keyboardType = KeyboardType.Number
+                    )
+                }
+                item {
+                    Text(
+                        text = "v${com.pulserealm.client.BuildConfig.VERSION_NAME}",
+                        color = Color(0xFF475569),
+                        style = MaterialTheme.typography.caption3,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
             // Join code display
             item {
                 Text(
@@ -461,6 +521,58 @@ private fun JoinCodeScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    keyboardType: KeyboardType
+) {
+    androidx.compose.foundation.layout.Column(
+        modifier = Modifier.fillMaxWidth(0.85f),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFF94A3B8),
+            style = MaterialTheme.typography.caption3,
+            textAlign = TextAlign.Center
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = TextStyle(
+                color = Color.White,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
+            ),
+            cursorBrush = SolidColor(Color(0xFF38BDF8)),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(32.dp)
+                .padding(horizontal = 8.dp),
+            decorationBox = { innerTextField ->
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = "—",
+                            color = Color(0xFF475569),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
     }
 }
 

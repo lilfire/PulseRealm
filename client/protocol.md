@@ -8,7 +8,13 @@ All wearable clients communicate with the server using the same JSON protocol ov
 ```json
 {
   "joinCode": "ABC123",
-  "clientId": "android-user-1"
+  "clientId": "android-user-1",
+  "profile": {
+    "clientId": "android-user-1",
+    "name": "Alice",
+    "heightCm": 170,
+    "weightKg": 65
+  }
 }
 ```
 
@@ -29,7 +35,12 @@ All wearable clients communicate with the server using the same JSON protocol ov
 
 ### ClientJoined
 ```json
-{ "clientId": "android-user-1" }
+{
+  "clientId": "android-user-1",
+  "name": "Alice",
+  "heightCm": 170,
+  "weightKg": 65
+}
 ```
 
 ### WearableDataReceived

@@ -24,6 +24,8 @@ class SensorDataCollector(
     val sensorsAvailable: StateFlow<Boolean> = _sensorsAvailable.asStateFlow()
 
     private var stepBaseline: Float? = null
+    private var detectorSteps = 0
+    private var useDetectorForSteps = false
     private var isRunning = false
     private var simulationTimer: Timer? = null
 
@@ -33,15 +35,21 @@ class SensorDataCollector(
 
         val heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
         val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        val stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
 
-        if (heartRateSensor != null || stepSensor != null) {
+        if (heartRateSensor != null || stepSensor != null || stepDetector != null) {
             _sensorsAvailable.value = true
 
             heartRateSensor?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, 0)
             }
             stepSensor?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, 0)
+            }
+            // Step detector fires per-step for real-time updates
+            stepDetector?.let {
+                useDetectorForSteps = stepSensor == null
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, 0)
             }
         } else {
             // No sensors available (emulator) — use simulated data
@@ -57,6 +65,8 @@ class SensorDataCollector(
         simulationTimer?.cancel()
         simulationTimer = null
         stepBaseline = null
+        detectorSteps = 0
+        useDetectorForSteps = false
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -72,7 +82,16 @@ class SensorDataCollector(
                 if (stepBaseline == null) {
                     stepBaseline = totalSteps
                 }
-                _steps.value = (totalSteps - (stepBaseline ?: totalSteps)).toInt()
+                if (!useDetectorForSteps) {
+                    _steps.value = (totalSteps - (stepBaseline ?: totalSteps)).toInt()
+                }
+            }
+            Sensor.TYPE_STEP_DETECTOR -> {
+                // Fires once per step — use for live count when step counter batches
+                detectorSteps++
+                if (useDetectorForSteps) {
+                    _steps.value = detectorSteps
+                }
             }
         }
     }

@@ -22,6 +22,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _serverUrl = "";
     [ObservableProperty] private string _joinCode = "";
+    [ObservableProperty] private string _playerName = "";
+    [ObservableProperty] private double _heightCm;
+    [ObservableProperty] private double _weightKg;
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private int _heartRate;
     [ObservableProperty] private int _steps;
@@ -141,7 +144,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         AddLog($"Connecting to {ServerUrl}/hubs/session …", "info");
-        var ok = await _signalR.ConnectAsync(ServerUrl, JoinCode.Trim().ToUpperInvariant(), ClientId);
+        var ok = await _signalR.ConnectAsync(ServerUrl, JoinCode.Trim().ToUpperInvariant(), ClientId,
+            PlayerName, HeightCm, WeightKg);
 
         if (ok)
         {
