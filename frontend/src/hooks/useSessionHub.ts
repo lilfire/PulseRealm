@@ -6,19 +6,21 @@ import {
 } from "@microsoft/signalr";
 import type { WearableData } from "../types/session";
 
-const HUB_URL = import.meta.env.VITE_HUB_URL ?? "http://localhost:5062/hubs/session";
+const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 
-export function useSessionHub(sessionId: string | null) {
+export function useSessionHub(sessionId: string | null, hubUrl?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
   const [connected, setConnected] = useState(false);
   const [clients, setClients] = useState<string[]>([]);
   const [latestData, setLatestData] = useState<WearableData | null>(null);
 
+  const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
+
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !resolvedUrl) return;
 
     const connection = new HubConnectionBuilder()
-      .withUrl(HUB_URL)
+      .withUrl(resolvedUrl)
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
       .build();
@@ -44,7 +46,7 @@ export function useSessionHub(sessionId: string | null) {
     return () => {
       connection.stop();
     };
-  }, [sessionId]);
+  }, [sessionId, resolvedUrl]);
 
   return { connected, clients, latestData };
 }

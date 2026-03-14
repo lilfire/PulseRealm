@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<SessionManager>();
+builder.Services.AddHostedService<ServerDiscoveryService>();
 
 builder.Services.AddCors(options =>
 {

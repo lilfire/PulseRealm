@@ -28,6 +28,7 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import com.pulserealm.client.data.network.ConnectionState
+import com.pulserealm.client.data.network.DiscoveredServer
 
 @Composable
 fun JoinScreen(
@@ -47,6 +48,246 @@ fun JoinScreen(
         return
     }
 
+    if (uiState.showServerConfig) {
+        ServerConfigScreen(viewModel = viewModel)
+    } else {
+        JoinCodeScreen(
+            uiState = uiState,
+            connectionState = connectionState,
+            viewModel = viewModel
+        )
+    }
+}
+
+@Composable
+private fun ServerConfigScreen(viewModel: JoinViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    val discoveredServers by viewModel.discoveredServers.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
+
+    val listState = rememberScalingLazyListState()
+
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    ) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            item {
+                Text(
+                    text = "Server",
+                    style = MaterialTheme.typography.title2,
+                    color = Color(0xFF38BDF8),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Scan button
+            item {
+                Button(
+                    onClick = { viewModel.scanForServers() },
+                    modifier = Modifier.fillMaxWidth(0.8f),
+                    enabled = !isScanning,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF1E293B)
+                    )
+                ) {
+                    Text(
+                        text = if (isScanning) "Scanning..." else "Find Local Server",
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            if (isScanning) {
+                item {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        indicatorColor = Color(0xFF38BDF8)
+                    )
+                }
+            }
+
+            // Discovered servers
+            for (server in discoveredServers) {
+                item {
+                    DiscoveredServerItem(
+                        server = server,
+                        onClick = { viewModel.selectDiscoveredServer(server) }
+                    )
+                }
+            }
+
+            // Separator
+            item {
+                Text(
+                    text = "— or enter address —",
+                    color = Color(0xFF64748B),
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+
+            // Manual URL input hint
+            item {
+                Text(
+                    text = uiState.serverUrl.ifEmpty { "http://..." },
+                    style = MaterialTheme.typography.body2.copy(
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = if (uiState.serverUrl.isEmpty()) Color(0xFF475569) else Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // URL digit-entry: for Wear OS, provide IP input via number pad
+            item {
+                IpAddressPad(
+                    currentUrl = uiState.serverUrl,
+                    onUrlChanged = { viewModel.updateServerUrl(it) }
+                )
+            }
+
+            // Confirm button
+            item {
+                Button(
+                    onClick = { viewModel.confirmServer() },
+                    modifier = Modifier.fillMaxWidth(0.7f),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF38BDF8)
+                    ),
+                    enabled = uiState.serverUrl.isNotBlank()
+                ) {
+                    Text(text = "OK", color = Color.Black)
+                }
+            }
+
+            // Error
+            if (uiState.errorMessage != null) {
+                item {
+                    Text(
+                        text = uiState.errorMessage!!,
+                        color = Color(0xFFF87171),
+                        style = MaterialTheme.typography.caption3,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscoveredServerItem(
+    server: DiscoveredServer,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(0.85f),
+        colors = ButtonDefaults.buttonColors(
+            backgroundColor = Color(0xFF166534)
+        )
+    ) {
+        Text(
+            text = "${server.hostname}\n${server.address.hostAddress}",
+            color = Color.White,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 14.sp
+        )
+    }
+}
+
+@Composable
+private fun IpAddressPad(
+    currentUrl: String,
+    onUrlChanged: (String) -> Unit
+) {
+    val keys = listOf(
+        listOf("1", "2", "3"),
+        listOf("4", "5", "6"),
+        listOf("7", "8", "9"),
+        listOf(".", "0", "⌫"),
+    )
+
+    // If empty, start with http:// prefix
+    val effectiveUrl = currentUrl.ifEmpty { "http://" }
+
+    androidx.compose.foundation.layout.Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        for (row in keys) {
+            androidx.compose.foundation.layout.Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                for (key in row) {
+                    val onClick: () -> Unit = when (key) {
+                        "⌫" -> ({
+                            if (effectiveUrl.length > "http://".length) {
+                                onUrlChanged(effectiveUrl.dropLast(1))
+                            }
+                        })
+                        else -> ({ onUrlChanged(effectiveUrl + key) })
+                    }
+                    Button(
+                        onClick = onClick,
+                        modifier = Modifier.size(40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = when (key) {
+                                "⌫" -> Color(0xFF475569)
+                                "." -> Color(0xFF475569)
+                                else -> Color(0xFF1E293B)
+                            }
+                        )
+                    ) {
+                        Text(
+                            text = key,
+                            fontSize = 13.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+        // Port shortcut row
+        androidx.compose.foundation.layout.Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Button(
+                onClick = { onUrlChanged(effectiveUrl + ":") },
+                modifier = Modifier.size(width = 40.dp, height = 32.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF475569))
+            ) {
+                Text(text = ":", fontSize = 13.sp, color = Color.White)
+            }
+            Button(
+                onClick = { onUrlChanged(effectiveUrl + ":5062") },
+                modifier = Modifier.size(width = 84.dp, height = 32.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E293B))
+            ) {
+                Text(text = ":5062", fontSize = 11.sp, color = Color(0xFF38BDF8))
+            }
+        }
+    }
+}
+
+@Composable
+private fun JoinCodeScreen(
+    uiState: JoinUiState,
+    connectionState: ConnectionState,
+    viewModel: JoinViewModel
+) {
     val listState = rememberScalingLazyListState()
 
     Scaffold(
@@ -67,6 +308,24 @@ fun JoinScreen(
                     color = Color(0xFF38BDF8),
                     textAlign = TextAlign.Center
                 )
+            }
+
+            // Server info
+            item {
+                Button(
+                    onClick = { viewModel.changeServer() },
+                    modifier = Modifier.fillMaxWidth(0.8f),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF1E293B)
+                    )
+                ) {
+                    Text(
+                        text = uiState.serverUrl.removePrefix("http://"),
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             // Join code display

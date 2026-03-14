@@ -3,6 +3,8 @@ package com.pulserealm.client.ui.join
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulserealm.client.data.network.ConnectionState
+import com.pulserealm.client.data.network.DiscoveredServer
+import com.pulserealm.client.data.network.ServerDiscoveryClient
 import com.pulserealm.client.data.network.SignalRClient
 import com.pulserealm.client.data.model.SessionInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,13 +19,14 @@ import com.pulserealm.client.data.network.SessionApi
 import javax.inject.Inject
 
 data class JoinUiState(
-    val serverUrl: String = "http://10.0.2.2:5062",
+    val serverUrl: String = "",
     val joinCode: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val sessionInfo: SessionInfo? = null,
     val isJoined: Boolean = false,
-    val clientId: String = "wear-" + java.util.UUID.randomUUID().toString().take(8)
+    val clientId: String = "wear-" + java.util.UUID.randomUUID().toString().take(8),
+    val showServerConfig: Boolean = true,
 )
 
 @HiltViewModel
@@ -36,6 +39,10 @@ class JoinViewModel @Inject constructor(
 
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
 
+    private val discoveryClient = ServerDiscoveryClient()
+    val discoveredServers: StateFlow<List<DiscoveredServer>> = discoveryClient.discoveredServers
+    val isScanning: StateFlow<Boolean> = discoveryClient.isScanning
+
     fun updateServerUrl(url: String) {
         _uiState.value = _uiState.value.copy(serverUrl = url)
     }
@@ -47,10 +54,46 @@ class JoinViewModel @Inject constructor(
         )
     }
 
+    fun confirmServer() {
+        val url = _uiState.value.serverUrl.trimEnd('/')
+        if (url.isBlank()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Enter a server address")
+            return
+        }
+        _uiState.value = _uiState.value.copy(
+            serverUrl = url,
+            showServerConfig = false,
+            errorMessage = null
+        )
+    }
+
+    fun selectDiscoveredServer(server: DiscoveredServer) {
+        val url = discoveryClient.buildServerUrl(server)
+        _uiState.value = _uiState.value.copy(
+            serverUrl = url,
+            showServerConfig = false,
+            errorMessage = null
+        )
+    }
+
+    fun changeServer() {
+        _uiState.value = _uiState.value.copy(showServerConfig = true, errorMessage = null)
+    }
+
+    fun scanForServers() {
+        viewModelScope.launch {
+            discoveryClient.scan()
+        }
+    }
+
     fun join() {
         val state = _uiState.value
         if (state.joinCode.isBlank()) {
             _uiState.value = state.copy(errorMessage = "Enter a join code")
+            return
+        }
+        if (state.serverUrl.isBlank()) {
+            _uiState.value = state.copy(errorMessage = "Set a server address first", showServerConfig = true)
             return
         }
 

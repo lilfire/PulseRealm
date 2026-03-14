@@ -437,6 +437,15 @@
       document.getElementById("hr-display").textContent = heartRate;
     }, 200);
 
+    // --- Server URL persistence ---
+    const savedServerUrl = localStorage.getItem("pulserealm_server_url");
+    if (savedServerUrl) {
+      document.getElementById("server-url").value = savedServerUrl;
+    }
+    document.getElementById("server-url").addEventListener("change", (e) => {
+      localStorage.setItem("pulserealm_server_url", e.target.value);
+    });
+
     // --- Init ---
     log(`Client ID: ${clientId}`, "log-info");
     log("Ready. Enter a join code and click Join to connect.", "log-info");
