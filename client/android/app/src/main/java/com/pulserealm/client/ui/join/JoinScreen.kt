@@ -15,9 +15,18 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -46,6 +55,7 @@ import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.DiscoveredServer
+import kotlinx.coroutines.delay
 
 @Composable
 fun JoinScreen(
@@ -346,15 +356,30 @@ private fun JoinPage(
     connectionState: ConnectionState,
     viewModel: JoinViewModel
 ) {
+    // Toast-style error message
+    var showError by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf("") }
+
+    LaunchedEffect(uiState.errorMessage) {
+        if (uiState.errorMessage != null) {
+            errorText = uiState.errorMessage!!
+            showError = true
+            delay(3000)
+            showError = false
+        } else {
+            showError = false
+        }
+    }
+
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         val availableHeight = maxHeight
         val availableWidth = maxWidth
-        // Code display gets ~8% of height, numpad gets ~85%, error gets ~7%
+        // Code display gets ~8% of height, numpad gets the rest
         val codeHeight = availableHeight * 0.08f
-        val padHeight = availableHeight * 0.85f
+        val padHeight = availableHeight * 0.88f
         // Numpad is 4 rows, each button is square — calculate button size from available space
         val padSpacing = 2.dp
         val buttonSize = minOf(
@@ -426,17 +451,33 @@ private fun JoinPage(
                     )
                 }
             }
+        }
 
-            // Error message
-            if (uiState.errorMessage != null) {
+        // Toast overlay
+        AnimatedVisibility(
+            visible = showError,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+                .padding(bottom = availableHeight * 0.08f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .background(
+                        color = Color(0xDD7F1D1D),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = uiState.errorMessage!!,
-                    color = Color(0xFFF87171),
-                    fontSize = 13.sp,
+                    text = errorText,
+                    color = Color(0xFFFECACA),
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
