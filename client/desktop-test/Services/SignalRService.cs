@@ -14,7 +14,8 @@ public class SignalRService : IAsyncDisposable
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
     public string? SessionId => _sessionId;
 
-    public async Task<bool> ConnectAsync(string serverUrl, string joinCode, string clientId)
+    public async Task<bool> ConnectAsync(string serverUrl, string joinCode, string clientId,
+        string playerName = "", double heightCm = 0, double weightKg = 0)
     {
         try
         {
@@ -69,7 +70,14 @@ public class SignalRService : IAsyncDisposable
             await _connection.StartAsync();
             LogReceived?.Invoke("SignalR connected. Joining session...", "info");
 
-            await _connection.InvokeAsync("JoinSession", joinCode, clientId);
+            var profile = new
+            {
+                clientId,
+                name = playerName,
+                heightCm,
+                weightKg,
+            };
+            await _connection.InvokeAsync("JoinSession", joinCode, clientId, profile);
 
             // Look up session ID
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };

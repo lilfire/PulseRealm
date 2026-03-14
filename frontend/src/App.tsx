@@ -22,7 +22,7 @@ function App() {
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/session`)
     : server.hubUrl;
 
-  const { connected, clients, latestData } = useSessionHub(
+  const { connected, clients, clientProfiles, latestData } = useSessionHub(
     session?.id ?? null,
     hubUrl
   );
@@ -106,10 +106,10 @@ function App() {
       <p>Status: {connected ? "Connected" : "Connecting..."}</p>
 
       {session.mode === "competition" && (
-        <CompetitionMode clients={clients} latestData={latestData} />
+        <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
       {session.mode === "streetview" && (
-        <StreetViewMode clients={clients} latestData={latestData} />
+        <StreetViewMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
     </div>
   );

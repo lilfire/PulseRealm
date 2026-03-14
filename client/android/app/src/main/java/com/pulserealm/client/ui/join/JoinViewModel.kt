@@ -24,12 +24,16 @@ import javax.inject.Inject
 data class JoinUiState(
     val serverUrl: String = "",
     val joinCode: String = "",
+    val playerName: String = "",
+    val heightCm: String = "",
+    val weightKg: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val sessionInfo: SessionInfo? = null,
     val isJoined: Boolean = false,
     val clientId: String = "wear-" + java.util.UUID.randomUUID().toString().take(8),
     val showServerConfig: Boolean = true,
+    val showProfileSettings: Boolean = false,
 )
 
 @HiltViewModel
@@ -40,6 +44,9 @@ class JoinViewModel @Inject constructor(
 
     companion object {
         private const val PREF_SERVER_URL = "cached_server_url"
+        private const val PREF_PLAYER_NAME = "player_name"
+        private const val PREF_HEIGHT_CM = "height_cm"
+        private const val PREF_WEIGHT_KG = "weight_kg"
     }
 
     private val _uiState = MutableStateFlow(JoinUiState())
@@ -55,6 +62,16 @@ class JoinViewModel @Inject constructor(
     val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
 
     init {
+        // Load saved profile settings
+        val savedName = prefs.getString(PREF_PLAYER_NAME, "") ?: ""
+        val savedHeight = prefs.getString(PREF_HEIGHT_CM, "") ?: ""
+        val savedWeight = prefs.getString(PREF_WEIGHT_KG, "") ?: ""
+        _uiState.value = _uiState.value.copy(
+            playerName = savedName,
+            heightCm = savedHeight,
+            weightKg = savedWeight
+        )
+
         // Try cached server URL first, then fall back to UDP scan
         val cachedUrl = prefs.getString(PREF_SERVER_URL, null)
         if (cachedUrl != null) {
@@ -140,6 +157,27 @@ class JoinViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showServerConfig = true, errorMessage = null)
     }
 
+    fun toggleProfileSettings() {
+        _uiState.value = _uiState.value.copy(showProfileSettings = !_uiState.value.showProfileSettings)
+    }
+
+    fun updatePlayerName(name: String) {
+        _uiState.value = _uiState.value.copy(playerName = name)
+        prefs.edit().putString(PREF_PLAYER_NAME, name).apply()
+    }
+
+    fun updateHeightCm(height: String) {
+        val filtered = height.filter { it.isDigit() || it == '.' }
+        _uiState.value = _uiState.value.copy(heightCm = filtered)
+        prefs.edit().putString(PREF_HEIGHT_CM, filtered).apply()
+    }
+
+    fun updateWeightKg(weight: String) {
+        val filtered = weight.filter { it.isDigit() || it == '.' }
+        _uiState.value = _uiState.value.copy(weightKg = filtered)
+        prefs.edit().putString(PREF_WEIGHT_KG, filtered).apply()
+    }
+
     fun scanForServers() {
         _scanAttempt.value++
         viewModelScope.launch {
@@ -175,8 +213,14 @@ class JoinViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 2. Join session via SignalR
-                signalRClient.joinSession(state.joinCode, state.clientId)
+                // 2. Join session via SignalR with profile data
+                signalRClient.joinSession(
+                    state.joinCode,
+                    state.clientId,
+                    state.playerName,
+                    state.heightCm.toDoubleOrNull() ?: 0.0,
+                    state.weightKg.toDoubleOrNull() ?: 0.0
+                )
 
                 // Check for errors from the hub
                 val hubError = signalRClient.error.value

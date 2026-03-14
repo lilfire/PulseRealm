@@ -10,6 +10,14 @@ export interface Session {
   connectedClientIds: string[];
 }
 
+/** Profile data sent by a wearable client when joining a session. */
+export interface ClientProfile {
+  clientId: string;
+  name: string;
+  heightCm: number;
+  weightKg: number;
+}
+
 /** Real-time data streamed from a wearable client. */
 export interface WearableData {
   clientId: string;

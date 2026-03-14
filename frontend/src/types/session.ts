@@ -6,6 +6,13 @@ export interface Session {
   mode: SessionMode;
 }
 
+export interface ClientProfile {
+  clientId: string;
+  name: string;
+  heightCm: number;
+  weightKg: number;
+}
+
 export interface WearableData {
   clientId: string;
   heartRate: number;

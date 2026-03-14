@@ -7,6 +7,7 @@ public class Session
     public SessionMode Mode { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<string> ConnectedClientIds { get; set; } = new();
+    public Dictionary<string, ClientProfile> ClientProfiles { get; set; } = new();
 }
 
 public enum SessionMode

@@ -8,7 +8,10 @@
       "Bash(dotnet build:*)",
       "Bash(ls /c/git/PulseRealm/server/*.sln /c/git/PulseRealm/server/*.csproj 2>/dev/null)",
       "Bash(cd /c/git/PulseRealm && docker compose up --build 2>&1 | tail -40)",
-      "Bash(taskkill //F //IM PulseRealm.DesktopTest.exe 2>/dev/null; sleep 1 && dotnet build 2>&1 | tail -5)"
+      "Bash(taskkill //F //IM PulseRealm.DesktopTest.exe 2>/dev/null; sleep 1 && dotnet build 2>&1 | tail -5)",
+      "Bash(find /c/git/PulseRealm -name \"*.cs\" -o -name \"*.kt\" | xargs grep -l \"JoinSession\" | head -10)",
+      "Bash(cd /c/git/PulseRealm/frontend && npx tsc --noEmit 2>&1 | tail -10)",
+      "Bash(ls /c/git/PulseRealm/frontend/node_modules/.bin/tsc 2>/dev/null && /c/git/PulseRealm/frontend/node_modules/.bin/tsc --noEmit --project /c/git/PulseRealm/frontend 2>&1 | tail -10 || echo \"tsc not available, skipping\")"
     ]
   }
 }

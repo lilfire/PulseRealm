@@ -16,7 +16,7 @@ public class SessionHub : Hub
     /// <summary>
     /// Called by a wearable client to join a session using a short code.
     /// </summary>
-    public async Task JoinSession(string joinCode, string clientId)
+    public async Task JoinSession(string joinCode, string clientId, ClientProfile? profile = null)
     {
         var session = _sessionManager.GetByJoinCode(joinCode);
         if (session is null)
@@ -25,9 +25,12 @@ public class SessionHub : Hub
             return;
         }
 
-        _sessionManager.AddClient(session.Id, clientId);
+        _sessionManager.AddClient(session.Id, clientId, profile);
         await Groups.AddToGroupAsync(Context.ConnectionId, session.Id);
-        await Clients.Group(session.Id).SendAsync("ClientJoined", clientId);
+
+        var joinedProfile = profile ?? new ClientProfile { ClientId = clientId };
+        joinedProfile.ClientId = clientId;
+        await Clients.Group(session.Id).SendAsync("ClientJoined", joinedProfile);
     }
 
     /// <summary>
