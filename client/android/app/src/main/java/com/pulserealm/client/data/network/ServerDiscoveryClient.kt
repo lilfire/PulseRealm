@@ -18,13 +18,17 @@ data class DiscoveredServer(
 )
 
 /**
- * Listens for UDP broadcast packets from PulseRealm servers on the local network.
+ * Discovers PulseRealm servers on the local network using UDP broadcast.
+ *
+ * 1. Sends a discovery request broadcast so servers respond immediately
+ * 2. Listens for both direct responses and periodic server broadcast announcements
  */
 class ServerDiscoveryClient {
 
     companion object {
         const val DISCOVERY_PORT = 5063
-        const val LISTEN_TIMEOUT_MS = 6000
+        const val LISTEN_TIMEOUT_MS = 8000
+        private const val SOCKET_TIMEOUT_MS = 2000
     }
 
     private val _discoveredServers = MutableStateFlow<List<DiscoveredServer>>(emptyList())
@@ -34,7 +38,7 @@ class ServerDiscoveryClient {
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
     /**
-     * Listens for server broadcasts for the specified duration.
+     * Actively discovers servers by sending a broadcast request and listening for responses.
      * Should be called from a coroutine on IO dispatcher.
      */
     suspend fun scan() = withContext(Dispatchers.IO) {
@@ -43,9 +47,15 @@ class ServerDiscoveryClient {
         val found = mutableMapOf<String, DiscoveredServer>()
 
         try {
-            val socket = DatagramSocket(DISCOVERY_PORT)
+            val socket = DatagramSocket(null)
+            socket.reuseAddress = true
+            socket.bind(java.net.InetSocketAddress(DISCOVERY_PORT))
             socket.broadcast = true
-            socket.soTimeout = LISTEN_TIMEOUT_MS
+            socket.soTimeout = SOCKET_TIMEOUT_MS
+
+            // Send a discovery request so the server responds immediately
+            // instead of waiting up to 3 seconds for the next broadcast cycle
+            sendDiscoveryRequest(socket)
 
             val buffer = ByteArray(1024)
             val deadline = System.currentTimeMillis() + LISTEN_TIMEOUT_MS
@@ -70,7 +80,10 @@ class ServerDiscoveryClient {
                         _discoveredServers.value = found.values.toList()
                     }
                 } catch (_: java.net.SocketTimeoutException) {
-                    // Timeout is expected, continue checking deadline
+                    // Re-send discovery request on timeout to handle packet loss
+                    if (found.isEmpty() && System.currentTimeMillis() + SOCKET_TIMEOUT_MS < deadline) {
+                        sendDiscoveryRequest(socket)
+                    }
                 }
             }
 
@@ -80,6 +93,27 @@ class ServerDiscoveryClient {
         }
 
         _isScanning.value = false
+    }
+
+    /**
+     * Sends a broadcast discovery request packet.
+     * The server listens for these and responds immediately with its info.
+     */
+    private fun sendDiscoveryRequest(socket: DatagramSocket) {
+        try {
+            val request = JSONObject().apply {
+                put("discover", "PulseRealm")
+            }.toString()
+            val data = request.toByteArray(Charsets.UTF_8)
+            val packet = DatagramPacket(
+                data, data.size,
+                InetAddress.getByName("255.255.255.255"),
+                DISCOVERY_PORT
+            )
+            socket.send(packet)
+        } catch (_: Exception) {
+            // Best effort — we still listen for periodic broadcasts
+        }
     }
 
     /**

@@ -33,5 +33,6 @@ COPY --from=frontend-build /app/frontend/dist ./wwwroot/
 
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+EXPOSE 5063/udp
 
 ENTRYPOINT ["dotnet", "PulseRealm.Server.dll"]

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/git/PulseRealm/server && dotnet build 2>&1)",
+      "Bash(cd /c/git/PulseRealm/frontend && npx tsc --noEmit 2>&1 | head -20)",
+      "Bash(ls node_modules/.bin/tsc 2>/dev/null && node_modules/.bin/tsc --noEmit 2>&1 | head -20 || echo \"No node_modules - skipping TS check\")",
+      "Bash(cd /c/git/PulseRealm/client/desktop-test && dotnet restore 2>&1)",
+      "Bash(dotnet build:*)",
+      "Bash(ls /c/git/PulseRealm/server/*.sln /c/git/PulseRealm/server/*.csproj 2>/dev/null)",
+      "Bash(cd /c/git/PulseRealm && docker compose up --build 2>&1 | tail -40)",
+      "Bash(taskkill //F //IM PulseRealm.DesktopTest.exe 2>/dev/null; sleep 1 && dotnet build 2>&1 | tail -5)"
+    ]
+  }
+}

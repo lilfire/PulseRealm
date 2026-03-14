@@ -32,7 +32,6 @@ async function getLocalIp(): Promise<string | null> {
         );
         if (match) {
           const ip = match[1];
-          // Skip link-local and loopback
           if (!ip.startsWith("127.") && !ip.startsWith("0.")) {
             clearTimeout(timeout);
             pc.close();
@@ -40,7 +39,6 @@ async function getLocalIp(): Promise<string | null> {
           }
         }
       };
-      // If gathering completes without finding a private IP
       pc.onicegatheringstatechange = () => {
         if (pc.iceGatheringState === "complete") {
           clearTimeout(timeout);
@@ -56,18 +54,37 @@ async function getLocalIp(): Promise<string | null> {
 }
 
 /**
- * Build the list of candidate URLs to probe.
- * 1. Cached URL from previous successful connection
- * 2. Same-origin (if served from a non-localhost host)
- * 3. Full /24 subnet scan based on detected local IP
- * 4. Localhost fallback
+ * Detect the subnet size from a local IP. Returns the CIDR prefix length guess
+ * based on the private address range:
+ *   10.x.x.x     → /8
+ *   172.16-31.x.x → /12
+ *   192.168.x.x   → /16 or /24
+ * We use this to decide how many addresses to scan.
+ */
+function guessSubnetSize(ip: string): number {
+  const parts = ip.split(".").map(Number);
+  if (parts[0] === 10) return 8;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return 12;
+  return 24;
+}
+
+/**
+ * Build candidate URLs to probe for server discovery.
+ *
+ * On large networks (/8, /16) we can't scan millions of addresses from a browser.
+ * Instead we rely on:
+ *   1. Cached URL from previous connection
+ *   2. Same-origin (if served from a non-localhost host)
+ *   3. The discovery HTTP endpoint on port 5063 (lightweight probe)
+ *   4. Common gateway/server addresses on the detected subnet
+ *   5. Localhost fallback
  */
 async function buildCandidateUrls(
   onProgress?: (msg: string) => void
 ): Promise<string[]> {
   const candidates: string[] = [];
 
-  // Cached URL first — most likely to succeed
+  // Cached URL first
   const cached = localStorage.getItem(STORAGE_KEY);
   if (cached) {
     candidates.push(cached);
@@ -75,40 +92,95 @@ async function buildCandidateUrls(
 
   const hostname = window.location.hostname;
 
-  // If we're served from a non-localhost origin, try same-origin first
-  if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+  // Same-origin check — always try the origin we were served from
+  if (hostname) {
     candidates.push(window.location.origin);
-    // Also try the known server port on the same host
-    candidates.push(`http://${hostname}:${SERVER_PORT}`);
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      candidates.push(`http://${hostname}:${SERVER_PORT}`);
+    }
   }
 
-  // Try to detect local IP and scan the subnet
+  // Detect local IP
   onProgress?.("Detecting local network…");
   const localIp = await getLocalIp();
 
   if (localIp) {
     const parts = localIp.split(".").map(Number);
-    const subnet = `${parts[0]}.${parts[1]}.${parts[2]}`;
-    onProgress?.(`Found local IP ${localIp}`);
+    const cidr = guessSubnetSize(localIp);
+    onProgress?.(`Found local IP ${localIp} (/${cidr} network)`);
 
-    // Common server IPs on the same /24 first
-    const priority = [1, 2, 100, 50, 10, 200, 150, 254];
-    for (const oct of priority) {
-      if (oct !== parts[3]) {
-        candidates.push(`http://${subnet}.${oct}:${SERVER_PORT}`);
+    if (cidr >= 24) {
+      // Small network — full /24 scan is feasible
+      const subnet = `${parts[0]}.${parts[1]}.${parts[2]}`;
+
+      // Priority IPs first
+      for (const oct of [1, 2, 100, 50, 10, 200, 150, 254]) {
+        if (oct !== parts[3]) {
+          candidates.push(`http://${subnet}.${oct}:${SERVER_PORT}`);
+        }
       }
-    }
 
-    // Full /24 scan of own subnet
-    for (let i = 1; i <= 254; i++) {
-      const url = `http://${subnet}.${i}:${SERVER_PORT}`;
-      if (!candidates.includes(url)) {
-        candidates.push(url);
+      // Full /24 scan
+      for (let i = 1; i <= 254; i++) {
+        const url = `http://${subnet}.${i}:${SERVER_PORT}`;
+        if (!candidates.includes(url)) {
+          candidates.push(url);
+        }
+      }
+    } else {
+      // Large network (/8 or /16) — can't scan millions of IPs.
+      // Probe common server addresses across likely subnets.
+      onProgress?.(`Large /${cidr} network — scanning common server addresses…`);
+
+      const priorityHosts = [1, 2, 100, 50, 10, 200, 150, 254];
+
+      // Own /24 subnet first (most likely)
+      const ownSubnet = `${parts[0]}.${parts[1]}.${parts[2]}`;
+      for (const oct of priorityHosts) {
+        if (oct !== parts[3]) {
+          candidates.push(`http://${ownSubnet}.${oct}:${SERVER_PORT}`);
+        }
+      }
+      // Full own /24
+      for (let i = 1; i <= 254; i++) {
+        const url = `http://${ownSubnet}.${i}:${SERVER_PORT}`;
+        if (!candidates.includes(url)) {
+          candidates.push(url);
+        }
+      }
+
+      // Common subnets within the same /8 or /16
+      const nearbySubnets: string[] = [];
+      if (cidr <= 8) {
+        // /8 network: try x.0.0, x.0.1, x.1.0, x.1.1, x.10.0, x.100.0, etc.
+        const base = parts[0];
+        for (const b of [0, 1, 2, 10, 50, 100, 200]) {
+          for (const c of [0, 1, 2, 10, 100]) {
+            const sub = `${base}.${b}.${c}`;
+            if (sub !== ownSubnet) {
+              nearbySubnets.push(sub);
+            }
+          }
+        }
+      } else {
+        // /12 or /16: try x.y.0, x.y.1, x.y.2, x.y.10, etc.
+        const base = `${parts[0]}.${parts[1]}`;
+        for (const c of [0, 1, 2, 10, 50, 100, 200]) {
+          const sub = `${base}.${c}`;
+          if (sub !== ownSubnet) {
+            nearbySubnets.push(sub);
+          }
+        }
+      }
+
+      for (const subnet of nearbySubnets) {
+        for (const oct of priorityHosts) {
+          candidates.push(`http://${subnet}.${oct}:${SERVER_PORT}`);
+        }
       }
     }
   } else {
-    // WebRTC IP detection failed (common in modern browsers due to privacy).
-    // Scan the most common private network subnets as a fallback.
+    // WebRTC IP detection failed — scan common private subnets
     onProgress?.("Scanning common LAN subnets…");
     const commonSubnets = [
       "192.168.1",
@@ -121,6 +193,8 @@ async function buildCandidateUrls(
       "10.0.1",
       "10.1.0",
       "10.1.1",
+      "10.10.0",
+      "10.100.0",
       "172.16.0",
       "172.16.1",
     ];
@@ -136,7 +210,6 @@ async function buildCandidateUrls(
   candidates.push(`http://localhost:${SERVER_PORT}`);
   candidates.push(`http://127.0.0.1:${SERVER_PORT}`);
 
-  // Also try common alternative ports on localhost
   for (const port of [8080, 5000, 80]) {
     candidates.push(`http://localhost:${port}`);
   }
@@ -159,7 +232,6 @@ export function useServerConnection() {
   const [searchProgress, setSearchProgress] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
-  // On mount, try cached URL first — if it fails, fall through to search
   useEffect(() => {
     if (serverUrl) {
       verifyServer(serverUrl).then((ok) => {
@@ -211,7 +283,6 @@ export function useServerConnection() {
   }
 
   const searchForServer = useCallback(async () => {
-    // Cancel any previous search
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -226,7 +297,6 @@ export function useServerConnection() {
 
     const total = candidates.length;
 
-    // Probe in parallel batches
     for (let i = 0; i < total; i += BATCH_SIZE) {
       if (controller.signal.aborted) return;
       const batch = candidates.slice(i, i + BATCH_SIZE);
@@ -295,7 +365,6 @@ export function useServerConnection() {
     error,
     connect,
     disconnect,
-    // Search-related
     searchPhase,
     searchAttempt,
     searchProgress,
