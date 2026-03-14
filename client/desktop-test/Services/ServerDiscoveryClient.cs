@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace PulseRealm.DesktopTest.Services;
 
-public record DiscoveredServer(string Hostname, string Urls, string Version, IPAddress Address)
+public record DiscoveredServer(string Name, string Hostname, string Urls, string Version, IPAddress Address)
 {
     public string BuildServerUrl()
     {
@@ -136,13 +136,14 @@ public class ServerDiscoveryClient
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            if (root.TryGetProperty("name", out var name) && name.GetString() == "PulseRealm")
+            if (root.TryGetProperty("name", out var name))
             {
                 var uri = new Uri(url);
                 var address = (await Dns.GetHostAddressesAsync(uri.Host, ct)).FirstOrDefault()
                               ?? IPAddress.Loopback;
 
                 var server = new DiscoveredServer(
+                    Name: name.GetString() ?? "PulseRealm",
                     Hostname: root.TryGetProperty("hostname", out var h) ? h.GetString() ?? "Unknown" : "Unknown",
                     Urls: url,
                     Version: root.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "",
@@ -232,6 +233,7 @@ public class ServerDiscoveryClient
             if (root.TryGetProperty("service", out var svc) && svc.GetString() == "PulseRealm")
             {
                 return new DiscoveredServer(
+                    Name: root.TryGetProperty("name", out var n) ? n.GetString() ?? "PulseRealm" : "PulseRealm",
                     Hostname: root.TryGetProperty("hostname", out var h) ? h.GetString() ?? "Unknown" : "Unknown",
                     Urls: root.TryGetProperty("urls", out var u) ? u.GetString() ?? "" : "",
                     Version: root.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "",

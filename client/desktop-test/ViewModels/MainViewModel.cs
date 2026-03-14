@@ -76,7 +76,7 @@ public partial class MainViewModel : ObservableObject
         {
             var server = servers[0];
             ServerUrl = server.BuildServerUrl();
-            AddLog($"Server found: {server.Hostname} at {ServerUrl} (v{server.Version})", "info");
+            AddLog($"Server found: {server.Name} at {ServerUrl} (v{server.Version})", "info");
             IsSearching = false;
         }
         else

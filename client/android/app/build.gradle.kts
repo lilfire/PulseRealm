@@ -13,8 +13,8 @@ android {
         applicationId = "com.pulserealm.client"
         minSdk = 30
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = (versionCode!! / 10.0).toString()
     }
 
     buildTypes {
@@ -59,6 +59,7 @@ dependencies {
     // Compose core
     implementation(platform("androidx.compose:compose-bom:2024.01.00"))
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 

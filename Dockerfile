@@ -32,6 +32,7 @@ COPY --from=server-build /out ./
 COPY --from=frontend-build /app/frontend/dist ./wwwroot/
 
 ENV ASPNETCORE_URLS=http://+:8080
+ENV SERVER_NAME=PulseRealm
 EXPOSE 8080
 EXPOSE 5063/udp
 

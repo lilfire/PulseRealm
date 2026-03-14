@@ -135,10 +135,13 @@ public class ServerDiscoveryService : BackgroundService
             ?? _configuration["urls"]
             ?? "http://+:5062";
 
+        var serverName = _configuration["SERVER_NAME"] ?? "PulseRealm";
+
         return JsonSerializer.Serialize(new
         {
             service = "PulseRealm",
             version = "1.0.0",
+            name = serverName,
             urls = serverUrls,
             hostname = Environment.MachineName,
         });
