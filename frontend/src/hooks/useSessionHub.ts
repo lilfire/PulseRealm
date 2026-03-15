@@ -40,6 +40,16 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
   useEffect(() => {
+    // Reset all state when realm changes (e.g. after ending a realm)
+    setConnected(false);
+    setStarted(false);
+    setEnded(false);
+    setRealmSummary(null);
+    setClients([]);
+    setClientProfiles({});
+    setLatestData(null);
+    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0 };
+
     if (!realmId || !resolvedUrl) return;
 
     const connection = new HubConnectionBuilder()

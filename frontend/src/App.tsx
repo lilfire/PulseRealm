@@ -6,6 +6,7 @@ import { CompetitionLobby } from "./components/lobbies/CompetitionLobby";
 import { StreetViewLobby, type StreetViewLocation } from "./components/lobbies/StreetViewLobby";
 import { DefaultLobby } from "./components/lobbies/DefaultLobby";
 import { YouTubeTrailLobby, type YouTubeVideo } from "./components/lobbies/YouTubeTrailLobby";
+import { RouteLobby, type RouteConfig } from "./components/lobbies/RouteLobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
 import { YouTubeTrailMode } from "./components/modes/YouTubeTrailMode";
@@ -27,6 +28,7 @@ function App() {
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
   const [competitionType, setCompetitionType] = useState<CompetitionType>("race");
   const [youtubeVideo, setYoutubeVideo] = useState<YouTubeVideo | null>(null);
+  const [routeConfig, setRouteConfig] = useState<RouteConfig | null>(null);
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
@@ -170,6 +172,7 @@ function App() {
           setRealm(null);
           setStreetViewLocation(null);
           setYoutubeVideo(null);
+          setRouteConfig(null);
         }}
       />
     );
@@ -186,6 +189,7 @@ function App() {
         setRealm(null);
         setStreetViewLocation(null);
         setYoutubeVideo(null);
+        setRouteConfig(null);
       },
     };
 
@@ -219,6 +223,18 @@ function App() {
           {...lobbyProps}
           onStart={(video) => {
             setYoutubeVideo(video);
+            startRealm();
+          }}
+        />
+      );
+    }
+
+    if (realm.mode === "route") {
+      return (
+        <RouteLobby
+          {...lobbyProps}
+          onStart={(config) => {
+            setRouteConfig(config);
             startRealm();
           }}
         />
@@ -261,6 +277,18 @@ function App() {
     );
   }
 
+  if (realm.mode === "route" && routeConfig) {
+    return (
+      <RouteMode
+        clients={clients}
+        clientProfiles={clientProfiles}
+        latestData={latestData}
+        route={routeConfig}
+        onEnd={(totalDistance) => endRealm(totalDistance)}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <div className="brand-header">
@@ -273,9 +301,6 @@ function App() {
 
       {realm.mode === "competition" && (
         <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} competitionType={competitionType} />
-      )}
-      {realm.mode === "route" && (
-        <RouteMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
       {realm.mode === "dungeon" && (
         <DungeonMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
