@@ -5,6 +5,7 @@ import { ServerConnect } from "./components/ServerConnect";
 import { Lobby, type StreetViewLocation } from "./components/Lobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
+import { SessionSummaryScreen } from "./components/SessionSummaryScreen";
 import type { Session, SessionMode } from "./types/session";
 import "./App.css";
 
@@ -24,7 +25,7 @@ function App() {
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/session`)
     : server.hubUrl;
 
-  const { connected, started, clients, clientProfiles, latestData, startSession } = useSessionHub(
+  const { connected, started, ended, sessionSummary, clients, clientProfiles, latestData, startSession, endSession } = useSessionHub(
     session?.id ?? null,
     hubUrl
   );
@@ -99,6 +100,19 @@ function App() {
     );
   }
 
+  // Show summary screen when session has ended
+  if (ended && sessionSummary) {
+    return (
+      <SessionSummaryScreen
+        summary={sessionSummary}
+        onClose={() => {
+          setSession(null);
+          setStreetViewLocation(null);
+        }}
+      />
+    );
+  }
+
   // Show lobby until the session is started
   if (!started) {
     return (
@@ -123,6 +137,9 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         startLocation={streetViewLocation}
+        onEnd={(totalDistance) => {
+          endSession(totalDistance);
+        }}
       />
     );
   }

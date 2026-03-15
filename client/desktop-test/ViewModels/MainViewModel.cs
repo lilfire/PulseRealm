@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text.Json;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -26,6 +27,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _heightCm;
     [ObservableProperty] private double _weightKg;
     [ObservableProperty] private bool _isConnected;
+    [ObservableProperty] private bool _sessionIsEnded;
+    [ObservableProperty] private string _summaryText = "";
     [ObservableProperty] private int _heartRate;
     [ObservableProperty] private int _steps;
     [ObservableProperty] private int _sendCount;
@@ -54,6 +57,9 @@ public partial class MainViewModel : ObservableObject
 
         _signalR.ConnectionChanged += connected =>
             Avalonia.Threading.Dispatcher.UIThread.Post(() => IsConnected = connected);
+
+        _signalR.SessionEnded += summary =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnSessionEnded(summary));
 
         // HR decay timer — every 200ms
         var hrTimer = new Timer(_ =>
@@ -158,6 +164,43 @@ public partial class MainViewModel : ObservableObject
     {
         StopSendTimer();
         await _signalR.DisconnectAsync();
+        AddLog("Disconnected.", "warn");
+    }
+
+    private void OnSessionEnded(JsonElement summary)
+    {
+        StopSendTimer();
+
+        var duration = summary.TryGetProperty("durationSeconds", out var d) ? d.GetDouble() : 0;
+        var distance = summary.TryGetProperty("totalDistanceMeters", out var dist) ? dist.GetDouble() : 0;
+        var totalSteps = summary.TryGetProperty("totalSteps", out var st) ? st.GetInt32() : 0;
+        var avgHr = summary.TryGetProperty("averageHeartRate", out var ahr) ? ahr.GetInt32() : 0;
+        var maxHr = summary.TryGetProperty("maxHeartRate", out var mhr) ? mhr.GetInt32() : 0;
+        var avgSpeed = summary.TryGetProperty("averageSpeedKmh", out var spd) ? spd.GetDouble() : 0;
+
+        var mins = (int)(duration / 60);
+        var secs = (int)(duration % 60);
+        var durationText = mins > 0 ? $"{mins}m {secs}s" : $"{secs}s";
+        var distanceText = distance >= 1000 ? $"{distance / 1000:F2} km" : $"{distance:F0} m";
+
+        SummaryText = $"Duration: {durationText}  |  Distance: {distanceText}  |  Steps: {totalSteps}\n" +
+                      $"Avg Speed: {avgSpeed:F1} km/h  |  Avg HR: {avgHr} bpm  |  Max HR: {maxHr} bpm";
+
+        SessionIsEnded = true;
+        AddLog("Session ended by dashboard.", "warn");
+        AddLog(SummaryText, "info");
+    }
+
+    [RelayCommand]
+    private async Task DismissSummary()
+    {
+        await _signalR.DisconnectAsync();
+        SessionIsEnded = false;
+        SummaryText = "";
+        IsConnected = false;
+        Steps = 0;
+        SendCount = 0;
+        JoinCode = "";
         AddLog("Disconnected.", "warn");
     }
 

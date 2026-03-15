@@ -7,6 +7,7 @@ interface Props {
   clientProfiles: Record<string, ClientProfile>;
   latestData: WearableData | null;
   startLocation: StreetViewLocation;
+  onEnd: (totalDistanceMeters: number) => void;
 }
 
 /**
@@ -53,7 +54,7 @@ const arrowBtnStyle: React.CSSProperties = {
 
 const PRELOAD_COUNT = 3;
 
-export function StreetViewMode({ clients, clientProfiles, latestData, startLocation }: Props) {
+export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd }: Props) {
   // Two containers — one visible, one hidden preloading the next pano
   const containerARef = useRef<HTMLDivElement>(null);
   const containerBRef = useRef<HTMLDivElement>(null);
@@ -526,6 +527,26 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           visibility: "visible",
         }}
       />
+
+      {/* End session button */}
+      <button
+        onClick={() => onEnd(totalDistanceRef.current)}
+        style={{
+          position: "absolute",
+          top: "1rem",
+          left: "1rem",
+          zIndex: 10,
+          background: "rgba(0,0,0,0.75)",
+          color: "#fff",
+          border: "1px solid rgba(255,255,255,0.3)",
+          borderRadius: "8px",
+          padding: "0.5rem 1rem",
+          fontSize: "0.9rem",
+          cursor: "pointer",
+        }}
+      >
+        End Session
+      </button>
 
       {/* HUD overlay */}
       <div

@@ -16,6 +16,15 @@ enum class ConnectionState {
     RECONNECTING
 }
 
+data class SessionSummaryData(
+    val durationSeconds: Double = 0.0,
+    val totalDistanceMeters: Double = 0.0,
+    val totalSteps: Int = 0,
+    val averageHeartRate: Int = 0,
+    val maxHeartRate: Int = 0,
+    val averageSpeedKmh: Double = 0.0
+)
+
 class SignalRClient {
 
     private var hubConnection: HubConnection? = null
@@ -27,6 +36,9 @@ class SignalRClient {
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val _sessionEnded = MutableStateFlow<SessionSummaryData?>(null)
+    val sessionEnded: StateFlow<SessionSummaryData?> = _sessionEnded.asStateFlow()
 
     fun connect(serverUrl: String) {
         disconnect()
@@ -52,6 +64,19 @@ class SignalRClient {
             on("JoinedSession", { _ ->
                 // Dashboard join confirmation (not applicable here)
             }, String::class.java)
+
+            on("SessionEnded", { summaryMap ->
+                @Suppress("UNCHECKED_CAST")
+                val map = summaryMap as? Map<String, Any> ?: emptyMap()
+                _sessionEnded.value = SessionSummaryData(
+                    durationSeconds = (map["durationSeconds"] as? Number)?.toDouble() ?: 0.0,
+                    totalDistanceMeters = (map["totalDistanceMeters"] as? Number)?.toDouble() ?: 0.0,
+                    totalSteps = (map["totalSteps"] as? Number)?.toInt() ?: 0,
+                    averageHeartRate = (map["averageHeartRate"] as? Number)?.toInt() ?: 0,
+                    maxHeartRate = (map["maxHeartRate"] as? Number)?.toInt() ?: 0,
+                    averageSpeedKmh = (map["averageSpeedKmh"] as? Number)?.toDouble() ?: 0.0
+                )
+            }, Any::class.java)
 
             on("Error", { message ->
                 _error.value = message
@@ -113,6 +138,7 @@ class SignalRClient {
         currentJoinCode = null
         currentClientId = null
         _connectionState.value = ConnectionState.DISCONNECTED
+        _sessionEnded.value = null
     }
 
     fun isConnected(): Boolean {

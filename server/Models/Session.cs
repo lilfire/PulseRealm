@@ -27,5 +27,16 @@ public enum SessionMode
 public enum SessionStatus
 {
     Lobby,
-    Started
+    Started,
+    Ended
+}
+
+public class SessionSummary
+{
+    public double DurationSeconds { get; set; }
+    public double TotalDistanceMeters { get; set; }
+    public int TotalSteps { get; set; }
+    public int AverageHeartRate { get; set; }
+    public int MaxHeartRate { get; set; }
+    public double AverageSpeedKmh { get; set; }
 }
