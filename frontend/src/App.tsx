@@ -5,6 +5,7 @@ import { ServerConnect } from "./components/ServerConnect";
 import { CompetitionLobby } from "./components/lobbies/CompetitionLobby";
 import { StreetViewLobby, type StreetViewLocation } from "./components/lobbies/StreetViewLobby";
 import { DefaultLobby } from "./components/lobbies/DefaultLobby";
+import { YouTubeTrailLobby, type YouTubeVideo } from "./components/lobbies/YouTubeTrailLobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
 import { YouTubeTrailMode } from "./components/modes/YouTubeTrailMode";
@@ -25,6 +26,7 @@ function App() {
   const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
   const [competitionType, setCompetitionType] = useState<CompetitionType>("race");
+  const [youtubeVideo, setYoutubeVideo] = useState<YouTubeVideo | null>(null);
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
@@ -167,6 +169,7 @@ function App() {
         onClose={() => {
           setRealm(null);
           setStreetViewLocation(null);
+          setYoutubeVideo(null);
         }}
       />
     );
@@ -182,6 +185,7 @@ function App() {
       onLeave: () => {
         setRealm(null);
         setStreetViewLocation(null);
+        setYoutubeVideo(null);
       },
     };
 
@@ -209,10 +213,36 @@ function App() {
       );
     }
 
+    if (realm.mode === "youtubetrail") {
+      return (
+        <YouTubeTrailLobby
+          {...lobbyProps}
+          onStart={(video) => {
+            setYoutubeVideo(video);
+            startRealm();
+          }}
+        />
+      );
+    }
+
     return (
       <DefaultLobby
         {...lobbyProps}
         onStart={() => startRealm()}
+      />
+    );
+  }
+
+  if (realm.mode === "youtubetrail" && youtubeVideo) {
+    return (
+      <YouTubeTrailMode
+        clients={clients}
+        clientProfiles={clientProfiles}
+        latestData={latestData}
+        video={youtubeVideo}
+        onEnd={(totalDistance) => {
+          endRealm(totalDistance);
+        }}
       />
     );
   }
@@ -243,9 +273,6 @@ function App() {
 
       {realm.mode === "competition" && (
         <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} competitionType={competitionType} />
-      )}
-      {realm.mode === "youtubetrail" && (
-        <YouTubeTrailMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
       {realm.mode === "route" && (
         <RouteMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
