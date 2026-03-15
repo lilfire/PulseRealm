@@ -193,8 +193,29 @@ public partial class MainViewModel : ObservableObject
         var durationText = mins > 0 ? $"{mins}m {secs}s" : $"{secs}s";
         var distanceText = distance >= 1000 ? $"{distance / 1000:F2} km" : $"{distance:F0} m";
 
-        SummaryText = $"Duration: {durationText}  |  Distance: {distanceText}  |  Steps: {totalSteps}\n" +
-                      $"Avg Speed: {avgSpeed:F1} km/h  |  Avg HR: {avgHr} bpm  |  Max HR: {maxHr} bpm";
+        var hasClientSummaries = summary.TryGetProperty("clientSummaries", out var csArr)
+                                 && csArr.ValueKind == JsonValueKind.Array
+                                 && csArr.GetArrayLength() > 0;
+
+        var prefix = hasClientSummaries ? "Team " : "";
+
+        SummaryText = $"Duration: {durationText}  |  {prefix}Distance: {distanceText}  |  {prefix}Steps: {totalSteps}\n" +
+                      $"Avg Speed: {avgSpeed:F1} km/h  |  {prefix}Avg HR: {avgHr} bpm  |  {prefix}Max HR: {maxHr} bpm";
+
+        if (hasClientSummaries)
+        {
+            SummaryText += "\n";
+            foreach (var cs in csArr.EnumerateArray())
+            {
+                var name = cs.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+                var cSteps = cs.TryGetProperty("steps", out var cst) ? cst.GetInt32() : 0;
+                var cDist = cs.TryGetProperty("distanceMeters", out var cd) ? cd.GetDouble() : 0;
+                var cAvgHr = cs.TryGetProperty("averageHeartRate", out var cah) ? cah.GetInt32() : 0;
+                var cMaxHr = cs.TryGetProperty("maxHeartRate", out var cmh) ? cmh.GetInt32() : 0;
+                var cDistText = cDist >= 1000 ? $"{cDist / 1000:F2} km" : $"{cDist:F0} m";
+                SummaryText += $"\n  {name}: {cSteps} steps, {cDistText}, Avg HR {cAvgHr} bpm, Max HR {cMaxHr} bpm";
+            }
+        }
 
         RealmIsEnded = true;
         AddLog("Realm ended by dashboard.", "warn");

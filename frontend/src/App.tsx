@@ -257,6 +257,15 @@ function App() {
       );
     }
 
+    if (realm.mode === "social") {
+      return (
+        <DefaultLobby
+          {...lobbyProps}
+          onStart={() => startRealm()}
+        />
+      );
+    }
+
     return (
       <DefaultLobby
         {...lobbyProps}
@@ -317,6 +326,17 @@ function App() {
     );
   }
 
+  if (realm.mode === "social") {
+    return (
+      <SocialMode
+        clients={clients}
+        clientProfiles={clientProfiles}
+        latestData={latestData}
+        onEnd={(totalDistance, overrides) => endRealm(totalDistance, overrides)}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <div className="brand-header">
@@ -329,9 +349,6 @@ function App() {
 
       {realm.mode === "competition" && (
         <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} competitionType={competitionType} />
-      )}
-      {realm.mode === "social" && (
-        <SocialMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
     </div>
   );

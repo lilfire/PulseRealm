@@ -6,6 +6,14 @@ import {
 } from "@microsoft/signalr";
 import type { ClientProfile, WearableData } from "../types/session";
 
+export interface ClientSummary {
+  name: string;
+  steps: number;
+  distanceMeters: number;
+  averageHeartRate: number;
+  maxHeartRate: number;
+}
+
 export interface RealmSummary {
   durationSeconds: number;
   totalDistanceMeters: number;
@@ -13,6 +21,8 @@ export interface RealmSummary {
   averageHeartRate: number;
   maxHeartRate: number;
   averageSpeedKmh: number;
+  /** Present for social mode — per-runner breakdowns. Team totals are in the top-level fields. */
+  clientSummaries?: ClientSummary[];
 }
 
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
@@ -107,15 +117,16 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     connectionRef.current?.invoke("StartRealm", realmId);
   }, [realmId]);
 
-  const endRealm = useCallback((totalDistanceMeters: number) => {
+  const endRealm = useCallback((totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => {
     const s = statsRef.current;
-    const summary = {
+    const summary: RealmSummary = {
       durationSeconds: 0, // server will fill this
       totalDistanceMeters,
       totalSteps: s.totalSteps,
       averageHeartRate: s.heartRateCount > 0 ? Math.round(s.heartRateSum / s.heartRateCount) : 0,
       maxHeartRate: s.maxHeartRate,
       averageSpeedKmh: s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0,
+      ...overrides,
     };
     connectionRef.current?.invoke("EndRealm", realmId, summary);
   }, [realmId]);
