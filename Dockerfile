@@ -12,11 +12,14 @@ RUN npm install
 
 # Copy frontend source and build
 COPY frontend/ ./
-# When served from the same origin, use relative URLs
-ENV VITE_API_URL=""
-ENV VITE_HUB_URL="/hubs/session"
+
+# Vite embeds these at build time — pass via docker-compose build args
+ARG VITE_API_URL=""
+ARG VITE_HUB_URL="/hubs/realm"
 ARG VITE_GOOGLE_MAPS_API_KEY=""
-ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_HUB_URL=$VITE_HUB_URL
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 RUN npm run build
 
 # Stage 2: Build the server

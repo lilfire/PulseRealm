@@ -3,8 +3,15 @@ services:
     build:
       context: .
       args:
-        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY}
+        VITE_API_URL: ""
+        VITE_HUB_URL: "/hubs/realm"
+        VITE_GOOGLE_MAPS_API_KEY: ""
     ports:
       - "8080:8080"
       - "5063:5063/udp"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - SERVER_NAME=PulseRealm
+      - Discovery__Enabled=true
+      - Discovery__BroadcastPort=5063
     restart: unless-stopped
