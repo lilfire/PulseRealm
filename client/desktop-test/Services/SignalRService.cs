@@ -10,6 +10,7 @@ public class SignalRService : IAsyncDisposable
 
     public event Action<string, string>? LogReceived; // message, css class
     public event Action<bool>? ConnectionChanged;
+    public event Action<JsonElement>? SessionEnded;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
     public string? SessionId => _sessionId;
@@ -38,6 +39,11 @@ public class SignalRService : IAsyncDisposable
                     var steps = data.TryGetProperty("steps", out var s) ? s.GetInt32() : 0;
                     LogReceived?.Invoke($"Data from {cid}: HR={hr} Steps={steps}", "info");
                 }
+            });
+
+            _connection.On<JsonElement>("SessionEnded", summary =>
+            {
+                SessionEnded?.Invoke(summary);
             });
 
             _connection.On<string>("Error", msg =>

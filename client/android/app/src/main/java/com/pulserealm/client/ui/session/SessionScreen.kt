@@ -33,6 +33,7 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import com.pulserealm.client.data.network.ConnectionState
+import com.pulserealm.client.data.network.SessionSummaryData
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -45,6 +46,7 @@ fun SessionScreen(
     val sendCount by viewModel.sendCount.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val sensorsAvailable by viewModel.sensorsAvailable.collectAsState()
+    val sessionEnded by viewModel.sessionEnded.collectAsState()
 
     // Start streaming when screen appears
     DisposableEffect(Unit) {
@@ -52,6 +54,19 @@ fun SessionScreen(
         onDispose {
             // Streaming continues in the foreground service
         }
+    }
+
+    // Show summary when session ends
+    val summary = sessionEnded
+    if (summary != null) {
+        SessionEndedPage(
+            summary = summary,
+            onDismiss = {
+                viewModel.disconnect()
+                onDisconnected()
+            }
+        )
+        return
     }
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
@@ -169,6 +184,98 @@ private fun LivePage(
                     style = MaterialTheme.typography.caption3,
                     textAlign = TextAlign.Center
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionEndedPage(
+    summary: SessionSummaryData,
+    onDismiss: () -> Unit
+) {
+    val listState = rememberScalingLazyListState()
+
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    ) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            item {
+                Text(
+                    text = "SESSION OVER",
+                    color = Color(0xFF38BDF8),
+                    style = MaterialTheme.typography.title3,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Duration
+            item {
+                val minutes = (summary.durationSeconds / 60).toInt()
+                val seconds = (summary.durationSeconds % 60).toInt()
+                val durationText = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
+                StatItem(value = durationText, label = "DURATION", color = Color(0xFF38BDF8))
+            }
+
+            // Distance
+            item {
+                val distanceText = if (summary.totalDistanceMeters >= 1000) {
+                    "%.2f km".format(summary.totalDistanceMeters / 1000)
+                } else {
+                    "${summary.totalDistanceMeters.toInt()} m"
+                }
+                StatItem(value = distanceText, label = "DISTANCE", color = Color(0xFF34D399))
+            }
+
+            // Steps
+            item {
+                StatItem(value = "${summary.totalSteps}", label = "STEPS", color = Color(0xFF34D399))
+            }
+
+            // Heart rate
+            if (summary.averageHeartRate > 0) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        StatItem(
+                            value = "${summary.averageHeartRate}",
+                            label = "AVG BPM",
+                            color = Color(0xFFF87171)
+                        )
+                        StatItem(
+                            value = "${summary.maxHeartRate}",
+                            label = "MAX BPM",
+                            color = Color(0xFFF87171)
+                        )
+                    }
+                }
+            }
+
+            // Dismiss button
+            item {
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .padding(vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF38BDF8)
+                    )
+                ) {
+                    Text(
+                        text = "OK",
+                        color = Color.White
+                    )
+                }
             }
         }
     }

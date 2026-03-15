@@ -111,6 +111,24 @@ public class SessionHub : Hub
     }
 
     /// <summary>
+    /// Called by the dashboard to end a session. Broadcasts a summary to all clients.
+    /// </summary>
+    public async Task EndSession(string sessionId, SessionSummary summary)
+    {
+        var session = _sessionManager.GetById(sessionId);
+        if (session is null)
+        {
+            await Clients.Caller.SendAsync("Error", "Session not found.");
+            return;
+        }
+
+        session.Status = SessionStatus.Ended;
+        summary.DurationSeconds = (DateTime.UtcNow - session.CreatedAt).TotalSeconds;
+
+        await Clients.Group(sessionId).SendAsync("SessionEnded", summary);
+    }
+
+    /// <summary>
     /// Called by the dashboard to join a session's broadcast group.
     /// </summary>
     public async Task JoinSessionAsDashboard(string sessionId)

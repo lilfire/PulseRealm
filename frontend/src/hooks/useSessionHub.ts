@@ -6,15 +6,36 @@ import {
 } from "@microsoft/signalr";
 import type { ClientProfile, WearableData } from "../types/session";
 
+export interface SessionSummary {
+  durationSeconds: number;
+  totalDistanceMeters: number;
+  totalSteps: number;
+  averageHeartRate: number;
+  maxHeartRate: number;
+  averageSpeedKmh: number;
+}
+
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 
 export function useSessionHub(sessionId: string | null, hubUrl?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
   const [connected, setConnected] = useState(false);
   const [started, setStarted] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
   const [clients, setClients] = useState<string[]>([]);
   const [clientProfiles, setClientProfiles] = useState<Record<string, ClientProfile>>({});
   const [latestData, setLatestData] = useState<WearableData | null>(null);
+
+  // Track cumulative stats for the summary
+  const statsRef = useRef({
+    totalSteps: 0,
+    heartRateSum: 0,
+    heartRateCount: 0,
+    maxHeartRate: 0,
+    speedSum: 0,
+    speedCount: 0,
+  });
 
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
@@ -34,10 +55,27 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
 
     connection.on("WearableDataReceived", (data: WearableData) => {
       setLatestData(data);
+
+      const s = statsRef.current;
+      s.totalSteps = Math.max(s.totalSteps, data.steps);
+      if (data.heartRate > 0) {
+        s.heartRateSum += data.heartRate;
+        s.heartRateCount++;
+        s.maxHeartRate = Math.max(s.maxHeartRate, data.heartRate);
+      }
+      if (data.speedKmh > 0) {
+        s.speedSum += data.speedKmh;
+        s.speedCount++;
+      }
     });
 
     connection.on("SessionStarted", () => {
       setStarted(true);
+    });
+
+    connection.on("SessionEnded", (summary: SessionSummary) => {
+      setSessionSummary(summary);
+      setEnded(true);
     });
 
     connection
@@ -59,5 +97,18 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
     connectionRef.current?.invoke("StartSession", sessionId);
   }, [sessionId]);
 
-  return { connected, started, clients, clientProfiles, latestData, startSession };
+  const endSession = useCallback((totalDistanceMeters: number) => {
+    const s = statsRef.current;
+    const summary = {
+      durationSeconds: 0, // server will fill this
+      totalDistanceMeters,
+      totalSteps: s.totalSteps,
+      averageHeartRate: s.heartRateCount > 0 ? Math.round(s.heartRateSum / s.heartRateCount) : 0,
+      maxHeartRate: s.maxHeartRate,
+      averageSpeedKmh: s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0,
+    };
+    connectionRef.current?.invoke("EndSession", sessionId, summary);
+  }, [sessionId]);
+
+  return { connected, started, ended, sessionSummary, clients, clientProfiles, latestData, startSession, endSession };
 }
