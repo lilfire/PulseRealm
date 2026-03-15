@@ -21,6 +21,7 @@ interface Props {
   connected: boolean;
   onStart: (route: RouteConfig) => void;
   onLeave: () => void;
+  viewOnly?: boolean;
 }
 
 interface Suggestion {
@@ -172,7 +173,7 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave }: Props) {
+export function RouteLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
@@ -186,6 +187,7 @@ export function RouteLobby({ joinCode, clients, clientProfiles, connected, onSta
       canStart={connected && clients.length > 0 && from !== null && to !== null}
       onStart={() => from && to && onStart({ from, to })}
       onLeave={onLeave}
+      viewOnly={viewOnly}
     >
       <div style={{ margin: "1.5rem 0", maxWidth: "420px", display: "inline-block", width: "100%", textAlign: "left" }}>
         <h3>Plan Your Route</h3>

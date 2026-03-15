@@ -26,7 +26,7 @@ export function ServerConnect({
   searchAttempt,
   onRetrySearch,
 }: ServerConnectProps) {
-  const [url, setUrl] = useState(remoteUrl || "https://");
+  const [url, setUrl] = useState(remoteUrl || "");
   const [activeMode, setActiveMode] = useState<ConnectionMode>(connectionMode);
 
   async function handleRemoteSubmit(e: React.FormEvent) {
@@ -124,7 +124,7 @@ export function ServerConnect({
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://pulserealm.example.com"
+                placeholder="pulserealm.example.com"
                 disabled={checking}
                 className="input-url"
               />
@@ -143,9 +143,9 @@ export function ServerConnect({
 
           <div className="manual-help">
             <p>
-              Use the full URL of a hosted PulseRealm server
-              (e.g. <code>https://pulserealm.example.com</code> or{" "}
-              <code>http://203.0.113.50:5062</code>).
+              Enter the address of a hosted PulseRealm server
+              (e.g. <code>pulserealm.example.com</code> or{" "}
+              <code>203.0.113.50:5062</code>).
             </p>
           </div>
         </div>

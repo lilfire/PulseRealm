@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import android.app.RemoteInput
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,11 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +49,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
+import androidx.wear.input.RemoteInputIntentHelper
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.DiscoveredServer
 import kotlinx.coroutines.delay
@@ -166,60 +163,29 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
             }
 
             if (uiState.connectionMode == ConnectionMode.REMOTE) {
-                // Remote mode — URL entry
+                // Remote mode — URL entry via RemoteInput
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(0.9f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Server address",
-                            color = Color(0xFF94A3B8),
-                            style = MaterialTheme.typography.caption3,
-                            textAlign = TextAlign.Center
-                        )
-                        BasicTextField(
-                            value = uiState.remoteUrl,
-                            onValueChange = { viewModel.updateRemoteUrl(it) },
-                            textStyle = TextStyle(
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontFamily = FontFamily.Monospace,
-                                textAlign = TextAlign.Center
-                            ),
-                            cursorBrush = SolidColor(Color(0xFF38BDF8)),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = { viewModel.confirmServer() }
-                            ),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(36.dp)
-                                .padding(horizontal = 4.dp),
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (uiState.remoteUrl.isEmpty()) {
-                                        Text(
-                                            text = "https://...",
-                                            color = Color(0xFF475569),
-                                            fontSize = 13.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
-                        )
+                    val launcher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.StartActivityForResult()
+                    ) { result ->
+                        val data = result.data ?: return@rememberLauncherForActivityResult
+                        val results = RemoteInput.getResultsFromIntent(data)
+                        val url = results.getCharSequence("remote_url")?.toString() ?: return@rememberLauncherForActivityResult
+                        viewModel.updateRemoteUrl(url)
                     }
+                    WearTextInputButton(
+                        label = "Server address",
+                        value = uiState.remoteUrl,
+                        placeholder = "server.example.com",
+                        onClick = {
+                            val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
+                            val remoteInput = RemoteInput.Builder("remote_url")
+                                .setLabel("Server address")
+                                .build()
+                            RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
+                            launcher.launch(intent)
+                        }
+                    )
                 }
                 item {
                     Button(
@@ -228,9 +194,16 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color(0xFF38BDF8)
                         ),
-                        enabled = uiState.remoteUrl.isNotBlank()
+                        enabled = uiState.remoteUrl.isNotBlank() && !uiState.isLoading
                     ) {
-                        Text(text = "Connect", color = Color.Black, fontSize = 12.sp)
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                indicatorColor = Color.Black
+                            )
+                        } else {
+                            Text(text = "Connect", color = Color.Black, fontSize = 12.sp)
+                        }
                     }
                 }
             } else if (isScanning) {
@@ -301,61 +274,30 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                     }
                 }
 
-                // Manual entry with on-screen keyboard
+                // Manual entry via RemoteInput
                 if (uiState.showManualEntry) {
                     item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(0.9f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "Server address",
-                                color = Color(0xFF94A3B8),
-                                style = MaterialTheme.typography.caption3,
-                                textAlign = TextAlign.Center
-                            )
-                            BasicTextField(
-                                value = uiState.serverUrl,
-                                onValueChange = { viewModel.updateServerUrl(it) },
-                                textStyle = TextStyle(
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    textAlign = TextAlign.Center
-                                ),
-                                cursorBrush = SolidColor(Color(0xFF38BDF8)),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Uri,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = { viewModel.confirmServer() }
-                                ),
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(36.dp)
-                                    .padding(horizontal = 4.dp),
-                                decorationBox = { innerTextField ->
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (uiState.serverUrl.isEmpty()) {
-                                            Text(
-                                                text = "http://...",
-                                                color = Color(0xFF475569),
-                                                fontSize = 13.sp,
-                                                fontFamily = FontFamily.Monospace,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
-                            )
+                        val launcher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.StartActivityForResult()
+                        ) { result ->
+                            val data = result.data ?: return@rememberLauncherForActivityResult
+                            val results = RemoteInput.getResultsFromIntent(data)
+                            val url = results.getCharSequence("server_url")?.toString() ?: return@rememberLauncherForActivityResult
+                            viewModel.updateServerUrl(url)
                         }
+                        WearTextInputButton(
+                            label = "Server address",
+                            value = uiState.serverUrl,
+                            placeholder = "192.168.1.x:5062",
+                            onClick = {
+                                val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
+                                val remoteInput = RemoteInput.Builder("server_url")
+                                    .setLabel("Server address")
+                                    .build()
+                                RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
+                                launcher.launch(intent)
+                            }
+                        )
                     }
                     // Confirm button
                     item {
@@ -651,24 +593,21 @@ private fun SettingsPage(
             ProfileField(
                 label = "Name",
                 value = uiState.playerName,
-                onValueChange = { viewModel.updatePlayerName(it) },
-                keyboardType = KeyboardType.Text
+                onValueChange = { viewModel.updatePlayerName(it) }
             )
         }
         item {
             ProfileField(
                 label = "Height (cm)",
                 value = uiState.heightCm,
-                onValueChange = { viewModel.updateHeightCm(it) },
-                keyboardType = KeyboardType.Number
+                onValueChange = { viewModel.updateHeightCm(it) }
             )
         }
         item {
             ProfileField(
                 label = "Weight (kg)",
                 value = uiState.weightKg,
-                onValueChange = { viewModel.updateWeightKg(it) },
-                keyboardType = KeyboardType.Number
+                onValueChange = { viewModel.updateWeightKg(it) }
             )
         }
 
@@ -716,12 +655,46 @@ private fun SettingsPage(
 private fun ProfileField(
     label: String,
     value: String,
-    onValueChange: (String) -> Unit,
-    keyboardType: KeyboardType
+    onValueChange: (String) -> Unit
+) {
+    val key = label.lowercase().replace(" ", "_")
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data ?: return@rememberLauncherForActivityResult
+        val results = RemoteInput.getResultsFromIntent(data)
+        val newValue = results.getCharSequence(key)?.toString() ?: return@rememberLauncherForActivityResult
+        onValueChange(newValue)
+    }
+
+    WearTextInputButton(
+        label = label,
+        value = value,
+        placeholder = "---",
+        modifier = Modifier.fillMaxWidth(0.85f),
+        onClick = {
+            val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
+            val remoteInput = RemoteInput.Builder(key)
+                .setLabel(label)
+                .build()
+            RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
+            launcher.launch(intent)
+        }
+    )
+}
+
+@Composable
+private fun WearTextInputButton(
+    label: String,
+    value: String,
+    placeholder: String,
+    modifier: Modifier = Modifier.fillMaxWidth(0.9f),
+    onClick: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(0.85f),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = label,
@@ -729,38 +702,25 @@ private fun ProfileField(
             style = MaterialTheme.typography.caption3,
             textAlign = TextAlign.Center
         )
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            textStyle = TextStyle(
-                color = Color.White,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center
-            ),
-            cursorBrush = SolidColor(Color(0xFF38BDF8)),
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            singleLine = true,
+        Button(
+            onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(32.dp)
-                .padding(horizontal = 8.dp),
-            decorationBox = { innerTextField ->
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = "---",
-                            color = Color(0xFF475569),
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                    innerTextField()
-                }
-            }
-        )
+                .height(36.dp),
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = Color(0xFF1E293B)
+            )
+        ) {
+            Text(
+                text = value.ifEmpty { placeholder },
+                color = if (value.isEmpty()) Color(0xFF475569) else Color.White,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

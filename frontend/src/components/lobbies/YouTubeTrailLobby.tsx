@@ -15,6 +15,7 @@ interface Props {
   connected: boolean;
   onStart: (video: YouTubeVideo) => void;
   onLeave: () => void;
+  viewOnly?: boolean;
 }
 
 const CURATED_VIDEOS: YouTubeVideo[] = [
@@ -58,7 +59,7 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave }: Props) {
+export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -100,6 +101,7 @@ export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected
       canStart={connected && clients.length > 0 && video !== null}
       onStart={() => video && onStart(video)}
       onLeave={onLeave}
+      viewOnly={viewOnly}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>YouTube Video</h3>

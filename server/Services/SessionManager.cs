@@ -38,12 +38,25 @@ public class RealmManager
     {
         if (_realms.TryGetValue(realmId, out var realm))
         {
-            realm.ConnectedClientIds.Add(clientId);
+            if (!realm.ConnectedClientIds.Contains(clientId))
+            {
+                realm.ConnectedClientIds.Add(clientId);
+            }
+            realm.KnownClientIds.Add(clientId);
             if (profile != null)
             {
                 profile.ClientId = clientId;
                 realm.ClientProfiles[clientId] = profile;
             }
+        }
+    }
+
+    public void RemoveClient(string realmId, string clientId)
+    {
+        if (_realms.TryGetValue(realmId, out var realm))
+        {
+            realm.ConnectedClientIds.Remove(clientId);
+            realm.ClientProfiles.Remove(clientId);
         }
     }
 

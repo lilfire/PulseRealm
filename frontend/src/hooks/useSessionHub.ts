@@ -45,6 +45,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const [clients, setClients] = useState<string[]>([]);
   const [clientProfiles, setClientProfiles] = useState<Record<string, ClientProfile>>({});
   const [latestData, setLatestData] = useState<WearableData | null>(null);
+  const [realmConfig, setRealmConfig] = useState<Record<string, unknown> | null>(null);
 
   // Track cumulative stats for the summary
   const statsRef = useRef({
@@ -75,6 +76,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     setClients([]);
     setClientProfiles({});
     setLatestData(null);
+    setRealmConfig(null);
     statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
 
     if (!realmId || !resolvedUrl) return;
@@ -88,6 +90,15 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     connection.on("ClientJoined", (profile: ClientProfile) => {
       setClients((prev) => [...prev, profile.clientId]);
       setClientProfiles((prev) => ({ ...prev, [profile.clientId]: profile }));
+    });
+
+    connection.on("ClientLeft", (clientId: string) => {
+      setClients((prev) => prev.filter((id) => id !== clientId));
+      setClientProfiles((prev) => {
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
     });
 
     connection.on("WearableDataReceived", (data: WearableData) => {
@@ -122,8 +133,11 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       s.lastDataReceivedAt = now;
     });
 
-    connection.on("RealmStarted", () => {
+    connection.on("RealmStarted", (config?: string) => {
       setStarted(true);
+      if (config) {
+        try { setRealmConfig(JSON.parse(config)); } catch { /* ignore */ }
+      }
     });
 
     connection.on("RealmEnded", (summary: RealmSummary) => {
@@ -145,6 +159,22 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       }
     }, 1000);
 
+    connection.on("JoinedRealm", (state: { status?: string; connectedClientIds?: string[]; clientProfiles?: Record<string, ClientProfile>; config?: string }) => {
+      // Hydrate state for late-joining viewers
+      if (state.connectedClientIds?.length) {
+        setClients(state.connectedClientIds);
+      }
+      if (state.clientProfiles && Object.keys(state.clientProfiles).length > 0) {
+        setClientProfiles(state.clientProfiles);
+      }
+      if (state.status === "Started") {
+        setStarted(true);
+      }
+      if (state.config) {
+        try { setRealmConfig(JSON.parse(state.config)); } catch { /* ignore */ }
+      }
+    });
+
     connection
       .start()
       .then(() => {
@@ -161,8 +191,9 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     };
   }, [realmId, resolvedUrl]);
 
-  const startRealm = useCallback(() => {
-    connectionRef.current?.invoke("StartRealm", realmId);
+  const startRealm = useCallback((config?: object) => {
+    const configJson = config ? JSON.stringify(config) : null;
+    connectionRef.current?.invoke("StartRealm", realmId, configJson);
   }, [realmId]);
 
   const notifyEliminated = useCallback((clientId: string) => {
@@ -187,5 +218,5 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     connectionRef.current?.invoke("EndRealm", realmId, summary);
   }, [realmId, clients.length]);
 
-  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, startRealm, endRealm, notifyEliminated };
+  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, startRealm, endRealm, notifyEliminated };
 }

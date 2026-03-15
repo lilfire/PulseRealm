@@ -27,7 +27,7 @@ public class RealmController : ControllerBase
     {
         var realm = _realmManager.GetByJoinCode(joinCode);
         if (realm is null) return NotFound();
-        return Ok(new { realm.Id, realm.JoinCode, realm.Mode });
+        return Ok(new { realm.Id, realm.JoinCode, realm.Mode, Status = realm.Status.ToString() });
     }
 }
 

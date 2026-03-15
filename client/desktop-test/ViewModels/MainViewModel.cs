@@ -23,7 +23,7 @@ public partial class MainViewModel : ObservableObject
     private int _prevStepsSnapshot;
     private int _targetHr = 65;
 
-    public string ClientId { get; } = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
+    [ObservableProperty] private string _clientId = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
 
     [ObservableProperty] private string _serverUrl = "";
     [ObservableProperty] private string _joinCode = "";
@@ -42,12 +42,15 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isSearching;
     [ObservableProperty] private string _searchStatus = "";
     [ObservableProperty] private bool _showManualEntry;
-    [ObservableProperty] private string _manualUrl = "http://";
+    [ObservableProperty] private bool _showServerSelection;
+    [ObservableProperty] private string _manualUrl = "";
     [ObservableProperty] private string _manualError = "";
+
+    public ObservableCollection<DiscoveredServer> DiscoveredServers { get; } = new();
 
     // Connection mode: false = local, true = remote
     [ObservableProperty] private bool _isRemoteMode;
-    [ObservableProperty] private string _remoteUrl = "https://";
+    [ObservableProperty] private string _remoteUrl = "";
 
     public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
@@ -87,25 +90,40 @@ public partial class MainViewModel : ObservableObject
     public async Task StartDiscoveryAsync()
     {
         ShowManualEntry = false;
+        ShowServerSelection = false;
         SearchStatus = "Sending broadcast discovery request…";
         IsSearching = true;
 
         var servers = await _discovery.ScanAsync();
 
-        if (servers.Count > 0)
+        IsSearching = false;
+        DiscoveredServers.Clear();
+
+        if (servers.Count == 1)
         {
             var server = servers[0];
             ServerUrl = server.BuildServerUrl();
             AddLog($"Server found: {server.Name} at {ServerUrl} (v{server.Version})", "info");
-            IsSearching = false;
+        }
+        else if (servers.Count > 1)
+        {
+            foreach (var s in servers) DiscoveredServers.Add(s);
+            ShowServerSelection = true;
+            AddLog($"Found {servers.Count} servers on the network.", "info");
         }
         else
         {
-            SearchStatus = "No server found on the network.";
-            IsSearching = false;
             ShowManualEntry = true;
             AddLog("No server found via broadcast discovery.", "warn");
         }
+    }
+
+    [RelayCommand]
+    private void SelectServer(DiscoveredServer server)
+    {
+        ServerUrl = server.BuildServerUrl();
+        ShowServerSelection = false;
+        AddLog($"Selected server: {server.Name} at {ServerUrl} (v{server.Version})", "info");
     }
 
     [RelayCommand]
@@ -125,6 +143,7 @@ public partial class MainViewModel : ObservableObject
     private void SwitchToLocal()
     {
         IsRemoteMode = false;
+        ShowServerSelection = false;
         ServerUrl = "";
         _ = StartDiscoveryAsync();
     }
@@ -135,13 +154,24 @@ public partial class MainViewModel : ObservableObject
         IsRemoteMode = true;
         IsSearching = false;
         ShowManualEntry = false;
+        ShowServerSelection = false;
+    }
+
+    private static string EnsureScheme(string raw)
+    {
+        var trimmed = raw.Trim().TrimEnd('/');
+        if (string.IsNullOrEmpty(trimmed)) return trimmed;
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return trimmed;
+        return "https://" + trimmed;
     }
 
     [RelayCommand]
     private async Task RemoteConnect()
     {
         ManualError = "";
-        var url = RemoteUrl.TrimEnd('/');
+        var url = EnsureScheme(RemoteUrl);
 
         try
         {
@@ -153,6 +183,7 @@ public partial class MainViewModel : ObservableObject
                 if (json.Contains("PulseRealm"))
                 {
                     ServerUrl = url;
+                    IsRemoteMode = false;
                     AddLog($"Connected to remote server: {url}", "info");
                     return;
                 }
@@ -167,7 +198,7 @@ public partial class MainViewModel : ObservableObject
     private async Task ManualConnect()
     {
         ManualError = "";
-        var url = ManualUrl.TrimEnd('/');
+        var url = EnsureScheme(ManualUrl);
 
         try
         {
@@ -180,6 +211,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     ServerUrl = url;
                     ShowManualEntry = false;
+                    ShowServerSelection = false;
                     AddLog($"Connected to {url}", "info");
                     return;
                 }

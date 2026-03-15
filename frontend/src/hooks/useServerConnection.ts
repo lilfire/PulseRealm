@@ -371,7 +371,10 @@ export function useServerConnection() {
   }, []);
 
   const connectRemote = useCallback(async (url: string) => {
-    const cleanUrl = url.replace(/\/+$/, "");
+    let cleanUrl = url.replace(/\/+$/, "");
+    if (cleanUrl && !/^https?:\/\//i.test(cleanUrl)) {
+      cleanUrl = "https://" + cleanUrl;
+    }
     setRemoteUrl(cleanUrl);
     setConnectionMode("remote");
     const ok = await verifyServer(cleanUrl);
