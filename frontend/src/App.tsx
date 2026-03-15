@@ -2,11 +2,17 @@ import { useState } from "react";
 import { useRealmHub } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
-import { Lobby, type StreetViewLocation } from "./components/Lobby";
+import { CompetitionLobby } from "./components/lobbies/CompetitionLobby";
+import { StreetViewLobby, type StreetViewLocation } from "./components/lobbies/StreetViewLobby";
+import { DefaultLobby } from "./components/lobbies/DefaultLobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
+import { YouTubeTrailMode } from "./components/modes/YouTubeTrailMode";
+import { RouteMode } from "./components/modes/RouteMode";
+import { DungeonMode } from "./components/modes/DungeonMode";
+import { SocialMode } from "./components/modes/SocialMode";
 import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
-import type { Realm, RealmMode } from "./types/session";
+import type { CompetitionType, Realm, RealmMode } from "./types/session";
 import "./App.css";
 
 // When VITE_API_URL is set (e.g. in Docker where frontend is served from the
@@ -18,6 +24,7 @@ function App() {
   const [realm, setRealm] = useState<Realm | null>(null);
   const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
+  const [competitionType, setCompetitionType] = useState<CompetitionType>("race");
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
@@ -48,7 +55,15 @@ function App() {
   async function createRealm(mode: RealmMode) {
     setCreatingMode(mode);
     try {
-      const modeValue = mode === "competition" ? 0 : 1;
+      const modeMap: Record<RealmMode, number> = {
+        competition: 0,
+        streetview: 1,
+        youtubetrail: 2,
+        route: 3,
+        dungeon: 4,
+        social: 5,
+      };
+      const modeValue = modeMap[mode];
       const res = await fetch(`${apiUrl}/api/realm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,6 +107,42 @@ function App() {
               <span className="mode-name">Street View</span>
               <span className="mode-desc">Explore the world together</span>
             </button>
+            <button
+              className="mode-card"
+              onClick={() => createRealm("youtubetrail")}
+              disabled={creatingMode !== null}
+            >
+              <span className="mode-icon">&#9654;</span>
+              <span className="mode-name">YouTube Trail</span>
+              <span className="mode-desc">Walk through videos together</span>
+            </button>
+            <button
+              className="mode-card"
+              onClick={() => createRealm("route")}
+              disabled={creatingMode !== null}
+            >
+              <span className="mode-icon">&#128739;</span>
+              <span className="mode-name">Route</span>
+              <span className="mode-desc">Follow a path in the real world</span>
+            </button>
+            <button
+              className="mode-card"
+              onClick={() => createRealm("dungeon")}
+              disabled={creatingMode !== null}
+            >
+              <span className="mode-icon">&#128081;</span>
+              <span className="mode-name">Dungeon</span>
+              <span className="mode-desc">Conquer dungeons with your team</span>
+            </button>
+            <button
+              className="mode-card"
+              onClick={() => createRealm("social")}
+              disabled={creatingMode !== null}
+            >
+              <span className="mode-icon">&#128172;</span>
+              <span className="mode-name">Social</span>
+              <span className="mode-desc">Hang out and move together</span>
+            </button>
           </div>
         </div>
         {!PRESET_API_URL && server.serverInfo && (
@@ -123,21 +174,45 @@ function App() {
 
   // Show lobby until the realm is started
   if (!started) {
+    const lobbyProps = {
+      joinCode: realm.joinCode,
+      clients,
+      clientProfiles,
+      connected,
+      onLeave: () => {
+        setRealm(null);
+        setStreetViewLocation(null);
+      },
+    };
+
+    if (realm.mode === "competition") {
+      return (
+        <CompetitionLobby
+          {...lobbyProps}
+          onStart={(compType) => {
+            setCompetitionType(compType);
+            startRealm();
+          }}
+        />
+      );
+    }
+
+    if (realm.mode === "streetview") {
+      return (
+        <StreetViewLobby
+          {...lobbyProps}
+          onStart={(location) => {
+            setStreetViewLocation(location);
+            startRealm();
+          }}
+        />
+      );
+    }
+
     return (
-      <Lobby
-        joinCode={realm.joinCode}
-        clients={clients}
-        clientProfiles={clientProfiles}
-        connected={connected}
-        mode={realm.mode}
-        onStart={(location) => {
-          if (location) setStreetViewLocation(location);
-          startRealm();
-        }}
-        onLeave={() => {
-          setRealm(null);
-          setStreetViewLocation(null);
-        }}
+      <DefaultLobby
+        {...lobbyProps}
+        onStart={() => startRealm()}
       />
     );
   }
@@ -167,7 +242,19 @@ function App() {
       <p>Status: {connected ? "Connected" : "Connecting..."}</p>
 
       {realm.mode === "competition" && (
-        <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
+        <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} competitionType={competitionType} />
+      )}
+      {realm.mode === "youtubetrail" && (
+        <YouTubeTrailMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
+      )}
+      {realm.mode === "route" && (
+        <RouteMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
+      )}
+      {realm.mode === "dungeon" && (
+        <DungeonMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
+      )}
+      {realm.mode === "social" && (
+        <SocialMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
     </div>
   );

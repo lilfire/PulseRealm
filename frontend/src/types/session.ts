@@ -1,4 +1,6 @@
-export type RealmMode = "competition" | "streetview";
+export type RealmMode = "competition" | "streetview" | "youtubetrail" | "route" | "dungeon" | "social";
+
+export type CompetitionType = "race" | "elimination";
 
 export interface Realm {
   id: string;
