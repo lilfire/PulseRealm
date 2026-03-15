@@ -147,7 +147,9 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
 
   return (
     <div className="app">
-      <h1>PulseRealm</h1>
+      <div className="brand-header">
+        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+      </div>
       <p>
         Join Code: <strong style={{ fontSize: "2rem", letterSpacing: "0.15em" }}>{joinCode}</strong>
       </p>
@@ -192,7 +194,7 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
                   padding: "0.6rem 0.75rem",
                   fontSize: "1rem",
                   borderRadius: "6px",
-                  border: `2px solid ${location ? "#86efac" : "#555"}`,
+                  border: `2px solid ${location ? "#00D4FF" : "#555"}`,
                   width: "100%",
                   background: "#1a1a1a",
                   color: "#fff",
@@ -258,9 +260,9 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
                     cursor: "pointer",
                     fontSize: "0.9rem",
                     borderRadius: "4px",
-                    border: location?.address === loc.address ? "1px solid #86efac" : "1px solid #333",
+                    border: location?.address === loc.address ? "1px solid #00D4FF" : "1px solid #333",
                     marginBottom: "0.4rem",
-                    background: location?.address === loc.address ? "rgba(134,239,172,0.1)" : "#1a1a1a",
+                    background: location?.address === loc.address ? "rgba(0,212,255,0.1)" : "#1a1a1a",
                     transition: "background 0.15s, border-color 0.15s",
                   }}
                   onMouseEnter={(e) => {

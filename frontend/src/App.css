@@ -21,14 +21,44 @@ button {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   cursor: pointer;
-  border: 2px solid #333;
+  border: none;
   border-radius: 6px;
-  background: #333;
+  background: var(--accent, #FF3D5A);
   color: #fff;
+  transition: opacity 0.2s, transform 0.1s;
 }
 
 button:hover {
-  background: #555;
+  opacity: 0.85;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Logo styles */
+.logo {
+  width: 120px;
+  height: auto;
+  margin-bottom: 0.5rem;
+}
+
+.brand-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin: 0 0 0.5rem;
+  background: var(--gradient, linear-gradient(135deg, #FF3D5A, #C850C0, #00D4FF));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.brand-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
 button:disabled {

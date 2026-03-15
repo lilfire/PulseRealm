@@ -21,7 +21,10 @@ export function SessionSummaryScreen({ summary, onClose }: Props) {
 
   return (
     <div className="app" style={{ textAlign: "center" }}>
-      <h1>Session Complete</h1>
+      <div className="brand-header">
+        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+      </div>
+      <h1 className="brand-title">Session Complete</h1>
 
       <div
         style={{
@@ -52,7 +55,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div
       style={{
         background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.1)",
+        border: "1px solid rgba(0,212,255,0.2)",
         borderRadius: "10px",
         padding: "1rem",
       }}

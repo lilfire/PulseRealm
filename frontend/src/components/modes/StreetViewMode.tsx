@@ -538,7 +538,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           zIndex: 10,
           background: "rgba(0,0,0,0.75)",
           color: "#fff",
-          border: "1px solid rgba(255,255,255,0.3)",
+          border: "1px solid rgba(255,61,90,0.5)",
           borderRadius: "8px",
           padding: "0.5rem 1rem",
           fontSize: "0.9rem",

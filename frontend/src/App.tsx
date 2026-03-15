@@ -63,7 +63,9 @@ function App() {
   if (!session) {
     return (
       <div className="app">
-        <h1>PulseRealm</h1>
+        <div className="brand-header">
+          <img src="/logo.svg" alt="PulseRealm" className="logo" />
+        </div>
         {!PRESET_API_URL && server.serverInfo && (
           <p style={{ fontSize: "0.85rem", color: "#888" }}>
             Connected to {server.serverUrl}{" "}
@@ -146,7 +148,9 @@ function App() {
 
   return (
     <div className="app">
-      <h1>PulseRealm</h1>
+      <div className="brand-header">
+        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+      </div>
       <p>
         Join Code: <strong>{session.joinCode}</strong>
       </p>

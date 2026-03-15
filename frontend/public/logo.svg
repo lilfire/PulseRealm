@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 600" fill="none">
+  <defs>
+    <linearGradient id="prGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF3D5A"/>
+      <stop offset="50%" stop-color="#C850C0"/>
+      <stop offset="100%" stop-color="#00D4FF"/>
+    </linearGradient>
+    <linearGradient id="pGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C850C0"/>
+      <stop offset="100%" stop-color="#00D4FF"/>
+    </linearGradient>
+    <linearGradient id="rGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF3D5A"/>
+      <stop offset="100%" stop-color="#C850C0"/>
+    </linearGradient>
+  </defs>
+  <!-- P letter -->
+  <path d="M60 420 L60 100 Q60 40 120 40 L220 40 Q320 40 320 140 Q320 240 220 240 L140 240 L140 420 Z"
+        fill="url(#pGrad)" opacity="0.9"/>
+  <!-- R letter -->
+  <path d="M180 420 L180 100 Q180 40 240 40 L340 40 Q440 40 440 140 Q440 210 380 230 L460 420 L380 420 L310 250 L260 250 L260 420 Z"
+        fill="url(#rGrad)" opacity="0.9"/>
+  <!-- Pulse/heartbeat line -->
+  <polyline points="30,260 130,260 160,200 190,320 220,220 250,280 280,260 470,260"
+            stroke="#00D4FF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow on R -->
+  <polygon points="430,80 460,40 460,70 500,70 500,90 460,90 460,120"
+           fill="#FF3D5A"/>
+  <!-- PULSE text -->
+  <text x="250" y="510" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800"
+        font-size="72" fill="#FF3D5A" letter-spacing="8">PULSE</text>
+  <!-- REALM text -->
+  <text x="250" y="575" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800"
+        font-size="72" fill="#00D4FF" letter-spacing="8">REALM</text>
+</svg>

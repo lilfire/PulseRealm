@@ -31,7 +31,9 @@ export function ServerConnect({
 
   return (
     <div className="app">
-      <h1>PulseRealm</h1>
+      <div className="brand-header">
+        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+      </div>
 
       {/* Searching state */}
       {searchPhase === "searching" && (
