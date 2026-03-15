@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ClientProfile, SessionMode } from "../types/session";
+import type { ClientProfile, RealmMode } from "../types/session";
 import { useGoogleMaps } from "../hooks/useGoogleMaps";
 
 export interface StreetViewLocation {
@@ -13,7 +13,7 @@ interface Props {
   clients: string[];
   clientProfiles: Record<string, ClientProfile>;
   connected: boolean;
-  mode: SessionMode;
+  mode: RealmMode;
   onStart: (location?: StreetViewLocation) => void;
 }
 
@@ -285,7 +285,7 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
         disabled={!canStart}
         style={{ fontSize: "1.2rem", padding: "0.6rem 2rem" }}
       >
-        Start Session
+        Start Realm
       </button>
     </div>
   );

@@ -1,9 +1,9 @@
-export type SessionMode = "competition" | "streetview";
+export type RealmMode = "competition" | "streetview";
 
-export interface Session {
+export interface Realm {
   id: string;
   joinCode: string;
-  mode: SessionMode;
+  mode: RealmMode;
 }
 
 export interface ClientProfile {

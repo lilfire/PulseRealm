@@ -17,4 +17,4 @@ This client reads sensor data (heart rate, step count) via HealthKit and streams
 - [ ] Implement HealthKit data collection (heart rate, step counter)
 - [ ] Implement WebSocket client for server communication
 - [ ] Add join code entry UI
-- [ ] Handle watchOS background session constraints
+- [ ] Handle watchOS background realm constraints

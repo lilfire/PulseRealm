@@ -16,7 +16,7 @@ enum class ConnectionState {
     RECONNECTING
 }
 
-data class SessionSummaryData(
+data class RealmSummaryData(
     val durationSeconds: Double = 0.0,
     val totalDistanceMeters: Double = 0.0,
     val totalSteps: Int = 0,
@@ -37,8 +37,8 @@ class SignalRClient {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val _sessionEnded = MutableStateFlow<SessionSummaryData?>(null)
-    val sessionEnded: StateFlow<SessionSummaryData?> = _sessionEnded.asStateFlow()
+    private val _realmEnded = MutableStateFlow<RealmSummaryData?>(null)
+    val realmEnded: StateFlow<RealmSummaryData?> = _realmEnded.asStateFlow()
 
     fun connect(serverUrl: String) {
         disconnect()
@@ -46,7 +46,7 @@ class SignalRClient {
         _connectionState.value = ConnectionState.CONNECTING
         _error.value = null
 
-        val url = serverUrl.trimEnd('/') + "/hubs/session"
+        val url = serverUrl.trimEnd('/') + "/hubs/realm"
 
         hubConnection = HubConnectionBuilder.create(url)
             .shouldSkipNegotiate(false)
@@ -54,21 +54,21 @@ class SignalRClient {
 
         hubConnection?.apply {
             on("ClientJoined", { clientId ->
-                // Another client joined the session
+                // Another client joined the realm
             }, String::class.java)
 
             on("WearableDataReceived", { _ ->
                 // Data from another client (not needed for wearable sender)
             }, Any::class.java)
 
-            on("JoinedSession", { _ ->
+            on("JoinedRealm", { _ ->
                 // Dashboard join confirmation (not applicable here)
             }, String::class.java)
 
-            on("SessionEnded", { summaryMap ->
+            on("RealmEnded", { summaryMap ->
                 @Suppress("UNCHECKED_CAST")
                 val map = summaryMap as? Map<String, Any> ?: emptyMap()
-                _sessionEnded.value = SessionSummaryData(
+                _realmEnded.value = RealmSummaryData(
                     durationSeconds = (map["durationSeconds"] as? Number)?.toDouble() ?: 0.0,
                     totalDistanceMeters = (map["totalDistanceMeters"] as? Number)?.toDouble() ?: 0.0,
                     totalSteps = (map["totalSteps"] as? Number)?.toInt() ?: 0,
@@ -96,7 +96,7 @@ class SignalRClient {
         }
     }
 
-    fun joinSession(joinCode: String, clientId: String, name: String = "", heightCm: Double = 0.0, weightKg: Double = 0.0) {
+    fun joinRealm(joinCode: String, clientId: String, name: String = "", heightCm: Double = 0.0, weightKg: Double = 0.0) {
         currentJoinCode = joinCode
         currentClientId = clientId
 
@@ -107,13 +107,13 @@ class SignalRClient {
                 put("heightCm", heightCm)
                 put("weightKg", weightKg)
             }
-            hubConnection?.invoke("JoinSession", joinCode, clientId, profile)?.blockingAwait()
+            hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
         } catch (e: Exception) {
             _error.value = "Join failed: ${e.message}"
         }
     }
 
-    fun sendWearableData(sessionId: String, data: WearableData) {
+    fun sendWearableData(realmId: String, data: WearableData) {
         if (hubConnection?.connectionState != HubConnectionState.CONNECTED) return
 
         try {
@@ -123,7 +123,7 @@ class SignalRClient {
                 put("steps", data.steps)
                 put("timestamp", data.timestamp)
             }
-            hubConnection?.invoke("SendWearableData", sessionId, dataMap)?.blockingAwait()
+            hubConnection?.invoke("SendWearableData", realmId, dataMap)?.blockingAwait()
         } catch (e: Exception) {
             _error.value = "Send failed: ${e.message}"
         }
@@ -138,7 +138,7 @@ class SignalRClient {
         currentJoinCode = null
         currentClientId = null
         _connectionState.value = ConnectionState.DISCONNECTED
-        _sessionEnded.value = null
+        _realmEnded.value = null
     }
 
     fun isConnected(): Boolean {

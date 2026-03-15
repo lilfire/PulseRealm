@@ -1,6 +1,6 @@
 package com.pulserealm.client.data.model
 
-data class SessionInfo(
+data class RealmInfo(
     val id: String,
     val joinCode: String,
     val mode: String,

@@ -528,7 +528,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         }}
       />
 
-      {/* End session button */}
+      {/* End realm button */}
       <button
         onClick={() => onEnd(totalDistanceRef.current)}
         style={{
@@ -545,7 +545,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           cursor: "pointer",
         }}
       >
-        End Session
+        End Realm
       </button>
 
       {/* HUD overlay */}

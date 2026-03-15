@@ -59,16 +59,16 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun JoinScreen(
-    onJoined: (sessionId: String, clientId: String, serverUrl: String) -> Unit,
+    onJoined: (realmId: String, clientId: String, serverUrl: String) -> Unit,
     viewModel: JoinViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
 
     // Navigate when joined
-    if (uiState.isJoined && uiState.sessionInfo != null) {
+    if (uiState.isJoined && uiState.realmInfo != null) {
         onJoined(
-            uiState.sessionInfo!!.id,
+            uiState.realmInfo!!.id,
             uiState.clientId,
             uiState.serverUrl
         )

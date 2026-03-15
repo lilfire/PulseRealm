@@ -1,7 +1,7 @@
-import type { SessionSummary } from "../hooks/useSessionHub";
+import type { RealmSummary } from "../hooks/useSessionHub";
 
 interface Props {
-  summary: SessionSummary;
+  summary: RealmSummary;
   onClose: () => void;
 }
 
@@ -14,7 +14,7 @@ function formatDuration(seconds: number): string {
   return `${s}s`;
 }
 
-export function SessionSummaryScreen({ summary, onClose }: Props) {
+export function RealmSummaryScreen({ summary, onClose }: Props) {
   const distance = summary.totalDistanceMeters >= 1000
     ? `${(summary.totalDistanceMeters / 1000).toFixed(2)} km`
     : `${Math.round(summary.totalDistanceMeters)} m`;
@@ -24,7 +24,7 @@ export function SessionSummaryScreen({ summary, onClose }: Props) {
       <div className="brand-header">
         <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
-      <h1 className="brand-title">Session Complete</h1>
+      <h1 className="brand-title">Realm Complete</h1>
 
       <div
         style={{
