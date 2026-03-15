@@ -1,6 +1,9 @@
 services:
   pulserealm:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY}
     ports:
       - "8080:8080"
       - "5063:5063/udp"

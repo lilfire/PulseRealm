@@ -12,10 +12,11 @@ RUN npm install
 
 # Copy frontend source and build
 COPY frontend/ ./
-COPY .env /app/.env
 # When served from the same origin, use relative URLs
 ENV VITE_API_URL=""
 ENV VITE_HUB_URL="/hubs/session"
+ARG VITE_GOOGLE_MAPS_API_KEY=""
+ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
 RUN npm run build
 
 # Stage 2: Build the server
