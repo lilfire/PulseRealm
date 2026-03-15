@@ -15,6 +15,7 @@ interface Props {
   connected: boolean;
   mode: RealmMode;
   onStart: (location?: StreetViewLocation) => void;
+  onLeave: () => void;
 }
 
 interface Suggestion {
@@ -66,7 +67,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onStart }: Props) {
+export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onStart, onLeave }: Props) {
   const isStreetView = mode === "streetview";
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
@@ -287,6 +288,20 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
       >
         Start Realm
       </button>
+      <div>
+        <button
+          onClick={onLeave}
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border, #2e303a)",
+            color: "var(--text, #9ca3af)",
+            fontSize: "0.85rem",
+            padding: "0.4rem 1rem",
+          }}
+        >
+          Leave Realm
+        </button>
+      </div>
     </div>
   );
 }

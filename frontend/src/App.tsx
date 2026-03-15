@@ -16,7 +16,7 @@ const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
 function App() {
   const server = useServerConnection();
   const [realm, setRealm] = useState<Realm | null>(null);
-  const [selectedMode, setSelectedMode] = useState<RealmMode>("competition");
+  const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
 
   // Use preset URL if available, otherwise use the dynamically configured one
@@ -45,59 +45,65 @@ function App() {
     );
   }
 
-  async function createRealm() {
-    const modeValue = selectedMode === "competition" ? 0 : 1;
-    const res = await fetch(`${apiUrl}/api/realm`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: modeValue }),
-    });
-    const data = await res.json();
-    setRealm({
-      id: data.id,
-      joinCode: data.joinCode,
-      mode: selectedMode,
-    });
+  async function createRealm(mode: RealmMode) {
+    setCreatingMode(mode);
+    try {
+      const modeValue = mode === "competition" ? 0 : 1;
+      const res = await fetch(`${apiUrl}/api/realm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: modeValue }),
+      });
+      const data = await res.json();
+      setRealm({
+        id: data.id,
+        joinCode: data.joinCode,
+        mode,
+      });
+    } finally {
+      setCreatingMode(null);
+    }
   }
 
   if (!realm) {
     return (
-      <div className="app">
-        <div className="brand-header">
-          <img src="/logo.png" alt="PulseRealm" className="logo" />
+      <div className="home-screen">
+        <div className="home-content">
+          <div className="brand-header">
+            <img src="/logo.png" alt="PulseRealm" className="logo" />
+          </div>
+          <p className="home-subtitle">Choose a mode to create a realm</p>
+          <div className="mode-grid">
+            <button
+              className="mode-card"
+              onClick={() => createRealm("competition")}
+              disabled={creatingMode !== null}
+            >
+              <span className="mode-icon">&#9876;</span>
+              <span className="mode-name">Competition</span>
+              <span className="mode-desc">Race against others in real-time</span>
+            </button>
+            <button
+              className="mode-card"
+              onClick={() => createRealm("streetview")}
+              disabled={creatingMode !== null}
+            >
+              <span className="mode-icon">&#127758;</span>
+              <span className="mode-name">Street View</span>
+              <span className="mode-desc">Explore the world together</span>
+            </button>
+          </div>
         </div>
         {!PRESET_API_URL && server.serverInfo && (
-          <p style={{ fontSize: "0.85rem", color: "#888" }}>
-            Connected to {server.serverUrl}{" "}
-            <button
-              onClick={server.disconnect}
-              style={{
-                fontSize: "0.75rem",
-                padding: "0.2rem 0.5rem",
-                background: "transparent",
-                border: "1px solid #666",
-                color: "#aaa",
-                cursor: "pointer",
-              }}
-            >
-              Change server
+          <footer className="server-footer">
+            <span>
+              {server.serverInfo.name ?? server.serverUrl}
+            </span>
+            <button className="btn-change-server" onClick={server.disconnect}>
+              Change
             </button>
-          </p>
+          </footer>
         )}
-        <p>Create a realm to get started.</p>
-        <div>
-          <label>
-            Mode:{" "}
-            <select
-              value={selectedMode}
-              onChange={(e) => setSelectedMode(e.target.value as RealmMode)}
-            >
-              <option value="competition">Competition</option>
-              <option value="streetview">Street View</option>
-            </select>
-          </label>
-        </div>
-        <button onClick={createRealm}>Create Realm</button>
       </div>
     );
   }
@@ -127,6 +133,10 @@ function App() {
         onStart={(location) => {
           if (location) setStreetViewLocation(location);
           startRealm();
+        }}
+        onLeave={() => {
+          setRealm(null);
+          setStreetViewLocation(null);
         }}
       />
     );
