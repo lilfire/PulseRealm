@@ -99,6 +99,6 @@ kapt {
 android.applicationVariants.all {
     outputs.filterIsInstance<com.android.build.gradle.internal.api.ApkVariantOutputImpl>()
         .forEach { output ->
-            output.outputFileName = "pulserealm-${versionName ?: name}.apk"
+            output.outputFileName = "pulserealm-${versionName ?: versionCode}.apk"
         }
 }

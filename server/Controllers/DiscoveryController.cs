@@ -24,7 +24,7 @@ public class DiscoveryController : ControllerBase
         return Ok(new
         {
             name = serverName,
-            version = "1.0.0",
+            version = ServerVersion.Current,
             hostname = Environment.MachineName,
             hubPath = "/hubs/realm",
             apiPath = "/api",

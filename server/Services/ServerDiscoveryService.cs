@@ -140,7 +140,7 @@ public class ServerDiscoveryService : BackgroundService
         return JsonSerializer.Serialize(new
         {
             service = "PulseRealm",
-            version = "1.0.0",
+            version = ServerVersion.Current,
             name = serverName,
             urls = serverUrls,
             hostname = Environment.MachineName,

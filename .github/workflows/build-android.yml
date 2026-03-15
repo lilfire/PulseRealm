@@ -34,9 +34,9 @@ jobs:
         working-directory: client/android
         run: ./gradlew assembleDebug
 
-      - name: Upload Debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: pulserealm-debug-apk
+          name: pulserealm-apk
           path: client/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30

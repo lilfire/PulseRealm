@@ -96,6 +96,11 @@
   opacity: 1;
 }
 
+.server-version {
+  margin-left: 0.4rem;
+  opacity: 0.6;
+}
+
 .btn-change-server {
   font-size: 0.75rem;
   padding: 0.15rem 0.5rem;
@@ -111,6 +116,18 @@
 .btn-change-server:hover {
   opacity: 1;
   background: transparent;
+}
+
+/* --- App Version --- */
+
+.app-version {
+  position: fixed;
+  bottom: 0.5rem;
+  right: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--text, #9ca3af);
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 h1 {

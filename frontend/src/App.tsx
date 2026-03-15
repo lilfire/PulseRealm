@@ -18,6 +18,8 @@ import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
 import type { CompetitionConfig, Realm, RealmMode } from "./types/session";
 import "./App.css";
 
+const APP_VERSION = __APP_VERSION__;
+
 // When VITE_API_URL is set (e.g. in Docker where frontend is served from the
 // same origin as the API), skip the server connect screen entirely.
 const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -158,12 +160,16 @@ function App() {
           <footer className="server-footer">
             <span>
               {server.serverInfo.name ?? server.serverUrl}
+              {server.serverInfo.version && (
+                <span className="server-version">v{server.serverInfo.version}</span>
+              )}
             </span>
             <button className="btn-change-server" onClick={server.disconnect}>
               Change
             </button>
           </footer>
         )}
+        <span className="app-version">v{APP_VERSION}</span>
       </div>
     );
   }
