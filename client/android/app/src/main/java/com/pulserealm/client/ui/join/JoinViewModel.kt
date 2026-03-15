@@ -168,12 +168,44 @@ class JoinViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(errorMessage = "Enter a server address")
             return
         }
-        saveServerUrl(url)
         _uiState.value = _uiState.value.copy(
             serverUrl = url,
-            showServerConfig = false,
+            isLoading = true,
             errorMessage = null
         )
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val conn = URL("${url.trimEnd('/')}/api/discovery").openConnection() as HttpURLConnection
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.requestMethod = "GET"
+
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    if (body.contains("PulseRealm")) {
+                        saveServerUrl(url)
+                        _uiState.value = _uiState.value.copy(
+                            serverUrl = url,
+                            showServerConfig = false,
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                        return@launch
+                    }
+                }
+                conn.disconnect()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Not a PulseRealm server"
+                )
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Could not reach server"
+                )
+            }
+        }
     }
 
     fun selectDiscoveredServer(server: DiscoveredServer) {

@@ -183,6 +183,7 @@ public partial class MainViewModel : ObservableObject
                 if (json.Contains("PulseRealm"))
                 {
                     ServerUrl = url;
+                    IsRemoteMode = false;
                     AddLog($"Connected to remote server: {url}", "info");
                     return;
                 }

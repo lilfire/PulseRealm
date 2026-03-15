@@ -194,9 +194,16 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color(0xFF38BDF8)
                         ),
-                        enabled = uiState.remoteUrl.isNotBlank()
+                        enabled = uiState.remoteUrl.isNotBlank() && !uiState.isLoading
                     ) {
-                        Text(text = "Connect", color = Color.Black, fontSize = 12.sp)
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                indicatorColor = Color.Black
+                            )
+                        } else {
+                            Text(text = "Connect", color = Color.Black, fontSize = 12.sp)
+                        }
                     }
                 }
             } else if (isScanning) {
