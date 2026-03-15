@@ -85,25 +85,8 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tilesListenerRef = useRef<google.maps.MapsEventListener | null>(null);
 
-  // Debug log: each row = one pano move
-  interface PanoLogEntry {
-    idx: number;
-    panoId: string;
-    heading: number;
-    linksCount: number;
-    filteredCount: number;
-    method: string; // "link" | "search" | "arrow" | "init"
-  }
-  const [panoLog, setPanoLog] = useState<PanoLogEntry[]>([]);
-  const [activePanoId, setActivePanoId] = useState<string>("");
-  const [preloadedIds, setPreloadedIds] = useState<Map<string, number>>(new Map()); // panoId -> heading
-  const logIdxRef = useRef(0);
-
-  const addPanoLog = useCallback((panoId: string, heading: number, linksCount: number, filteredCount: number, method: string) => {
-    const idx = logIdxRef.current++;
-    setPanoLog(prev => [...prev, { idx, panoId, heading: Math.round(heading), linksCount, filteredCount, method }]);
-    setActivePanoId(panoId);
-  }, []);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const addPanoLog = useCallback((_panoId: string, _heading: number, _linksCount: number, _filteredCount: number, _method: string) => {}, []);
 
   // Fade out the overlay (called when tiles are loaded or as a fallback timeout)
   const fadeOutOverlay = useCallback(() => {
@@ -185,7 +168,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       cache.set(link.pano, { img, heading: h });
       count++;
     }
-    setPreloadedIds(newMap);
   }, []);
 
   // Initialize the panorama once
@@ -538,61 +520,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         <div />
         <div />
       </div>
-    </div>
-
-    {/* Debug: pano log table */}
-    <div style={{ marginTop: "1rem", maxHeight: "400px", overflowY: "auto", fontSize: "0.8rem" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", color: "#ccc" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid #555", textAlign: "left" }}>
-            <th style={{ padding: "4px 8px" }}>#</th>
-            <th style={{ padding: "4px 8px" }}>Preview</th>
-            <th style={{ padding: "4px 8px" }}>Pano ID</th>
-            <th style={{ padding: "4px 8px" }}>Status</th>
-            <th style={{ padding: "4px 8px" }}>Heading</th>
-            <th style={{ padding: "4px 8px" }}>Links</th>
-            <th style={{ padding: "4px 8px" }}>Filtered</th>
-            <th style={{ padding: "4px 8px" }}>Method</th>
-          </tr>
-        </thead>
-        <tbody>
-          {panoLog.map((entry) => {
-            const status = entry.panoId === activePanoId ? "active" : "old";
-            const statusColor = status === "active" ? "#4caf50" : "#666";
-            const thumbUrl = staticUrl(entry.panoId, entry.heading, 120, 80);
-            return (
-              <tr key={entry.idx} style={{ borderBottom: "1px solid #333" }}>
-                <td style={{ padding: "4px 8px" }}>{entry.idx}</td>
-                <td style={{ padding: "4px 8px" }}>
-                  <img src={thumbUrl} alt="" width={120} height={80} style={{ borderRadius: 4, display: "block" }} loading="lazy" />
-                </td>
-                <td style={{ padding: "4px 8px", fontFamily: "monospace", fontSize: "0.7rem" }}>{entry.panoId}</td>
-                <td style={{ padding: "4px 8px", color: statusColor, fontWeight: 600 }}>{status}</td>
-                <td style={{ padding: "4px 8px" }}>{entry.heading}&deg;</td>
-                <td style={{ padding: "4px 8px" }}>{entry.linksCount}</td>
-                <td style={{ padding: "4px 8px" }}>{entry.filteredCount}</td>
-                <td style={{ padding: "4px 8px" }}>{entry.method}</td>
-              </tr>
-            );
-          })}
-          {/* Preloaded panos that haven't been visited yet */}
-          {[...preloadedIds.entries()].map(([panoId, heading]) => {
-            const thumbUrl = staticUrl(panoId, heading, 120, 80);
-            return (
-              <tr key={`preload-${panoId}`} style={{ borderBottom: "1px solid #333", opacity: 0.7 }}>
-                <td style={{ padding: "4px 8px" }}>-</td>
-                <td style={{ padding: "4px 8px" }}>
-                  <img src={thumbUrl} alt="" width={120} height={80} style={{ borderRadius: 4, display: "block" }} loading="lazy" />
-                </td>
-                <td style={{ padding: "4px 8px", fontFamily: "monospace", fontSize: "0.7rem" }}>{panoId}</td>
-                <td style={{ padding: "4px 8px", color: "#ff9800", fontWeight: 600 }}>preloaded</td>
-                <td style={{ padding: "4px 8px" }}>{heading}&deg;</td>
-                <td style={{ padding: "4px 8px" }} colSpan={3}>-</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
     </>
   );
