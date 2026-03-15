@@ -22,7 +22,7 @@ export function SessionSummaryScreen({ summary, onClose }: Props) {
   return (
     <div className="app" style={{ textAlign: "center" }}>
       <div className="brand-header">
-        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+        <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
       <h1 className="brand-title">Session Complete</h1>
 

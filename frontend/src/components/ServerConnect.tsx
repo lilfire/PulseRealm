@@ -32,7 +32,7 @@ export function ServerConnect({
   return (
     <div className="app">
       <div className="brand-header">
-        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+        <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
 
       {/* Searching state */}

@@ -64,7 +64,7 @@ function App() {
     return (
       <div className="app">
         <div className="brand-header">
-          <img src="/logo.svg" alt="PulseRealm" className="logo" />
+          <img src="/logo.png" alt="PulseRealm" className="logo" />
         </div>
         {!PRESET_API_URL && server.serverInfo && (
           <p style={{ fontSize: "0.85rem", color: "#888" }}>
@@ -149,7 +149,7 @@ function App() {
   return (
     <div className="app">
       <div className="brand-header">
-        <img src="/logo.svg" alt="PulseRealm" className="logo" />
+        <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
       <p>
         Join Code: <strong>{session.joinCode}</strong>
