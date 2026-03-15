@@ -1,3 +1,4 @@
+using PulseRealm.Server.Filters;
 using PulseRealm.Server.Hubs;
 using PulseRealm.Server.Services;
 
@@ -6,6 +7,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<RealmManager>();
+builder.Services.AddSingleton<AdminConfigService>();
+builder.Services.AddSingleton<AdminAuthService>();
+builder.Services.AddTransient<AdminAuthFilter>();
 builder.Services.AddHostedService<ServerDiscoveryService>();
 
 builder.Services.AddCors(options =>

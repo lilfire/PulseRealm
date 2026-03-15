@@ -16,6 +16,7 @@ interface Props {
   onStart: (video: YouTubeVideo) => void;
   onLeave: () => void;
   viewOnly?: boolean;
+  curatedVideos?: YouTubeVideo[] | null;
 }
 
 const CURATED_VIDEOS: YouTubeVideo[] = [
@@ -59,11 +60,12 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
+export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedVideos }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
-  const [randomVideos] = useState(() => pickRandom(CURATED_VIDEOS, 5));
+  const videos = curatedVideos && curatedVideos.length > 0 ? curatedVideos : CURATED_VIDEOS;
+  const [randomVideos] = useState(() => pickRandom(videos, 5));
 
   const onInputChange = useCallback((value: string) => {
     setInputUrl(value);
