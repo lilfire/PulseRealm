@@ -1,61 +1,153 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
 
 namespace PulseRealm.Server.Hubs;
 
-public class SessionHub : Hub
+public class RealmHub : Hub
 {
-    private readonly SessionManager _sessionManager;
+    private readonly RealmManager _realmManager;
 
-    public SessionHub(SessionManager sessionManager)
+    /// <summary>Tracks the last wearable snapshot per client for speed calculation.</summary>
+    private static readonly ConcurrentDictionary<string, (WearableData Data, DateTime ReceivedAt)> _lastData = new();
+
+    /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
+    private const double StrideFactor = 0.415;
+
+    public RealmHub(RealmManager realmManager)
     {
-        _sessionManager = sessionManager;
+        _realmManager = realmManager;
     }
 
     /// <summary>
-    /// Called by a wearable client to join a session using a short code.
+    /// Called by a wearable client to join a realm using a short code.
     /// </summary>
-    public async Task JoinSession(string joinCode, string clientId)
+    public async Task JoinRealm(string joinCode, string clientId, ClientProfile? profile = null)
     {
-        var session = _sessionManager.GetByJoinCode(joinCode);
-        if (session is null)
+        var realm = _realmManager.GetByJoinCode(joinCode);
+        if (realm is null)
         {
-            await Clients.Caller.SendAsync("Error", "Invalid join code.");
+            throw new HubException("Invalid join code.");
+        }
+
+        if (realm.Status != RealmStatus.Lobby)
+        {
+            throw new HubException("Realm has already started.");
+        }
+
+        if (realm.ConnectedClientIds.Count >= realm.MaxClients)
+        {
+            throw new HubException($"Realm is full ({realm.MaxClients}/{realm.MaxClients} players).");
+        }
+
+        _realmManager.AddClient(realm.Id, clientId, profile);
+        await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
+
+        var joinedProfile = profile ?? new ClientProfile { ClientId = clientId };
+        joinedProfile.ClientId = clientId;
+        await Clients.Group(realm.Id).SendAsync("ClientJoined", joinedProfile);
+    }
+
+    /// <summary>
+    /// Called by the dashboard to start the realm. No new clients can join after this.
+    /// </summary>
+    public async Task StartRealm(string realmId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+        {
+            await Clients.Caller.SendAsync("Error", "Realm not found.");
             return;
         }
 
-        _sessionManager.AddClient(session.Id, clientId);
-        await Groups.AddToGroupAsync(Context.ConnectionId, session.Id);
-        await Clients.Group(session.Id).SendAsync("ClientJoined", clientId);
+        realm.Status = RealmStatus.Started;
+        await Clients.Group(realmId).SendAsync("RealmStarted");
     }
 
     /// <summary>
     /// Called by a wearable client to stream live data (steps, heart rate).
-    /// The server forwards it to the dashboard in the same session group.
+    /// The server forwards it to the dashboard in the same realm group.
     /// </summary>
-    public async Task SendWearableData(string sessionId, WearableData data)
+    public async Task SendWearableData(string realmId, WearableData data)
     {
-        // Forward to all dashboard listeners in this session
-        await Clients.Group(sessionId).SendAsync("WearableDataReceived", data);
+        data.SpeedKmh = EstimateSpeed(realmId, data);
 
-        // TODO: Add mode-specific processing logic here
-        // e.g., update leaderboard for competition mode,
-        // calculate distance for streetview mode
+        // Forward enriched data to all dashboard listeners in this realm
+        await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
     }
 
     /// <summary>
-    /// Called by the dashboard to join a session's broadcast group.
+    /// Estimates current speed (km/h) from step deltas and the client's height.
+    /// Stride length ≈ heightCm × 0.415 / 100 (standard biomechanics approximation).
     /// </summary>
-    public async Task JoinSessionAsDashboard(string sessionId)
+    private double EstimateSpeed(string realmId, WearableData data)
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, sessionId);
-        await Clients.Caller.SendAsync("JoinedSession", sessionId);
+        var now = DateTime.UtcNow;
+        var previous = _lastData.GetValueOrDefault(data.ClientId);
+        _lastData[data.ClientId] = (data, now);
+
+        if (previous.Data is null)
+            return 0;
+
+        var stepDelta = data.Steps - previous.Data.Steps;
+        if (stepDelta <= 0)
+            return 0;
+
+        // Use server-side receive timestamps for reliable time deltas
+        var timeDelta = (now - previous.ReceivedAt).TotalSeconds;
+        if (timeDelta < 0.1)
+            return 0;
+
+        var profile = _realmManager.GetClientProfile(realmId, data.ClientId);
+        var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0; // fallback to average
+
+        var strideLengthM = heightCm * StrideFactor / 100.0;
+        var distanceM = stepDelta * strideLengthM;
+        var speedKmh = distanceM / timeDelta * 3.6;
+
+        // Clamp to a reasonable treadmill range (0–25 km/h)
+        return Math.Clamp(Math.Round(speedKmh, 1), 0, 25);
+    }
+
+    /// <summary>
+    /// Called by the dashboard to notify a client they have been eliminated.
+    /// </summary>
+    public async Task NotifyEliminated(string realmId, string clientId)
+    {
+        await Clients.Group(realmId).SendAsync("ClientEliminated", clientId);
+    }
+
+    /// <summary>
+    /// Called by the dashboard to end a realm. Broadcasts a summary to all clients.
+    /// </summary>
+    public async Task EndRealm(string realmId, RealmSummary summary)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+        {
+            await Clients.Caller.SendAsync("Error", "Realm not found.");
+            return;
+        }
+
+        realm.Status = RealmStatus.Ended;
+        summary.DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
+
+        await Clients.Group(realmId).SendAsync("RealmEnded", summary);
+    }
+
+    /// <summary>
+    /// Called by the dashboard to join a realm's broadcast group.
+    /// </summary>
+    public async Task JoinRealmAsDashboard(string realmId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, realmId);
+        await Clients.Caller.SendAsync("JoinedRealm", realmId);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // TODO: Handle client disconnection — remove from session, notify dashboard
+        // TODO: Handle client disconnection — remove from realm, notify dashboard
         await base.OnDisconnectedAsync(exception);
     }
 }

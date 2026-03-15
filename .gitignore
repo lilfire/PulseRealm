@@ -18,6 +18,7 @@ frontend/dist/
 .vs/
 .vscode/
 .idea/
+.claude/settings.local.json
 *.swp
 *.swo
 
@@ -29,6 +30,9 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Gradle
+.gradle/
 
 # Build output
 *.log

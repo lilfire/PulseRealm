@@ -4,18 +4,24 @@ All wearable clients communicate with the server using the same JSON protocol ov
 
 ## Messages: Client → Server
 
-### JoinSession
+### JoinRealm
 ```json
 {
   "joinCode": "ABC123",
-  "clientId": "android-user-1"
+  "clientId": "android-user-1",
+  "profile": {
+    "clientId": "android-user-1",
+    "name": "Alice",
+    "heightCm": 170,
+    "weightKg": 65
+  }
 }
 ```
 
 ### SendWearableData
 ```json
 {
-  "sessionId": "...",
+  "realmId": "...",
   "data": {
     "clientId": "android-user-1",
     "heartRate": 142,
@@ -29,7 +35,12 @@ All wearable clients communicate with the server using the same JSON protocol ov
 
 ### ClientJoined
 ```json
-{ "clientId": "android-user-1" }
+{
+  "clientId": "android-user-1",
+  "name": "Alice",
+  "heightCm": 170,
+  "weightKg": 65
+}
 ```
 
 ### WearableDataReceived

@@ -1,1 +1,1 @@
-export type { Session, SessionMode, WearableData, CreateSessionRequest } from "./types";
+export type { Realm, RealmMode, WearableData, CreateRealmRequest } from "./types";

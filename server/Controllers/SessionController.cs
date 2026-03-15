@@ -6,29 +6,29 @@ namespace PulseRealm.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SessionController : ControllerBase
+public class RealmController : ControllerBase
 {
-    private readonly SessionManager _sessionManager;
+    private readonly RealmManager _realmManager;
 
-    public SessionController(SessionManager sessionManager)
+    public RealmController(RealmManager realmManager)
     {
-        _sessionManager = sessionManager;
+        _realmManager = realmManager;
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreateSessionRequest request)
+    public IActionResult Create([FromBody] CreateRealmRequest request)
     {
-        var session = _sessionManager.CreateSession(request.Mode);
-        return Ok(new { session.Id, session.JoinCode, session.Mode });
+        var realm = _realmManager.CreateRealm(request.Mode);
+        return Ok(new { realm.Id, realm.JoinCode, realm.Mode });
     }
 
     [HttpGet("{joinCode}")]
     public IActionResult GetByCode(string joinCode)
     {
-        var session = _sessionManager.GetByJoinCode(joinCode);
-        if (session is null) return NotFound();
-        return Ok(new { session.Id, session.JoinCode, session.Mode });
+        var realm = _realmManager.GetByJoinCode(joinCode);
+        if (realm is null) return NotFound();
+        return Ok(new { realm.Id, realm.JoinCode, realm.Mode });
     }
 }
 
-public record CreateSessionRequest(SessionMode Mode);
+public record CreateRealmRequest(RealmMode Mode);
