@@ -15,9 +15,13 @@ public partial class MainViewModel : ObservableObject
     private readonly SignalRService _signalR = new();
 
     private Timer? _sendTimer;
-    private readonly List<double> _mouseSpeeds = new();
-    private double _lastMouseX, _lastMouseY;
-    private long _lastMouseTime;
+    private Timer? _targetHrTimer;
+    private Timer? _smoothHrTimer;
+    private double _lastMouseX = double.NaN;
+    private double _lastMouseY = double.NaN;
+    private double _mouseDistAccum;
+    private int _prevStepsSnapshot;
+    private int _targetHr = 65;
 
     public string ClientId { get; } = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
 
@@ -61,10 +65,16 @@ public partial class MainViewModel : ObservableObject
         _signalR.RealmEnded += summary =>
             Avalonia.Threading.Dispatcher.UIThread.Post(() => OnRealmEnded(summary));
 
-        // HR decay timer — every 200ms
-        var hrTimer = new Timer(_ =>
+        // HR target update — every 1 second, recompute target from activity
+        _targetHrTimer = new Timer(_ =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateHeartRate);
+            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateTargetHr);
+        }, null, 1000, 1000);
+
+        // HR smoothing — every 200ms, move HR toward target
+        _smoothHrTimer = new Timer(_ =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(SmoothHeartRate);
         }, null, 200, 200);
 
         AddLog($"Client ID: {ClientId}", "info");
@@ -242,38 +252,43 @@ public partial class MainViewModel : ObservableObject
     // Called from the view on PointerMoved
     public void OnMouseMove(double x, double y)
     {
-        var now = Environment.TickCount64;
-        if (_lastMouseTime > 0)
+        if (!double.IsNaN(_lastMouseX))
         {
-            var dt = (now - _lastMouseTime) / 1000.0;
-            if (dt > 0)
-            {
-                var dx = x - _lastMouseX;
-                var dy = y - _lastMouseY;
-                var dist = Math.Sqrt(dx * dx + dy * dy);
-                var speed = dist / dt;
-
-                _mouseSpeeds.Add(speed);
-                if (_mouseSpeeds.Count > 20) _mouseSpeeds.RemoveAt(0);
-            }
+            var dx = x - _lastMouseX;
+            var dy = y - _lastMouseY;
+            _mouseDistAccum += Math.Sqrt(dx * dx + dy * dy);
         }
         _lastMouseX = x;
         _lastMouseY = y;
-        _lastMouseTime = now;
     }
 
-    private void UpdateHeartRate()
+    /// <summary>Runs every 1s — computes a new target HR from mouse + step activity.</summary>
+    private void UpdateTargetHr()
     {
-        if (_mouseSpeeds.Count == 0)
-        {
-            HeartRate = Math.Max(0, HeartRate - 3);
-        }
-        else
-        {
-            var avg = _mouseSpeeds.Average();
-            HeartRate = (int)Math.Clamp(60 + avg / 2000.0 * 140, 60, 200);
-            _mouseSpeeds.Clear();
-        }
+        const int RestingHr = 65;
+        const int MaxHr = 190;
+
+        // Mouse: total pixels moved in the last 1s. 500px = moderate, 1500px+ = intense.
+        var mouseDist = _mouseDistAccum;
+        _mouseDistAccum = 0;
+        var mouseActivity = Math.Min(mouseDist / 1500.0, 1.0);
+
+        // Steps: clicks in the last 1s. 3 cps = intense (180 spm equivalent).
+        var stepDelta = Steps - _prevStepsSnapshot;
+        _prevStepsSnapshot = Steps;
+        var stepActivity = Math.Min(stepDelta / 3.0, 1.0);
+
+        var activity = Math.Max(mouseActivity, stepActivity);
+        _targetHr = (int)(RestingHr + activity * (MaxHr - RestingHr));
+    }
+
+    /// <summary>Runs every 200ms — smoothly moves HR toward target.</summary>
+    private void SmoothHeartRate()
+    {
+        if (HeartRate < _targetHr)
+            HeartRate = Math.Min(_targetHr, HeartRate + 5);
+        else if (HeartRate > _targetHr)
+            HeartRate = Math.Max(_targetHr, HeartRate - 2);
     }
 
     private void AddLog(string message, string level)

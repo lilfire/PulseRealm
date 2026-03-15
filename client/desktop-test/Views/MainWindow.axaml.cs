@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using PulseRealm.DesktopTest.ViewModels;
 
 namespace PulseRealm.DesktopTest.Views;
@@ -11,6 +12,25 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // Tunnel-routed handler fires before any child element can handle/swallow
+        // the event, so mouse movement is always captured across the entire window.
+        AddHandler(PointerMovedEvent, (_, e) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                var pos = e.GetPosition(this);
+                vm.OnMouseMove(pos.X, pos.Y);
+            }
+        }, RoutingStrategies.Tunnel);
+
+        AddHandler(PointerPressedEvent, (_, _) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.OnClick();
+            }
+        }, RoutingStrategies.Tunnel);
 
         // Start discovery when the window is loaded
         Loaded += async (_, _) =>
@@ -28,22 +48,5 @@ public partial class MainWindow : Window
                 await vm.StartDiscoveryAsync();
             }
         };
-    }
-
-    private void TrackingArea_PointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm)
-        {
-            vm.OnClick();
-        }
-    }
-
-    private void TrackingArea_PointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (DataContext is MainViewModel vm && sender is Visual visual)
-        {
-            var pos = e.GetPosition(visual);
-            vm.OnMouseMove(pos.X, pos.Y);
-        }
     }
 }

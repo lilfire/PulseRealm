@@ -7,6 +7,7 @@ import { StreetViewLobby, type StreetViewLocation } from "./components/lobbies/S
 import { DefaultLobby } from "./components/lobbies/DefaultLobby";
 import { YouTubeTrailLobby, type YouTubeVideo } from "./components/lobbies/YouTubeTrailLobby";
 import { RouteLobby, type RouteConfig } from "./components/lobbies/RouteLobby";
+import { DungeonLobby, type DungeonConfig } from "./components/lobbies/DungeonLobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
 import { YouTubeTrailMode } from "./components/modes/YouTubeTrailMode";
@@ -29,6 +30,7 @@ function App() {
   const [competitionType, setCompetitionType] = useState<CompetitionType>("race");
   const [youtubeVideo, setYoutubeVideo] = useState<YouTubeVideo | null>(null);
   const [routeConfig, setRouteConfig] = useState<RouteConfig | null>(null);
+  const [dungeonConfig, setDungeonConfig] = useState<DungeonConfig | null>(null);
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
@@ -173,6 +175,7 @@ function App() {
           setStreetViewLocation(null);
           setYoutubeVideo(null);
           setRouteConfig(null);
+          setDungeonConfig(null);
         }}
       />
     );
@@ -190,6 +193,7 @@ function App() {
         setStreetViewLocation(null);
         setYoutubeVideo(null);
         setRouteConfig(null);
+        setDungeonConfig(null);
       },
     };
 
@@ -235,6 +239,18 @@ function App() {
           {...lobbyProps}
           onStart={(config) => {
             setRouteConfig(config);
+            startRealm();
+          }}
+        />
+      );
+    }
+
+    if (realm.mode === "dungeon") {
+      return (
+        <DungeonLobby
+          {...lobbyProps}
+          onStart={(cfg) => {
+            setDungeonConfig(cfg);
             startRealm();
           }}
         />
@@ -289,6 +305,18 @@ function App() {
     );
   }
 
+  if (realm.mode === "dungeon" && dungeonConfig) {
+    return (
+      <DungeonMode
+        clients={clients}
+        clientProfiles={clientProfiles}
+        latestData={latestData}
+        config={dungeonConfig}
+        onEnd={(totalDistance) => endRealm(totalDistance)}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <div className="brand-header">
@@ -301,9 +329,6 @@ function App() {
 
       {realm.mode === "competition" && (
         <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} competitionType={competitionType} />
-      )}
-      {realm.mode === "dungeon" && (
-        <DungeonMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
       {realm.mode === "social" && (
         <SocialMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
