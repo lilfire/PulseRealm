@@ -153,8 +153,17 @@ class JoinViewModel @Inject constructor(
         )
     }
 
+    private fun ensureScheme(raw: String): String {
+        val trimmed = raw.trim().trimEnd('/')
+        if (trimmed.isBlank()) return trimmed
+        return if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true))
+            trimmed
+        else
+            "https://$trimmed"
+    }
+
     fun confirmServer() {
-        val url = _uiState.value.serverUrl.trimEnd('/')
+        val url = ensureScheme(_uiState.value.serverUrl)
         if (url.isBlank()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Enter a server address")
             return
@@ -196,21 +205,22 @@ class JoinViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 showManualEntry = true,
                 errorMessage = null,
-                serverUrl = _uiState.value.remoteUrl.ifBlank { "https://" }
+                serverUrl = _uiState.value.remoteUrl.ifBlank { "" }
             )
         }
     }
 
     fun updateRemoteUrl(url: String) {
-        _uiState.value = _uiState.value.copy(remoteUrl = url, serverUrl = url)
-        prefs.edit().putString(PREF_REMOTE_URL, url).apply()
+        val normalized = ensureScheme(url)
+        _uiState.value = _uiState.value.copy(remoteUrl = normalized, serverUrl = normalized)
+        prefs.edit().putString(PREF_REMOTE_URL, normalized).apply()
     }
 
     fun toggleManualEntry() {
         val show = !_uiState.value.showManualEntry
         _uiState.value = _uiState.value.copy(
             showManualEntry = show,
-            serverUrl = if (show && _uiState.value.serverUrl.isBlank()) "http://" else _uiState.value.serverUrl
+            serverUrl = _uiState.value.serverUrl
         )
     }
 

@@ -42,12 +42,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isSearching;
     [ObservableProperty] private string _searchStatus = "";
     [ObservableProperty] private bool _showManualEntry;
-    [ObservableProperty] private string _manualUrl = "http://";
+    [ObservableProperty] private string _manualUrl = "";
     [ObservableProperty] private string _manualError = "";
 
     // Connection mode: false = local, true = remote
     [ObservableProperty] private bool _isRemoteMode;
-    [ObservableProperty] private string _remoteUrl = "https://";
+    [ObservableProperty] private string _remoteUrl = "";
 
     public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
@@ -137,11 +137,21 @@ public partial class MainViewModel : ObservableObject
         ShowManualEntry = false;
     }
 
+    private static string EnsureScheme(string raw)
+    {
+        var trimmed = raw.Trim().TrimEnd('/');
+        if (string.IsNullOrEmpty(trimmed)) return trimmed;
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return trimmed;
+        return "https://" + trimmed;
+    }
+
     [RelayCommand]
     private async Task RemoteConnect()
     {
         ManualError = "";
-        var url = RemoteUrl.TrimEnd('/');
+        var url = EnsureScheme(RemoteUrl);
 
         try
         {
@@ -167,7 +177,7 @@ public partial class MainViewModel : ObservableObject
     private async Task ManualConnect()
     {
         ManualError = "";
-        var url = ManualUrl.TrimEnd('/');
+        var url = EnsureScheme(ManualUrl);
 
         try
         {
