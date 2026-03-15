@@ -1,10 +1,13 @@
 import { useState } from "react";
-import type { SearchPhase } from "../hooks/useServerConnection";
+import type { SearchPhase, ConnectionMode } from "../hooks/useServerConnection";
 
 interface ServerConnectProps {
-  onConnect: (url: string) => Promise<boolean>;
+  onConnectRemote: (url: string) => Promise<boolean>;
+  onSwitchToLocal: () => void;
   checking: boolean;
   error: string | null;
+  connectionMode: ConnectionMode;
+  remoteUrl: string;
   searchPhase: SearchPhase;
   searchProgress: string;
   searchAttempt: number;
@@ -12,21 +15,31 @@ interface ServerConnectProps {
 }
 
 export function ServerConnect({
-  onConnect,
+  onConnectRemote,
+  onSwitchToLocal,
   checking,
   error,
+  connectionMode,
+  remoteUrl,
   searchPhase,
   searchProgress,
   searchAttempt,
   onRetrySearch,
 }: ServerConnectProps) {
-  const [url, setUrl] = useState("http://");
-  const [showManual, setShowManual] = useState(false);
+  const [url, setUrl] = useState(remoteUrl || "https://");
+  const [activeMode, setActiveMode] = useState<ConnectionMode>(connectionMode);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleRemoteSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!url || checking) return;
-    await onConnect(url);
+    await onConnectRemote(url);
+  }
+
+  function switchMode(mode: ConnectionMode) {
+    setActiveMode(mode);
+    if (mode === "local") {
+      onSwitchToLocal();
+    }
   }
 
   return (
@@ -35,65 +48,83 @@ export function ServerConnect({
         <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
 
-      {/* Searching state */}
-      {searchPhase === "searching" && (
-        <div className="search-container">
-          <div className="search-spinner" />
-          <p className="search-status">Searching for server…</p>
-          <p className="search-progress">{searchProgress}</p>
-          {searchAttempt > 1 && (
-            <p className="search-attempt">Attempt {searchAttempt}</p>
+      {/* Mode toggle */}
+      <div className="mode-toggle">
+        <button
+          className={`mode-btn ${activeMode === "local" ? "mode-btn-active" : ""}`}
+          onClick={() => switchMode("local")}
+        >
+          Local Network
+        </button>
+        <button
+          className={`mode-btn ${activeMode === "remote" ? "mode-btn-active" : ""}`}
+          onClick={() => switchMode("remote")}
+        >
+          Remote Server
+        </button>
+      </div>
+
+      {/* ── Local mode ── */}
+      {activeMode === "local" && (
+        <>
+          {searchPhase === "searching" && (
+            <div className="search-container">
+              <div className="search-spinner" />
+              <p className="search-status">Searching for server...</p>
+              <p className="search-progress">{searchProgress}</p>
+              {searchAttempt > 1 && (
+                <p className="search-attempt">Attempt {searchAttempt}</p>
+              )}
+            </div>
           )}
-        </div>
+
+          {searchPhase === "not_found" && (
+            <div className="search-container">
+              <div className="search-icon-fail">&#x2715;</div>
+              <p className="search-status">No server found on the network</p>
+              <p className="search-hint">
+                Make sure the PulseRealm server is running and on the same
+                local network.
+              </p>
+              <div className="search-actions">
+                <button onClick={onRetrySearch} className="btn-retry">
+                  Retry Search
+                </button>
+                <button onClick={() => switchMode("remote")} className="btn-manual">
+                  Use Remote Server
+                </button>
+              </div>
+              {searchAttempt > 1 && (
+                <p className="search-attempt">
+                  Searched {searchAttempt} time{searchAttempt !== 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+          )}
+
+          {searchPhase === "idle" && (
+            <div className="search-container">
+              <button onClick={onRetrySearch} className="btn-retry">
+                Search for Server
+              </button>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Not found — show retry + manual fallback */}
-      {searchPhase === "not_found" && !showManual && (
-        <div className="search-container">
-          <div className="search-icon-fail">✕</div>
-          <p className="search-status">No server found on the network</p>
-          <p className="search-hint">
-            Make sure the PulseRealm server is running and on the same
-            local network.
-          </p>
-          <div className="search-actions">
-            <button onClick={onRetrySearch} className="btn-retry">
-              Retry Search
-            </button>
-            <button onClick={() => setShowManual(true)} className="btn-manual">
-              Enter Manually
-            </button>
-          </div>
-          {searchAttempt > 1 && (
-            <p className="search-attempt">
-              Searched {searchAttempt} time{searchAttempt !== 1 ? "s" : ""}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Manual entry — only shown as fallback */}
-      {showManual && (
+      {/* ── Remote mode ── */}
+      {activeMode === "remote" && (
         <div className="manual-container">
-          <button
-            className="btn-back"
-            onClick={() => {
-              setShowManual(false);
-              onRetrySearch();
-            }}
-          >
-            ← Back to search
-          </button>
-          <p>Enter the address of a PulseRealm server.</p>
+          <p>Enter the address of a remote PulseRealm server.</p>
 
-          <form onSubmit={handleSubmit} className="manual-form">
+          <form onSubmit={handleRemoteSubmit} className="manual-form">
             <label>
               Server address
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://192.168.1.100:5062"
+                placeholder="https://pulserealm.example.com"
                 disabled={checking}
                 className="input-url"
               />
@@ -104,7 +135,7 @@ export function ServerConnect({
               disabled={checking || !url}
               className="btn-connect"
             >
-              {checking ? "Connecting…" : "Connect"}
+              {checking ? "Connecting..." : "Connect"}
             </button>
           </form>
 
@@ -112,19 +143,11 @@ export function ServerConnect({
 
           <div className="manual-help">
             <p>
-              Use the IP address of the machine running PulseRealm server
-              (e.g. <code>http://192.168.1.100:5062</code>).
+              Use the full URL of a hosted PulseRealm server
+              (e.g. <code>https://pulserealm.example.com</code> or{" "}
+              <code>http://203.0.113.50:5062</code>).
             </p>
           </div>
-        </div>
-      )}
-
-      {/* Idle — initial state before search starts */}
-      {searchPhase === "idle" && !showManual && (
-        <div className="search-container">
-          <button onClick={onRetrySearch} className="btn-retry">
-            Search for Server
-          </button>
         </div>
       )}
     </div>

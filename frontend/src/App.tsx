@@ -47,9 +47,12 @@ function App() {
   if (!PRESET_API_URL && !server.isConnected) {
     return (
       <ServerConnect
-        onConnect={server.connect}
+        onConnectRemote={server.connectRemote}
+        onSwitchToLocal={server.switchToLocal}
         checking={server.checking}
         error={server.error}
+        connectionMode={server.connectionMode}
+        remoteUrl={server.remoteUrl}
         searchPhase={server.searchPhase}
         searchProgress={server.searchProgress}
         searchAttempt={server.searchAttempt}

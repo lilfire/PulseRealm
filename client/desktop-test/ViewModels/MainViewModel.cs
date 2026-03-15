@@ -45,6 +45,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _manualUrl = "http://";
     [ObservableProperty] private string _manualError = "";
 
+    // Connection mode: false = local, true = remote
+    [ObservableProperty] private bool _isRemoteMode;
+    [ObservableProperty] private string _remoteUrl = "https://";
+
     public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
     public MainViewModel()
@@ -115,6 +119,48 @@ public partial class MainViewModel : ObservableObject
     {
         ShowManualEntry = true;
         ManualError = "";
+    }
+
+    [RelayCommand]
+    private void SwitchToLocal()
+    {
+        IsRemoteMode = false;
+        ServerUrl = "";
+        _ = StartDiscoveryAsync();
+    }
+
+    [RelayCommand]
+    private void SwitchToRemote()
+    {
+        IsRemoteMode = true;
+        IsSearching = false;
+        ShowManualEntry = false;
+    }
+
+    [RelayCommand]
+    private async Task RemoteConnect()
+    {
+        ManualError = "";
+        var url = RemoteUrl.TrimEnd('/');
+
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var resp = await http.GetAsync($"{url}/api/discovery");
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadAsStringAsync();
+                if (json.Contains("PulseRealm"))
+                {
+                    ServerUrl = url;
+                    AddLog($"Connected to remote server: {url}", "info");
+                    return;
+                }
+            }
+        }
+        catch { }
+
+        ManualError = "Could not reach a PulseRealm server at that address.";
     }
 
     [RelayCommand]

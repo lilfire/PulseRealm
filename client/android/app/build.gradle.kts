@@ -96,10 +96,9 @@ kapt {
     correctErrorTypes = true
 }
 
-androidComponents {
-    onVariants { variant ->
-        variant.outputs.forEach { output ->
-            output.outputFileName.set("pulserealm-${output.versionName.orNull ?: variant.name}.apk")
+android.applicationVariants.all {
+    outputs.filterIsInstance<com.android.build.gradle.internal.api.ApkVariantOutputImpl>()
+        .forEach { output ->
+            output.outputFileName = "pulserealm-${versionName ?: name}.apk"
         }
-    }
 }

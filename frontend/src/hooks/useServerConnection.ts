@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 const STORAGE_KEY = "pulserealm_server_url";
+const STORAGE_MODE_KEY = "pulserealm_connection_mode";
+const STORAGE_REMOTE_URL_KEY = "pulserealm_remote_url";
 const PROBE_TIMEOUT = 1500;
 const BATCH_SIZE = 20;
 const SERVER_PORT = 5062;
+
+export type ConnectionMode = "local" | "remote";
 
 export interface ServerInfo {
   name: string;
@@ -219,6 +223,12 @@ async function buildCandidateUrls(
 }
 
 export function useServerConnection() {
+  const [connectionMode, setConnectionModeState] = useState<ConnectionMode>(
+    () => (localStorage.getItem(STORAGE_MODE_KEY) as ConnectionMode) || "local"
+  );
+  const [remoteUrl, setRemoteUrlState] = useState<string>(
+    () => localStorage.getItem(STORAGE_REMOTE_URL_KEY) || ""
+  );
   const [serverUrl, setServerUrl] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY) || "";
   });
@@ -233,8 +243,25 @@ export function useServerConnection() {
   const [searchProgress, setSearchProgress] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
+  const setConnectionMode = useCallback((mode: ConnectionMode) => {
+    setConnectionModeState(mode);
+    localStorage.setItem(STORAGE_MODE_KEY, mode);
+  }, []);
+
+  const setRemoteUrl = useCallback((url: string) => {
+    setRemoteUrlState(url);
+    localStorage.setItem(STORAGE_REMOTE_URL_KEY, url);
+  }, []);
+
   useEffect(() => {
-    if (serverUrl) {
+    if (connectionMode === "remote" && remoteUrl) {
+      verifyServer(remoteUrl).then((ok) => {
+        if (ok) {
+          setServerUrl(remoteUrl);
+          localStorage.setItem(STORAGE_KEY, remoteUrl);
+        }
+      });
+    } else if (serverUrl) {
       verifyServer(serverUrl).then((ok) => {
         if (!ok) searchForServer();
       });
@@ -343,6 +370,28 @@ export function useServerConnection() {
     return ok;
   }, []);
 
+  const connectRemote = useCallback(async (url: string) => {
+    const cleanUrl = url.replace(/\/+$/, "");
+    setRemoteUrl(cleanUrl);
+    setConnectionMode("remote");
+    const ok = await verifyServer(cleanUrl);
+    if (ok) {
+      setServerUrl(cleanUrl);
+      localStorage.setItem(STORAGE_KEY, cleanUrl);
+    }
+    return ok;
+  }, []);
+
+  const switchToLocal = useCallback(() => {
+    setConnectionMode("local");
+    setServerUrl("");
+    setIsConnected(false);
+    setServerInfo(null);
+    setError(null);
+    localStorage.removeItem(STORAGE_KEY);
+    searchForServer();
+  }, []);
+
   const disconnect = useCallback(() => {
     setServerUrl("");
     setIsConnected(false);
@@ -365,7 +414,12 @@ export function useServerConnection() {
     checking,
     error,
     connect,
+    connectRemote,
+    switchToLocal,
     disconnect,
+    connectionMode,
+    setConnectionMode,
+    remoteUrl,
     searchPhase,
     searchAttempt,
     searchProgress,

@@ -130,7 +130,111 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 )
             }
 
-            if (isScanning) {
+            // Mode toggle
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.setConnectionMode(ConnectionMode.LOCAL) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (uiState.connectionMode == ConnectionMode.LOCAL) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                        )
+                    ) {
+                        Text(
+                            text = "Local",
+                            color = if (uiState.connectionMode == ConnectionMode.LOCAL) Color.Black else Color(0xFF94A3B8),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Button(
+                        onClick = { viewModel.setConnectionMode(ConnectionMode.REMOTE) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (uiState.connectionMode == ConnectionMode.REMOTE) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                        )
+                    ) {
+                        Text(
+                            text = "Remote",
+                            color = if (uiState.connectionMode == ConnectionMode.REMOTE) Color.Black else Color(0xFF94A3B8),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            if (uiState.connectionMode == ConnectionMode.REMOTE) {
+                // Remote mode — URL entry
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(0.9f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Server address",
+                            color = Color(0xFF94A3B8),
+                            style = MaterialTheme.typography.caption3,
+                            textAlign = TextAlign.Center
+                        )
+                        BasicTextField(
+                            value = uiState.remoteUrl,
+                            onValueChange = { viewModel.updateRemoteUrl(it) },
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            ),
+                            cursorBrush = SolidColor(Color(0xFF38BDF8)),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Uri,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { viewModel.confirmServer() }
+                            ),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(36.dp)
+                                .padding(horizontal = 4.dp),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (uiState.remoteUrl.isEmpty()) {
+                                        Text(
+                                            text = "https://...",
+                                            color = Color(0xFF475569),
+                                            fontSize = 13.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                    }
+                }
+                item {
+                    Button(
+                        onClick = { viewModel.confirmServer() },
+                        modifier = Modifier.fillMaxWidth(0.7f),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF38BDF8)
+                        ),
+                        enabled = uiState.remoteUrl.isNotBlank()
+                    ) {
+                        Text(text = "Connect", color = Color.Black, fontSize = 12.sp)
+                    }
+                }
+            } else if (isScanning) {
+                // Local mode — scanning
                 item {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
@@ -156,7 +260,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                     }
                 }
             } else if (discoveredServers.isEmpty()) {
-                // No servers found
+                // Local mode — no servers found
                 item {
                     Text(
                         text = "No server found",
@@ -180,7 +284,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         )
                     }
                 }
-                // Manual entry button
+                // Manual entry button (for local IPs)
                 item {
                     Button(
                         onClick = { viewModel.toggleManualEntry() },
@@ -268,7 +372,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                     }
                 }
             } else {
-                // Discovered servers
+                // Local mode — discovered servers
                 item {
                     Button(
                         onClick = { viewModel.scanForServers() },
@@ -286,13 +390,15 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 }
             }
 
-            // Show discovered servers list
-            for (server in discoveredServers) {
-                item {
-                    DiscoveredServerItem(
-                        server = server,
-                        onClick = { viewModel.selectDiscoveredServer(server) }
-                    )
+            // Show discovered servers list (local mode only)
+            if (uiState.connectionMode == ConnectionMode.LOCAL) {
+                for (server in discoveredServers) {
+                    item {
+                        DiscoveredServerItem(
+                            server = server,
+                            onClick = { viewModel.selectDiscoveredServer(server) }
+                        )
+                    }
                 }
             }
 

@@ -21,6 +21,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
 
+enum class ConnectionMode { LOCAL, REMOTE }
+
 data class JoinUiState(
     val serverUrl: String = "",
     val joinCode: String = "",
@@ -35,6 +37,8 @@ data class JoinUiState(
     val showServerConfig: Boolean = true,
     val showProfileSettings: Boolean = false,
     val showManualEntry: Boolean = false,
+    val connectionMode: ConnectionMode = ConnectionMode.LOCAL,
+    val remoteUrl: String = "",
 )
 
 @HiltViewModel
@@ -48,6 +52,8 @@ class JoinViewModel @Inject constructor(
         private const val PREF_PLAYER_NAME = "player_name"
         private const val PREF_HEIGHT_CM = "height_cm"
         private const val PREF_WEIGHT_KG = "weight_kg"
+        private const val PREF_CONNECTION_MODE = "connection_mode"
+        private const val PREF_REMOTE_URL = "remote_server_url"
     }
 
     private val _uiState = MutableStateFlow(JoinUiState())
@@ -67,19 +73,36 @@ class JoinViewModel @Inject constructor(
         val savedName = prefs.getString(PREF_PLAYER_NAME, "") ?: ""
         val savedHeight = prefs.getString(PREF_HEIGHT_CM, "") ?: ""
         val savedWeight = prefs.getString(PREF_WEIGHT_KG, "") ?: ""
+        val savedMode = when (prefs.getString(PREF_CONNECTION_MODE, "local")) {
+            "remote" -> ConnectionMode.REMOTE
+            else -> ConnectionMode.LOCAL
+        }
+        val savedRemoteUrl = prefs.getString(PREF_REMOTE_URL, "") ?: ""
+
         _uiState.value = _uiState.value.copy(
             playerName = savedName,
             heightCm = savedHeight,
-            weightKg = savedWeight
+            weightKg = savedWeight,
+            connectionMode = savedMode,
+            remoteUrl = savedRemoteUrl
         )
 
-        // Try cached server URL first, then fall back to UDP scan
-        val cachedUrl = prefs.getString(PREF_SERVER_URL, null)
-        if (cachedUrl != null) {
-            _uiState.value = _uiState.value.copy(serverUrl = cachedUrl)
-            verifyCachedServer(cachedUrl)
+        if (savedMode == ConnectionMode.REMOTE && savedRemoteUrl.isNotBlank()) {
+            // Remote mode — try saved remote URL directly
+            _uiState.value = _uiState.value.copy(
+                serverUrl = savedRemoteUrl,
+                showManualEntry = true
+            )
+            verifyCachedServer(savedRemoteUrl)
         } else {
-            scanForServers()
+            // Local mode — try cached URL first, then fall back to UDP scan
+            val cachedUrl = prefs.getString(PREF_SERVER_URL, null)
+            if (cachedUrl != null) {
+                _uiState.value = _uiState.value.copy(serverUrl = cachedUrl)
+                verifyCachedServer(cachedUrl)
+            } else {
+                scanForServers()
+            }
         }
     }
 
@@ -160,6 +183,27 @@ class JoinViewModel @Inject constructor(
 
     fun toggleProfileSettings() {
         _uiState.value = _uiState.value.copy(showProfileSettings = !_uiState.value.showProfileSettings)
+    }
+
+    fun setConnectionMode(mode: ConnectionMode) {
+        _uiState.value = _uiState.value.copy(connectionMode = mode)
+        prefs.edit().putString(PREF_CONNECTION_MODE, if (mode == ConnectionMode.REMOTE) "remote" else "local").apply()
+
+        if (mode == ConnectionMode.LOCAL) {
+            _uiState.value = _uiState.value.copy(showManualEntry = false, errorMessage = null)
+            scanForServers()
+        } else {
+            _uiState.value = _uiState.value.copy(
+                showManualEntry = true,
+                errorMessage = null,
+                serverUrl = _uiState.value.remoteUrl.ifBlank { "https://" }
+            )
+        }
+    }
+
+    fun updateRemoteUrl(url: String) {
+        _uiState.value = _uiState.value.copy(remoteUrl = url, serverUrl = url)
+        prefs.edit().putString(PREF_REMOTE_URL, url).apply()
     }
 
     fun toggleManualEntry() {
