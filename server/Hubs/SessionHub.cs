@@ -111,6 +111,14 @@ public class RealmHub : Hub
     }
 
     /// <summary>
+    /// Called by the dashboard to notify a client they have been eliminated.
+    /// </summary>
+    public async Task NotifyEliminated(string realmId, string clientId)
+    {
+        await Clients.Group(realmId).SendAsync("ClientEliminated", clientId);
+    }
+
+    /// <summary>
     /// Called by the dashboard to end a realm. Broadcasts a summary to all clients.
     /// </summary>
     public async Task EndRealm(string realmId, RealmSummary summary)

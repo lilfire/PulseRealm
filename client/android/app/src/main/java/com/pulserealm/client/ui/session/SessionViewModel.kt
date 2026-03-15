@@ -31,6 +31,7 @@ class RealmViewModel @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
     val sendCount: StateFlow<Int> = DataStreamingService.sendCount
     val realmEnded: StateFlow<RealmSummaryData?> = signalRClient.realmEnded
+    val eliminated: StateFlow<Boolean> = signalRClient.eliminated
 
     private var isStreaming = false
 

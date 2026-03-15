@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using PulseRealm.DesktopTest.ViewModels;
 
 namespace PulseRealm.DesktopTest.Views;
@@ -40,9 +42,20 @@ public partial class MainWindow : Window
                 // Auto-scroll log to bottom
                 vm.LogEntries.CollectionChanged += (_, _) =>
                 {
-                    var logList = this.FindControl<ListBox>("LogList");
-                    if (logList is not null && logList.ItemCount > 0)
-                        logList.ScrollIntoView(logList.Items[logList.ItemCount - 1]!);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            var logList = this.FindControl<ListBox>("LogList");
+                            if (logList is not null && logList.ItemCount > 0)
+                                logList.ScrollIntoView(logList.Items[logList.ItemCount - 1]!);
+                        }
+                        catch (Exception ex)
+                        {
+                            if (DataContext is MainViewModel vm2)
+                                vm2.AddLog($"Auto-scroll failed: {ex.Message}", "WARN");
+                        }
+                    }, DispatcherPriority.Background);
                 };
 
                 await vm.StartDiscoveryAsync();

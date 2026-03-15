@@ -15,7 +15,7 @@ import { RouteMode } from "./components/modes/RouteMode";
 import { DungeonMode } from "./components/modes/DungeonMode";
 import { SocialMode } from "./components/modes/SocialMode";
 import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
-import type { CompetitionType, Realm, RealmMode } from "./types/session";
+import type { CompetitionConfig, Realm, RealmMode } from "./types/session";
 import "./App.css";
 
 // When VITE_API_URL is set (e.g. in Docker where frontend is served from the
@@ -27,7 +27,7 @@ function App() {
   const [realm, setRealm] = useState<Realm | null>(null);
   const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
-  const [competitionType, setCompetitionType] = useState<CompetitionType>("race");
+  const [competitionConfig, setCompetitionConfig] = useState<CompetitionConfig | null>(null);
   const [youtubeVideo, setYoutubeVideo] = useState<YouTubeVideo | null>(null);
   const [routeConfig, setRouteConfig] = useState<RouteConfig | null>(null);
   const [dungeonConfig, setDungeonConfig] = useState<DungeonConfig | null>(null);
@@ -38,7 +38,7 @@ function App() {
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/realm`)
     : server.hubUrl;
 
-  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, startRealm, endRealm } = useRealmHub(
+  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, startRealm, endRealm, notifyEliminated } = useRealmHub(
     realm?.id ?? null,
     hubUrl
   );
@@ -170,12 +170,14 @@ function App() {
     return (
       <RealmSummaryScreen
         summary={realmSummary}
+        clientProfiles={clientProfiles}
         onClose={() => {
           setRealm(null);
           setStreetViewLocation(null);
           setYoutubeVideo(null);
           setRouteConfig(null);
           setDungeonConfig(null);
+          setCompetitionConfig(null);
         }}
       />
     );
@@ -194,6 +196,7 @@ function App() {
         setYoutubeVideo(null);
         setRouteConfig(null);
         setDungeonConfig(null);
+        setCompetitionConfig(null);
       },
     };
 
@@ -201,8 +204,8 @@ function App() {
       return (
         <CompetitionLobby
           {...lobbyProps}
-          onStart={(compType) => {
-            setCompetitionType(compType);
+          onStart={(config) => {
+            setCompetitionConfig(config);
             startRealm();
           }}
         />
@@ -337,6 +340,19 @@ function App() {
     );
   }
 
+  if (realm.mode === "competition" && competitionConfig) {
+    return (
+      <CompetitionMode
+        clients={clients}
+        clientProfiles={clientProfiles}
+        latestData={latestData}
+        config={competitionConfig}
+        onEnd={(totalDistance, overrides) => endRealm(totalDistance, overrides)}
+        onEliminate={notifyEliminated}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <div className="brand-header">
@@ -346,10 +362,6 @@ function App() {
         Join Code: <strong>{realm.joinCode}</strong>
       </p>
       <p>Status: {connected ? "Connected" : "Connecting..."}</p>
-
-      {realm.mode === "competition" && (
-        <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} competitionType={competitionType} />
-      )}
     </div>
   );
 }

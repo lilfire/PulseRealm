@@ -46,6 +46,9 @@ interface ClientTracker {
   hrSum: number;
   hrCount: number;
   maxHr: number;
+  timeInZone: Record<string, number>;
+  cadenceSum: number;
+  cadenceCount: number;
 }
 
 function newTracker(): ClientTracker {
@@ -61,6 +64,9 @@ function newTracker(): ClientTracker {
     hrSum: 0,
     hrCount: 0,
     maxHr: 0,
+    timeInZone: {},
+    cadenceSum: 0,
+    cadenceCount: 0,
   };
 }
 
@@ -180,6 +186,26 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
     return () => clearInterval(id);
   }, []);
 
+  // 1-second tick for timeInZone and cadence accumulation
+  useEffect(() => {
+    const id = setInterval(() => {
+      const trackers = trackersRef.current;
+      for (const cid of clients) {
+        const t = trackers[cid];
+        if (!t || !t.active) continue;
+        if (t.heartRate > 0) {
+          const zone = getHrZone(t.heartRate).zone;
+          t.timeInZone[zone] = (t.timeInZone[zone] ?? 0) + 1;
+        }
+        if (t.cadence > 0) {
+          t.cadenceSum += t.cadence;
+          t.cadenceCount++;
+        }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [clients]);
+
   // Sync detection
   useEffect(() => {
     const trackers = trackersRef.current;
@@ -236,16 +262,35 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
 
   const handleEnd = useCallback(() => {
     const trackers = trackersRef.current;
+    const now = Date.now();
+    const elapsedSecs = Math.floor((now - startTimeRef.current) / 1000);
+
+    // Active period: approximate from client last data times
+    const perSecondActive = new Set<number>();
+    for (const cid of clients) {
+      const t = trackers[cid];
+      if (t && t.lastDataTime > 0) {
+        const clientActiveSecs = Math.min(
+          Math.floor((t.lastDataTime - startTimeRef.current) / 1000),
+          elapsedSecs
+        );
+        for (let s = 0; s <= clientActiveSecs; s++) perSecondActive.add(s);
+      }
+    }
+
     const clientSummaries: ClientSummary[] = clients.map((cid) => {
       const t = trackers[cid];
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
-      if (!t) return { name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0 };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {} };
       return {
+        clientId: cid,
         name,
         steps: t.steps,
         distanceMeters: Math.round(t.distanceMeters),
         averageHeartRate: t.hrCount > 0 ? Math.round(t.hrSum / t.hrCount) : 0,
         maxHeartRate: t.maxHr,
+        avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
+        timeInZone: { ...t.timeInZone },
       };
     });
 
@@ -253,19 +298,27 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
     let groupHrSum = 0;
     let groupHrCount = 0;
     let groupMaxHr = 0;
+    let groupCadenceSum = 0;
+    let groupCadenceCount = 0;
+    const groupTimeInZone: Record<string, number> = {};
     for (const cs of clientSummaries) {
       groupSteps += cs.steps;
-      if (cs.averageHeartRate > 0) {
-        groupHrSum += cs.averageHeartRate;
-        groupHrCount++;
-      }
+      if (cs.averageHeartRate > 0) { groupHrSum += cs.averageHeartRate; groupHrCount++; }
       groupMaxHr = Math.max(groupMaxHr, cs.maxHeartRate);
+      if (cs.avgCadenceSpm > 0) { groupCadenceSum += cs.avgCadenceSpm; groupCadenceCount++; }
+      for (const [zone, secs] of Object.entries(cs.timeInZone)) {
+        groupTimeInZone[zone] = (groupTimeInZone[zone] ?? 0) + secs;
+      }
     }
 
     onEnd(Math.round(totalDistRef.current), {
       totalSteps: groupSteps,
       averageHeartRate: groupHrCount > 0 ? Math.round(groupHrSum / groupHrCount) : 0,
       maxHeartRate: groupMaxHr,
+      avgCadenceSpm: groupCadenceCount > 0 ? Math.round(groupCadenceSum / groupCadenceCount) : 0,
+      timeInZone: groupTimeInZone,
+      activePeriodSeconds: perSecondActive.size,
+      participantCount: clients.length,
       clientSummaries,
     });
   }, [onEnd, clients, clientProfiles]);

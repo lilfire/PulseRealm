@@ -186,34 +186,108 @@ public partial class MainViewModel : ObservableObject
         var totalSteps = summary.TryGetProperty("totalSteps", out var st) ? st.GetInt32() : 0;
         var avgHr = summary.TryGetProperty("averageHeartRate", out var ahr) ? ahr.GetInt32() : 0;
         var maxHr = summary.TryGetProperty("maxHeartRate", out var mhr) ? mhr.GetInt32() : 0;
-        var avgSpeed = summary.TryGetProperty("averageSpeedKmh", out var spd) ? spd.GetDouble() : 0;
-
-        var mins = (int)(duration / 60);
-        var secs = (int)(duration % 60);
-        var durationText = mins > 0 ? $"{mins}m {secs}s" : $"{secs}s";
-        var distanceText = distance >= 1000 ? $"{distance / 1000:F2} km" : $"{distance:F0} m";
+        var avgCadence = summary.TryGetProperty("avgCadenceSpm", out var cad) ? cad.GetInt32() : 0;
+        var activePeriod = summary.TryGetProperty("activePeriodSeconds", out var ap) ? ap.GetDouble() : 0;
+        var participantCount = summary.TryGetProperty("participantCount", out var pc) ? pc.GetInt32() : 0;
+        var isTeamFormat = summary.TryGetProperty("isTeamFormat", out var tf) && tf.GetBoolean();
 
         var hasClientSummaries = summary.TryGetProperty("clientSummaries", out var csArr)
                                  && csArr.ValueKind == JsonValueKind.Array
                                  && csArr.GetArrayLength() > 0;
 
-        var prefix = hasClientSummaries ? "Team " : "";
+        string FormatDur(double s) { var m2 = (int)(s / 60); var s2 = (int)(s % 60); return m2 > 0 ? $"{m2}m {s2}s" : $"{s2}s"; }
+        string FormatDist(double m) => m >= 1000 ? $"{m / 1000:F2} km" : $"{m:F0} m";
+        string FormatZone(int secs) { var zm = secs / 60; var zs = secs % 60; return zm > 0 ? $"{zm}m {zs:D2}s" : $"{zs}s"; }
 
-        SummaryText = $"Duration: {durationText}  |  {prefix}Distance: {distanceText}  |  {prefix}Steps: {totalSteps}\n" +
-                      $"Avg Speed: {avgSpeed:F1} km/h  |  {prefix}Avg HR: {avgHr} bpm  |  {prefix}Max HR: {maxHr} bpm";
-
+        // ── Find personal stats first (needed by team section too) ──
+        JsonElement? mySummary = null;
         if (hasClientSummaries)
         {
-            SummaryText += "\n";
             foreach (var cs in csArr.EnumerateArray())
             {
-                var name = cs.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
-                var cSteps = cs.TryGetProperty("steps", out var cst) ? cst.GetInt32() : 0;
-                var cDist = cs.TryGetProperty("distanceMeters", out var cd) ? cd.GetDouble() : 0;
-                var cAvgHr = cs.TryGetProperty("averageHeartRate", out var cah) ? cah.GetInt32() : 0;
-                var cMaxHr = cs.TryGetProperty("maxHeartRate", out var cmh) ? cmh.GetInt32() : 0;
-                var cDistText = cDist >= 1000 ? $"{cDist / 1000:F2} km" : $"{cDist:F0} m";
-                SummaryText += $"\n  {name}: {cSteps} steps, {cDistText}, Avg HR {cAvgHr} bpm, Max HR {cMaxHr} bpm";
+                var cid = cs.TryGetProperty("clientId", out var cidVal) ? cidVal.GetString() : null;
+                if (cid == ClientId)
+                {
+                    mySummary = cs;
+                    break;
+                }
+            }
+        }
+
+        // ── Realm stats ──
+        SummaryText = $"── Realm ──\nDuration: {FormatDur(duration)}  |  Active: {FormatDur(activePeriod)}  |  Participants: {participantCount}";
+
+        // ── Team stats (competition team format only) ──
+        if (isTeamFormat && hasClientSummaries)
+        {
+            // Find this client's team from clientSummaries
+            string? myTeam = null;
+            if (mySummary is { } myCs)
+            {
+                myTeam = myCs.TryGetProperty("teamName", out var tn) ? tn.GetString() : null;
+            }
+
+            // Compute team-specific stats by filtering to teammates
+            double teamDist = 0;
+            int teamSteps = 0;
+            int teamHrSum = 0, teamHrCount = 0, teamMaxHr = 0;
+            foreach (var cs in csArr.EnumerateArray())
+            {
+                var csTeam = cs.TryGetProperty("teamName", out var ctn) ? ctn.GetString() : null;
+                if (myTeam != null && csTeam != myTeam) continue;
+
+                teamDist += cs.TryGetProperty("distanceMeters", out var cdm) ? cdm.GetDouble() : 0;
+                teamSteps += cs.TryGetProperty("steps", out var csp) ? csp.GetInt32() : 0;
+                var csHr = cs.TryGetProperty("averageHeartRate", out var cahr) ? cahr.GetInt32() : 0;
+                if (csHr > 0) { teamHrSum += csHr; teamHrCount++; }
+                var csMhr = cs.TryGetProperty("maxHeartRate", out var cmhr2) ? cmhr2.GetInt32() : 0;
+                if (csMhr > teamMaxHr) teamMaxHr = csMhr;
+            }
+            var teamAvgHr = teamHrCount > 0 ? teamHrSum / teamHrCount : 0;
+            var teamLabel = myTeam ?? "Team";
+
+            SummaryText += $"\n\n── {teamLabel} ──\nDistance: {FormatDist(teamDist)}  |  Steps: {teamSteps}" +
+                           $"\nAvg HR: {teamAvgHr} bpm  |  Peak HR: {teamMaxHr} bpm";
+        }
+
+        if (mySummary is { } my)
+        {
+            var name = my.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+            var cSteps = my.TryGetProperty("steps", out var cst) ? cst.GetInt32() : 0;
+            var cDist = my.TryGetProperty("distanceMeters", out var cd) ? cd.GetDouble() : 0;
+            var cAvgHr = my.TryGetProperty("averageHeartRate", out var cah) ? cah.GetInt32() : 0;
+            var cMaxHr = my.TryGetProperty("maxHeartRate", out var cmh) ? cmh.GetInt32() : 0;
+            var cCadence = my.TryGetProperty("avgCadenceSpm", out var ccad) ? ccad.GetInt32() : 0;
+            SummaryText += $"\n\n── Personal ({name}) ──";
+            SummaryText += $"\n  {cSteps} steps, {FormatDist(cDist)}, Avg HR {cAvgHr}, Peak HR {cMaxHr}, Cadence {cCadence} spm";
+
+            if (my.TryGetProperty("timeInZone", out var tiz) && tiz.ValueKind == JsonValueKind.Object)
+            {
+                var zones = new List<string>();
+                for (var z = 1; z <= 5; z++)
+                {
+                    if (tiz.TryGetProperty(z.ToString(), out var zv) && zv.GetInt32() > 0)
+                        zones.Add($"Z{z}: {FormatZone(zv.GetInt32())}");
+                }
+                if (zones.Count > 0)
+                    SummaryText += $"\n  Zones: {string.Join(", ", zones)}";
+            }
+        }
+        else
+        {
+            SummaryText += $"\n\n── Personal ──\nDistance: {FormatDist(distance)}  |  Steps: {totalSteps}" +
+                           $"\nAvg HR: {avgHr} bpm  |  Peak HR: {maxHr} bpm  |  Cadence: {avgCadence} spm";
+
+            if (summary.TryGetProperty("timeInZone", out var tiz) && tiz.ValueKind == JsonValueKind.Object)
+            {
+                var zones = new List<string>();
+                for (var z = 1; z <= 5; z++)
+                {
+                    if (tiz.TryGetProperty(z.ToString(), out var zv) && zv.GetInt32() > 0)
+                        zones.Add($"Z{z}: {FormatZone(zv.GetInt32())}");
+                }
+                if (zones.Count > 0)
+                    SummaryText += $"\nZones: {string.Join(", ", zones)}";
             }
         }
 
@@ -312,7 +386,7 @@ public partial class MainViewModel : ObservableObject
             HeartRate = Math.Max(_targetHr, HeartRate - 2);
     }
 
-    private void AddLog(string message, string level)
+    internal void AddLog(string message, string level)
     {
         var ts = DateTime.Now.ToString("HH:mm:ss.f");
         LogEntries.Add(new LogEntry($"[{ts}] {message}", level));
