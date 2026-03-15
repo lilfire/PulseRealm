@@ -5,7 +5,6 @@ services:
       args:
         VITE_API_URL: ""
         VITE_HUB_URL: "/hubs/realm"
-        VITE_GOOGLE_MAPS_API_KEY: ""
     ports:
       - "8080:8080"
       - "5063:5063/udp"
@@ -14,4 +13,5 @@ services:
       - SERVER_NAME=PulseRealm
       - Discovery__Enabled=true
       - Discovery__BroadcastPort=5063
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
     restart: unless-stopped

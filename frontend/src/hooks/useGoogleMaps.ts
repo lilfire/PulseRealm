@@ -1,16 +1,40 @@
 import { useEffect, useState } from "react";
 
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+// Build-time fallback for local dev (npm run dev without the server)
+const BUILD_TIME_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+
+let cachedApiKey: string | null = null;
+let keyPromise: Promise<string> | null = null;
+
+function getApiKey(): Promise<string> {
+  if (cachedApiKey !== null) return Promise.resolve(cachedApiKey);
+  if (keyPromise) return keyPromise;
+
+  keyPromise = fetch("/api/config")
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      const key = data?.googleMapsApiKey || BUILD_TIME_KEY;
+      cachedApiKey = key;
+      return key;
+    })
+    .catch(() => {
+      // Server not reachable (local dev), fall back to build-time key
+      cachedApiKey = BUILD_TIME_KEY;
+      return BUILD_TIME_KEY;
+    });
+
+  return keyPromise;
+}
 
 let loadPromise: Promise<void> | null = null;
 
-function loadGoogleMaps(): Promise<void> {
+function loadGoogleMaps(apiKey: string): Promise<void> {
   if ((window as unknown as { google?: typeof google }).google?.maps) return Promise.resolve();
   if (loadPromise) return loadPromise;
 
   loadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places,geometry,routes`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,routes`;
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Failed to load Google Maps API"));
@@ -25,13 +49,16 @@ export function useGoogleMaps() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!API_KEY) {
-      setError("Google Maps API key not configured (VITE_GOOGLE_MAPS_API_KEY)");
-      return;
-    }
     if (loaded) return;
 
-    loadGoogleMaps()
+    getApiKey()
+      .then((apiKey) => {
+        if (!apiKey) {
+          setError("Google Maps API key not configured (GOOGLE_MAPS_API_KEY)");
+          return;
+        }
+        return loadGoogleMaps(apiKey);
+      })
       .then(() => setLoaded(true))
       .catch((e) => setError(e.message));
   }, [loaded]);
