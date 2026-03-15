@@ -32,8 +32,6 @@ function findBestLink(
     }
   }
 
-  // Only follow the link if it's roughly in our direction (within 90 degrees),
-  // unless fallback is requested (explicit user moves should never get stuck).
   if (bestDiff <= 90) return best;
   return fallback ? best : null;
 }
@@ -53,96 +51,83 @@ const arrowBtnStyle: React.CSSProperties = {
   padding: 0,
 };
 
-const PRELOAD_COUNT = 3; // number of upcoming panoramas to preload
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
-
-/** Build a Street View Static API URL matching the interactive panorama's POV */
-function staticUrl(panoId: string, heading: number, width = 640, height = 480, fov = 90, pitch = 0) {
-  return `https://maps.googleapis.com/maps/api/streetview?size=${width}x${height}&pano=${panoId}&heading=${heading}&fov=${fov}&pitch=${pitch}&key=${API_KEY}`;
-}
+const PRELOAD_COUNT = 3;
 
 export function StreetViewMode({ clients, clientProfiles, latestData, startLocation }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const panoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
+  // Two containers — one visible, one hidden preloading the next pano
+  const containerARef = useRef<HTMLDivElement>(null);
+  const containerBRef = useRef<HTMLDivElement>(null);
+  const panoARef = useRef<google.maps.StreetViewPanorama | null>(null);
+  const panoBRef = useRef<google.maps.StreetViewPanorama | null>(null);
+  // Which pano is currently visible: "A" or "B"
+  const [activePano, setActivePano] = useState<"A" | "B">("A");
+  const activePanoRef = useRef<"A" | "B">("A");
+
   const svServiceRef = useRef<google.maps.StreetViewService | null>(null);
   const headingRef = useRef(0);
-  const pitchRef = useRef(0);
-  const fovRef = useRef(90); // FOV in degrees, derived from zoom: 180 / 2^zoom
   const speedRef = useRef(0);
   const accumulatedDistanceRef = useRef(0);
   const movingRef = useRef(false);
   const totalDistanceRef = useRef(0);
   const currentPositionRef = useRef<google.maps.LatLng | null>(null);
-  const panoSpacingRef = useRef(12); // dynamic, updated from actual panorama distances
-  const visitedPanosRef = useRef<Set<string>>(new Set()); // all visited pano IDs
+  const panoSpacingRef = useRef(12);
+  const visitedPanosRef = useRef<Set<string>>(new Set());
+  // Track whether the back pano is ready (tiles loaded) for the next swap
+  const backReadyRef = useRef(false);
+  const backTilesListenerRef = useRef<google.maps.MapsEventListener | null>(null);
 
-  // Image preload cache: panoId → { img (preloaded HTMLImageElement), heading }
-  const imageCacheRef = useRef<Map<string, { img: HTMLImageElement; heading: number }>>(new Map());
-
-  // Crossfade overlay state
-  const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
-  const [overlayVisible, setOverlayVisible] = useState(false);
-  const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tilesListenerRef = useRef<google.maps.MapsEventListener | null>(null);
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const addPanoLog = useCallback((_panoId: string, _heading: number, _linksCount: number, _filteredCount: number, _method: string) => {}, []);
-
-  // Fade out the overlay (called when tiles are loaded or as a fallback timeout)
-  const fadeOutOverlay = useCallback(() => {
-    // Remove the tiles listener if still attached
-    if (tilesListenerRef.current) {
-      tilesListenerRef.current.remove();
-      tilesListenerRef.current = null;
-    }
-    if (overlayTimerRef.current) {
-      clearTimeout(overlayTimerRef.current);
-      overlayTimerRef.current = null;
-    }
-    setOverlayVisible(false);
-    setTimeout(() => setOverlayUrl(null), 400);
+  const getActivePanorama = useCallback(() => {
+    return activePanoRef.current === "A" ? panoARef.current : panoBRef.current;
   }, []);
 
-  // Show a preloaded static image as overlay, fade out once the panorama tiles finish loading.
-  const showOverlay = useCallback((panoId: string, heading: number) => {
-    const fov = Math.round(fovRef.current);
-    const pitch = Math.round(pitchRef.current);
-    const url = staticUrl(panoId, heading, 640, 480, fov, pitch);
-    setOverlayUrl(url);
-    setOverlayVisible(true);
+  const getBackPanorama = useCallback(() => {
+    return activePanoRef.current === "A" ? panoBRef.current : panoARef.current;
+  }, []);
 
-    // Clear any previous listener / timer
-    if (tilesListenerRef.current) {
-      tilesListenerRef.current.remove();
-      tilesListenerRef.current = null;
+  // Swap visibility: bring back pano to front, old front becomes back
+  const swapPanos = useCallback(() => {
+    const next = activePanoRef.current === "A" ? "B" : "A";
+    activePanoRef.current = next;
+    setActivePano(next);
+    backReadyRef.current = false;
+  }, []);
+
+  // Preload a specific pano on the back (hidden) panorama instance
+  const preloadOnBack = useCallback((panoId: string, heading: number, pitch: number) => {
+    const back = getBackPanorama();
+    if (!back) return;
+
+    backReadyRef.current = false;
+
+    // Clean up previous listener
+    if (backTilesListenerRef.current) {
+      backTilesListenerRef.current.remove();
+      backTilesListenerRef.current = null;
     }
-    if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
 
-    // Wait for the interactive panorama to finish loading its tiles
-    const panorama = panoramaRef.current;
-    if (panorama) {
-      tilesListenerRef.current = panorama.addListener("tilesloaded", () => {
-        fadeOutOverlay();
-      });
-    }
+    back.setPov({ heading, pitch });
+    back.setPano(panoId);
 
-    // Fallback: fade out after 3s in case tilesloaded never fires
-    overlayTimerRef.current = setTimeout(() => {
-      fadeOutOverlay();
-    }, 3000);
-  }, [fadeOutOverlay]);
+    // Mark ready when tiles finish loading
+    backTilesListenerRef.current = back.addListener("tilesloaded", () => {
+      backReadyRef.current = true;
+      if (backTilesListenerRef.current) {
+        backTilesListenerRef.current.remove();
+        backTilesListenerRef.current = null;
+      }
+    });
+  }, [getBackPanorama]);
 
-  // Preload the current panorama's forward-facing links as static images.
-  // Called on links_changed — replaces the preloaded map so the table always shows current candidates.
+  // Preload upcoming panos via StreetViewService (warms Google's cache)
   const preloadCurrentLinks = useCallback(() => {
-    const panorama = panoramaRef.current;
-    if (!panorama) return;
+    const panorama = getActivePanorama();
+    const svService = svServiceRef.current;
+    if (!panorama || !svService) return;
 
     const rawLinks = panorama.getLinks();
     const allLinks = (rawLinks || []).filter((l): l is google.maps.StreetViewLink => l !== null);
     const visited = visitedPanosRef.current;
     const heading = headingRef.current;
-    const cache = imageCacheRef.current;
 
     const candidates = [...allLinks]
       .filter(l => l.pano && !visited.has(l.pano))
@@ -152,30 +137,27 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         return diffA - diffB;
       });
 
-    const newMap = new Map<string, number>();
+    // Preload the best candidate on the back panorama for instant swap
+    if (candidates.length > 0 && candidates[0].pano) {
+      const bestHeading = candidates[0].heading ?? heading;
+      preloadOnBack(candidates[0].pano, bestHeading, panorama.getPov().pitch);
+    }
+
+    // Also warm Google's cache for additional candidates
     let count = 0;
     for (const link of candidates) {
       if (count >= PRELOAD_COUNT) break;
       if (!link.pano) continue;
-      const h = Math.round(link.heading ?? heading);
-      newMap.set(link.pano, h);
-
-      // Pre-fetch the image with current POV (always refresh to match current pitch/fov)
-      const fov = Math.round(fovRef.current);
-      const pitch = Math.round(pitchRef.current);
-      const img = new Image();
-      img.src = staticUrl(link.pano, h, 640, 480, fov, pitch);
-      cache.set(link.pano, { img, heading: h });
+      svService.getPanorama({ pano: link.pano }, () => {});
       count++;
     }
-  }, []);
+  }, [getActivePanorama, preloadOnBack]);
 
-  // Initialize the panorama once
+  // Initialize both panoramas once
   useEffect(() => {
-    if (!containerRef.current || panoramaRef.current) return;
+    if (!containerARef.current || !containerBRef.current || panoARef.current) return;
 
     const startPos = new google.maps.LatLng(startLocation.lat, startLocation.lng);
-
     const svService = new google.maps.StreetViewService();
     svServiceRef.current = svService;
 
@@ -184,7 +166,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       (data: google.maps.StreetViewPanoramaData | null, status: google.maps.StreetViewStatus) => {
         if (status !== google.maps.StreetViewStatus.OK || !data?.location?.latLng) return;
 
-        const panorama = new google.maps.StreetViewPanorama(containerRef.current!, {
+        const panoOptions: google.maps.StreetViewPanoramaOptions = {
           position: data.location.latLng,
           pov: { heading: 0, pitch: 0 },
           zoom: 1,
@@ -192,63 +174,60 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           showRoadLabels: false,
           clickToGo: false,
           linksControl: false,
-        });
+        };
 
-        // headingRef is only updated by movement functions, not by POV changes,
-        // to prevent Google's automatic POV adjustments from corrupting the travel direction.
-        // But we track pitch and zoom for the static image overlay to match the interactive view.
-        panorama.addListener("pov_changed", () => {
-          const pov = panorama.getPov();
-          pitchRef.current = pov.pitch;
-          fovRef.current = 180 / Math.pow(2, panorama.getZoom() ?? 1);
-        });
+        const panoA = new google.maps.StreetViewPanorama(containerARef.current!, panoOptions);
+        const panoB = new google.maps.StreetViewPanorama(containerBRef.current!, panoOptions);
 
-        // Track position changes to compute actual distance between panoramas
-        panorama.addListener("position_changed", () => {
-          const newPos = panorama.getPosition();
-          if (!newPos) return;
-
-          const prevPos = currentPositionRef.current;
-          if (prevPos) {
-            const actualDist = google.maps.geometry.spherical.computeDistanceBetween(prevPos, newPos);
-            // Use actual distance for total tracking (more accurate than speed estimate)
-            // Only count reasonable distances (filter out teleports / initial load)
-            if (actualDist > 0 && actualDist < 200) {
-              // Update dynamic spacing: blend toward actual distance for smoother transitions
-              panoSpacingRef.current = actualDist;
+        // Track position changes on both panos (whichever is active)
+        const trackPosition = (pano: google.maps.StreetViewPanorama) => {
+          pano.addListener("position_changed", () => {
+            const newPos = pano.getPosition();
+            if (!newPos) return;
+            const prevPos = currentPositionRef.current;
+            if (prevPos) {
+              const actualDist = google.maps.geometry.spherical.computeDistanceBetween(prevPos, newPos);
+              if (actualDist > 0 && actualDist < 200) {
+                panoSpacingRef.current = actualDist;
+              }
             }
-          }
-          currentPositionRef.current = newPos;
-        });
+            currentPositionRef.current = newPos;
+          });
+        };
+        trackPosition(panoA);
+        trackPosition(panoB);
 
-        // Preload upcoming panos whenever links become available after a pano change
-        panorama.addListener("links_changed", () => {
-          preloadCurrentLinks();
+        // Preload upcoming panos when links become available
+        panoA.addListener("links_changed", () => {
+          if (activePanoRef.current === "A") preloadCurrentLinks();
+        });
+        panoB.addListener("links_changed", () => {
+          if (activePanoRef.current === "B") preloadCurrentLinks();
         });
 
         currentPositionRef.current = data.location.latLng as google.maps.LatLng;
         if (data.location.pano) {
           visitedPanosRef.current.add(data.location.pano);
-          addPanoLog(data.location.pano, 0, panorama.getLinks()?.length ?? 0, 0, "init");
         }
-        panoramaRef.current = panorama;
+
+        panoARef.current = panoA;
+        panoBRef.current = panoB;
       },
     );
 
     return () => {
-      panoramaRef.current = null;
+      panoARef.current = null;
+      panoBRef.current = null;
     };
-  }, [startLocation, addPanoLog, preloadCurrentLinks]);
+  }, [startLocation, preloadCurrentLinks]);
 
-  // Keep speedRef in sync with latest wearable data
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
   }, [latestData]);
 
-  // Search ahead for a panorama when links run out (coverage gap).
-  // Projects a point ~50m forward along the current heading and searches for nearby panos.
+  // Search ahead for a panorama when links run out
   const searchAhead = useCallback(() => {
-    const panorama = panoramaRef.current;
+    const panorama = getActivePanorama();
     const svService = svServiceRef.current;
     const pos = currentPositionRef.current;
     if (!panorama || !svService || !pos) return;
@@ -263,7 +242,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         movingRef.current = false;
         return;
       }
-      // Verify the found pano is roughly ahead (within 90° of current heading)
       if (data.location.latLng) {
         const newHeading = google.maps.geometry.spherical.computeHeading(pos, data.location.latLng);
         const diff = Math.abs(((newHeading - heading + 540) % 360) - 180);
@@ -272,17 +250,42 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           return;
         }
         headingRef.current = newHeading;
-        panorama.setPov({ heading: newHeading, pitch: panorama.getPov().pitch });
       }
-      showOverlay(data.location.pano, headingRef.current);
+
       visitedPanosRef.current.add(panorama.getPano());
       visitedPanosRef.current.add(data.location.pano);
-      addPanoLog(data.location.pano, headingRef.current, 0, 0, "search");
-      panorama.setPano(data.location.pano);
-      setTimeout(() => { movingRef.current = false; }, 300);
+
+      // Set on the back pano, wait for tiles, then swap
+      const back = getBackPanorama();
+      if (back) {
+        if (backTilesListenerRef.current) {
+          backTilesListenerRef.current.remove();
+        }
+        back.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+        back.setPano(data.location.pano);
+        backTilesListenerRef.current = back.addListener("tilesloaded", () => {
+          if (backTilesListenerRef.current) {
+            backTilesListenerRef.current.remove();
+            backTilesListenerRef.current = null;
+          }
+          swapPanos();
+          setTimeout(() => { movingRef.current = false; }, 100);
+        });
+        // Fallback: swap after 600ms even if tiles haven't loaded
+        setTimeout(() => {
+          if (movingRef.current) {
+            swapPanos();
+            movingRef.current = false;
+          }
+        }, 600);
+      } else {
+        // No back pano available, move directly on active
+        panorama.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+        panorama.setPano(data.location.pano);
+        setTimeout(() => { movingRef.current = false; }, 300);
+      }
     };
 
-    // Try official Street View first, then fall back to any source (photo spheres)
     svService.getPanorama(
       { location: aheadPoint, radius: 100, source: google.maps.StreetViewSource.OUTDOOR },
       (data, status) => {
@@ -290,7 +293,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
             !visitedPanosRef.current.has(data.location.pano)) {
           tryJump(data);
         } else {
-          // Fallback: search without source filter
           svService.getPanorama(
             { location: aheadPoint, radius: 100 },
             (data2, status2) => {
@@ -304,30 +306,24 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         }
       },
     );
-  }, [addPanoLog, showOverlay]);
+  }, [getActivePanorama, getBackPanorama, swapPanos]);
 
-  // Move forward along the road (speed-based auto-movement).
-  // Excludes the previous pano and picks the best remaining link — no heading threshold,
-  // so it follows the road even through sharp curves.
-  // Falls back to searching ahead if no links are available.
+  // Move forward: if back pano is already preloaded with the right pano, just swap instantly.
+  // Otherwise load on back, wait for tiles, then swap.
   const moveForwardAuto = useCallback(() => {
-    const panorama = panoramaRef.current;
+    const panorama = getActivePanorama();
     if (!panorama || movingRef.current) return;
 
     const rawLinks = panorama.getLinks();
     const allLinks = (rawLinks || []).filter((l): l is google.maps.StreetViewLink => l !== null);
-
-    // Exclude all previously visited panoramas so we never go backward
     const visited = visitedPanosRef.current;
     const links = allLinks.filter(l => !l.pano || !visited.has(l.pano));
 
     if (links.length === 0) {
-      // No links available — search for a nearby panorama ahead
       searchAhead();
       return;
     }
 
-    // Pick link within 90° of current heading; if none, search ahead instead
     const bestLink = findBestLink(links, headingRef.current, false);
     if (!bestLink?.pano) {
       searchAhead();
@@ -338,25 +334,56 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
     if (bestLink.heading != null) {
       headingRef.current = bestLink.heading;
-      panorama.setPov({ heading: bestLink.heading, pitch: panorama.getPov().pitch });
     }
-
-    // Show preloaded static image as overlay during transition
-    showOverlay(bestLink.pano, headingRef.current);
 
     visitedPanosRef.current.add(panorama.getPano());
     visitedPanosRef.current.add(bestLink.pano);
-    addPanoLog(bestLink.pano, headingRef.current, allLinks.length, links.length, "link");
-    panorama.setPano(bestLink.pano);
 
-    setTimeout(() => {
-      movingRef.current = false;
-    }, 300);
-  }, [searchAhead, addPanoLog, showOverlay]);
+    const back = getBackPanorama();
 
-  // Move to a linked panorama in a given heading direction (arrow buttons).
+    // Check if back pano already has this pano preloaded and ready
+    if (back && backReadyRef.current && back.getPano() === bestLink.pano) {
+      // Instant swap — tiles are already loaded!
+      back.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+      swapPanos();
+      setTimeout(() => { movingRef.current = false; }, 100);
+      return;
+    }
+
+    // Otherwise, load on back pano and swap when ready
+    if (back) {
+      if (backTilesListenerRef.current) {
+        backTilesListenerRef.current.remove();
+      }
+      backReadyRef.current = false;
+      back.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+      back.setPano(bestLink.pano);
+      backTilesListenerRef.current = back.addListener("tilesloaded", () => {
+        if (backTilesListenerRef.current) {
+          backTilesListenerRef.current.remove();
+          backTilesListenerRef.current = null;
+        }
+        swapPanos();
+        setTimeout(() => { movingRef.current = false; }, 100);
+      });
+      // Fallback: swap after 600ms
+      setTimeout(() => {
+        if (movingRef.current) {
+          swapPanos();
+          movingRef.current = false;
+        }
+      }, 600);
+    } else {
+      // Fallback: move on active pano directly
+      panorama.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+      panorama.setPano(bestLink.pano);
+      setTimeout(() => { movingRef.current = false; }, 300);
+    }
+  }, [getActivePanorama, getBackPanorama, searchAhead, swapPanos]);
+
+  // Move to a linked panorama in a given heading direction (arrow buttons)
   const moveInDirection = useCallback((headingOffset: number) => {
-    const panorama = panoramaRef.current;
+    const panorama = getActivePanorama();
     if (!panorama || movingRef.current) return;
 
     const rawLinks = panorama.getLinks();
@@ -364,7 +391,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     const allLinks = rawLinks.filter((l): l is google.maps.StreetViewLink => l !== null);
     if (allLinks.length === 0) return;
 
-    // For forward movement, filter out visited panos to prevent going backward
     const visited = visitedPanosRef.current;
     const links = (headingOffset === 0)
       ? allLinks.filter(l => !l.pano || !visited.has(l.pano))
@@ -373,7 +399,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     const currentHeading = headingRef.current;
     const targetHeading = (currentHeading + headingOffset + 360) % 360;
 
-    // For forward: if no unvisited links, or best link is >90° off, search ahead instead
     if (headingOffset === 0) {
       const bestLink = links.length > 0 ? findBestLink(links, targetHeading, false) : null;
       if (!bestLink?.pano) {
@@ -384,14 +409,34 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       movingRef.current = true;
       if (bestLink.heading != null) {
         headingRef.current = bestLink.heading;
-        panorama.setPov({ heading: bestLink.heading, pitch: panorama.getPov().pitch });
       }
-      showOverlay(bestLink.pano, headingRef.current);
       visitedPanosRef.current.add(panorama.getPano());
       visitedPanosRef.current.add(bestLink.pano);
-      addPanoLog(bestLink.pano, headingRef.current, allLinks.length, links.length, "arrow");
-      panorama.setPano(bestLink.pano);
-      setTimeout(() => { movingRef.current = false; }, 300);
+
+      const back = getBackPanorama();
+      if (back) {
+        if (backTilesListenerRef.current) backTilesListenerRef.current.remove();
+        back.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+        back.setPano(bestLink.pano);
+        backTilesListenerRef.current = back.addListener("tilesloaded", () => {
+          if (backTilesListenerRef.current) {
+            backTilesListenerRef.current.remove();
+            backTilesListenerRef.current = null;
+          }
+          swapPanos();
+          setTimeout(() => { movingRef.current = false; }, 100);
+        });
+        setTimeout(() => {
+          if (movingRef.current) {
+            swapPanos();
+            movingRef.current = false;
+          }
+        }, 600);
+      } else {
+        panorama.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+        panorama.setPano(bestLink.pano);
+        setTimeout(() => { movingRef.current = false; }, 300);
+      }
       return;
     }
 
@@ -400,19 +445,35 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     if (!bestLink?.pano) return;
 
     movingRef.current = true;
-
-    showOverlay(bestLink.pano, headingRef.current);
     visitedPanosRef.current.add(panorama.getPano());
     visitedPanosRef.current.add(bestLink.pano);
-    addPanoLog(bestLink.pano, headingRef.current, allLinks.length, links.length, "arrow");
-    panorama.setPano(bestLink.pano);
 
-    setTimeout(() => {
-      movingRef.current = false;
-    }, 300);
-  }, [addPanoLog, searchAhead, showOverlay]);
+    const back = getBackPanorama();
+    if (back) {
+      if (backTilesListenerRef.current) backTilesListenerRef.current.remove();
+      back.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
+      back.setPano(bestLink.pano);
+      backTilesListenerRef.current = back.addListener("tilesloaded", () => {
+        if (backTilesListenerRef.current) {
+          backTilesListenerRef.current.remove();
+          backTilesListenerRef.current = null;
+        }
+        swapPanos();
+        setTimeout(() => { movingRef.current = false; }, 100);
+      });
+      setTimeout(() => {
+        if (movingRef.current) {
+          swapPanos();
+          movingRef.current = false;
+        }
+      }, 600);
+    } else {
+      panorama.setPano(bestLink.pano);
+      setTimeout(() => { movingRef.current = false; }, 300);
+    }
+  }, [getActivePanorama, getBackPanorama, searchAhead, swapPanos]);
 
-  // Accumulate distance every second and jump to next panorama when threshold is reached
+  // Accumulate distance and jump when threshold is reached
   useEffect(() => {
     const INTERVAL_MS = 500;
 
@@ -425,7 +486,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       accumulatedDistanceRef.current += distanceDelta;
       totalDistanceRef.current += distanceDelta;
 
-      // Use dynamic spacing based on actual distance between panoramas
       const spacing = panoSpacingRef.current;
       if (accumulatedDistanceRef.current >= spacing) {
         accumulatedDistanceRef.current -= spacing;
@@ -441,27 +501,31 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
   return (
     <>
-    <div style={{ position: "relative", width: "100%", height: "80vh" }}>
-      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
-
-      {/* Static image overlay — shown during pano transitions to hide blurry tile loading */}
-      {overlayUrl && (
-        <img
-          src={overlayUrl}
-          alt=""
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            zIndex: 5,
-            pointerEvents: "none",
-            opacity: overlayVisible ? 1 : 0,
-            transition: "opacity 0.35s ease-out",
-          }}
-        />
-      )}
+    <div style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 100 }}>
+      {/* Panorama A */}
+      <div
+        ref={containerARef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: activePano === "A" ? 2 : 1,
+          visibility: "visible", // both always render, z-index controls which is on top
+        }}
+      />
+      {/* Panorama B */}
+      <div
+        ref={containerBRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: activePano === "B" ? 2 : 1,
+          visibility: "visible",
+        }}
+      />
 
       {/* HUD overlay */}
       <div
@@ -507,15 +571,12 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           height: "108px",
         }}
       >
-        {/* Row 1: empty / forward / empty */}
         <div />
         <button onClick={() => moveInDirection(0)} style={arrowBtnStyle} title="Forward">&#9650;</button>
         <div />
-        {/* Row 2: left / empty / right */}
         <button onClick={() => moveInDirection(-90)} style={arrowBtnStyle} title="Left">&#9664;</button>
         <div />
         <button onClick={() => moveInDirection(90)} style={arrowBtnStyle} title="Right">&#9654;</button>
-        {/* Row 3: empty */}
         <div />
         <div />
         <div />
