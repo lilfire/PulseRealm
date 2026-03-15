@@ -9,8 +9,14 @@ public class RealmHub : Hub
 {
     private readonly RealmManager _realmManager;
 
-    /// <summary>Tracks the last wearable snapshot per client for speed calculation.</summary>
-    private static readonly ConcurrentDictionary<string, (WearableData Data, DateTime ReceivedAt)> _lastData = new();
+    /// <summary>Tracks the last raw steps and receive time per client for speed and offset calculation.</summary>
+    private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt)> _lastData = new();
+
+    /// <summary>Maps SignalR connection IDs to (realmId, clientId) for disconnect handling.</summary>
+    private static readonly ConcurrentDictionary<string, (string RealmId, string ClientId)> _connectionMap = new();
+
+    /// <summary>Step offset per client to handle app restarts where the step counter resets to 0.</summary>
+    private static readonly ConcurrentDictionary<string, int> _stepOffsets = new();
 
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
@@ -31,22 +37,36 @@ public class RealmHub : Hub
             throw new HubException("Invalid join code.");
         }
 
-        if (realm.Status != RealmStatus.Lobby)
+        if (realm.Status == RealmStatus.Ended)
+        {
+            throw new HubException("Realm has ended.");
+        }
+
+        if (realm.Status == RealmStatus.Started && !realm.KnownClientIds.Contains(clientId))
         {
             throw new HubException("Realm has already started.");
         }
 
-        if (realm.ConnectedClientIds.Count >= realm.MaxClients)
+        var isReconnect = realm.Status == RealmStatus.Started;
+
+        if (!isReconnect && realm.ConnectedClientIds.Count >= realm.MaxClients)
         {
             throw new HubException($"Realm is full ({realm.MaxClients}/{realm.MaxClients} players).");
         }
 
         _realmManager.AddClient(realm.Id, clientId, profile);
+        _connectionMap[Context.ConnectionId] = (realm.Id, clientId);
         await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
 
         var joinedProfile = profile ?? new ClientProfile { ClientId = clientId };
         joinedProfile.ClientId = clientId;
         await Clients.Group(realm.Id).SendAsync("ClientJoined", joinedProfile);
+
+        // If reconnecting to a started realm, send the current state so the client can catch up
+        if (isReconnect)
+        {
+            await Clients.Caller.SendAsync("RealmStarted", realm.RealmConfig);
+        }
     }
 
     /// <summary>
@@ -73,7 +93,20 @@ public class RealmHub : Hub
     /// </summary>
     public async Task SendWearableData(string realmId, WearableData data)
     {
-        data.SpeedKmh = EstimateSpeed(realmId, data);
+        var rawSteps = data.Steps;
+
+        // Detect client restart: if incoming steps are lower than the last known raw value,
+        // the client's counter reset — accumulate the previous raw total as an offset.
+        var previous = _lastData.GetValueOrDefault(data.ClientId);
+        if (previous.RawSteps > 0 && rawSteps < previous.RawSteps)
+        {
+            _stepOffsets.AddOrUpdate(data.ClientId, previous.RawSteps, (_, existing) => existing + previous.RawSteps);
+        }
+
+        data.SpeedKmh = EstimateSpeed(realmId, rawSteps, data.ClientId);
+
+        // Apply offset to outgoing steps
+        data.Steps = rawSteps + _stepOffsets.GetValueOrDefault(data.ClientId, 0);
 
         // Forward enriched data to all dashboard listeners in this realm
         await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
@@ -83,16 +116,16 @@ public class RealmHub : Hub
     /// Estimates current speed (km/h) from step deltas and the client's height.
     /// Stride length ≈ heightCm × 0.415 / 100 (standard biomechanics approximation).
     /// </summary>
-    private double EstimateSpeed(string realmId, WearableData data)
+    private double EstimateSpeed(string realmId, int rawSteps, string clientId)
     {
         var now = DateTime.UtcNow;
-        var previous = _lastData.GetValueOrDefault(data.ClientId);
-        _lastData[data.ClientId] = (data, now);
+        var previous = _lastData.GetValueOrDefault(clientId);
+        _lastData[clientId] = (rawSteps, now);
 
-        if (previous.Data is null)
+        if (previous.RawSteps == 0 && previous.ReceivedAt == default)
             return 0;
 
-        var stepDelta = data.Steps - previous.Data.Steps;
+        var stepDelta = rawSteps - previous.RawSteps;
         if (stepDelta <= 0)
             return 0;
 
@@ -101,7 +134,7 @@ public class RealmHub : Hub
         if (timeDelta < 0.1)
             return 0;
 
-        var profile = _realmManager.GetClientProfile(realmId, data.ClientId);
+        var profile = _realmManager.GetClientProfile(realmId, clientId);
         var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0; // fallback to average
 
         var strideLengthM = heightCm * StrideFactor / 100.0;
@@ -160,7 +193,22 @@ public class RealmHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // TODO: Handle client disconnection — remove from realm, notify dashboard
+        if (_connectionMap.TryRemove(Context.ConnectionId, out var mapping))
+        {
+            var realm = _realmManager.GetById(mapping.RealmId);
+            if (realm is not null && realm.Status == RealmStatus.Started)
+            {
+                // Started realm: only remove from connected list, keep profile and speed data for reconnect
+                realm.ConnectedClientIds.Remove(mapping.ClientId);
+            }
+            else
+            {
+                _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId);
+                _lastData.TryRemove(mapping.ClientId, out _);
+            }
+            await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
+        }
+
         await base.OnDisconnectedAsync(exception);
     }
 }

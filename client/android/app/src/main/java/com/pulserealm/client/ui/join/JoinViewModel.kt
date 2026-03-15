@@ -33,7 +33,7 @@ data class JoinUiState(
     val errorMessage: String? = null,
     val realmInfo: RealmInfo? = null,
     val isJoined: Boolean = false,
-    val clientId: String = "wear-" + java.util.UUID.randomUUID().toString().take(8),
+    val clientId: String = "",
     val showServerConfig: Boolean = true,
     val showProfileSettings: Boolean = false,
     val showManualEntry: Boolean = false,
@@ -54,6 +54,7 @@ class JoinViewModel @Inject constructor(
         private const val PREF_WEIGHT_KG = "weight_kg"
         private const val PREF_CONNECTION_MODE = "connection_mode"
         private const val PREF_REMOTE_URL = "remote_server_url"
+        private const val PREF_CLIENT_ID = "client_id"
     }
 
     private val _uiState = MutableStateFlow(JoinUiState())
@@ -69,6 +70,13 @@ class JoinViewModel @Inject constructor(
     val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
 
     init {
+        // Load or generate a stable client ID
+        val clientId = prefs.getString(PREF_CLIENT_ID, null) ?: run {
+            val id = "wear-" + java.util.UUID.randomUUID().toString().take(8)
+            prefs.edit().putString(PREF_CLIENT_ID, id).apply()
+            id
+        }
+
         // Load saved profile settings
         val savedName = prefs.getString(PREF_PLAYER_NAME, "") ?: ""
         val savedHeight = prefs.getString(PREF_HEIGHT_CM, "") ?: ""
@@ -80,6 +88,7 @@ class JoinViewModel @Inject constructor(
         val savedRemoteUrl = prefs.getString(PREF_REMOTE_URL, "") ?: ""
 
         _uiState.value = _uiState.value.copy(
+            clientId = clientId,
             playerName = savedName,
             heightCm = savedHeight,
             weightKg = savedWeight,

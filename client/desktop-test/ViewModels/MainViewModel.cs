@@ -23,7 +23,7 @@ public partial class MainViewModel : ObservableObject
     private int _prevStepsSnapshot;
     private int _targetHr = 65;
 
-    public string ClientId { get; } = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
+    [ObservableProperty] private string _clientId = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
 
     [ObservableProperty] private string _serverUrl = "";
     [ObservableProperty] private string _joinCode = "";

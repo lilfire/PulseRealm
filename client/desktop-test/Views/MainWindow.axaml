@@ -57,6 +57,10 @@
           <TextBox Text="{Binding JoinCode}" Width="80" FontSize="14" FontFamily="Consolas, monospace"
                    MaxLength="6" VerticalAlignment="Center" Margin="0,0,8,0"
                    IsEnabled="{Binding !IsConnected}" />
+          <TextBlock Text="ID:" FontSize="13" Foreground="#94a3b8" VerticalAlignment="Center" Margin="0,0,4,0" />
+          <TextBox Text="{Binding ClientId}" Width="120" FontSize="13" FontFamily="Consolas, monospace"
+                   VerticalAlignment="Center" Margin="0,0,8,0"
+                   IsEnabled="{Binding !IsConnected}" Watermark="Client ID" />
           <TextBlock Text="Name:" FontSize="13" Foreground="#94a3b8" VerticalAlignment="Center" Margin="0,0,4,0" />
           <TextBox Text="{Binding PlayerName}" Width="100" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"
                    IsEnabled="{Binding !IsConnected}" Watermark="Player name" />

@@ -92,6 +92,15 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       setClientProfiles((prev) => ({ ...prev, [profile.clientId]: profile }));
     });
 
+    connection.on("ClientLeft", (clientId: string) => {
+      setClients((prev) => prev.filter((id) => id !== clientId));
+      setClientProfiles((prev) => {
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
+    });
+
     connection.on("WearableDataReceived", (data: WearableData) => {
       setLatestData(data);
 

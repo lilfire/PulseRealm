@@ -8,6 +8,7 @@ public class Realm
     public RealmStatus Status { get; set; } = RealmStatus.Lobby;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<string> ConnectedClientIds { get; set; } = new();
+    public HashSet<string> KnownClientIds { get; set; } = new();
     public Dictionary<string, ClientProfile> ClientProfiles { get; set; } = new();
 
     /// <summary>JSON blob of mode-specific config, set when the realm starts.</summary>
