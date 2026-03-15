@@ -6,6 +6,113 @@
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+/* --- Home Screen --- */
+
+.home-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.home-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.home-subtitle {
+  font-size: 1.1rem;
+  color: var(--text, #9ca3af);
+  margin-bottom: 2.5rem;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 560px;
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+  margin: 0;
+  background: var(--code-bg, #1f2028);
+  border: 1px solid var(--border, #2e303a);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+
+.mode-card:hover:not(:disabled) {
+  border-color: var(--accent, #FF5C75);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(255, 92, 117, 0.15);
+}
+
+.mode-card:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.mode-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.mode-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-h, #f3f4f6);
+}
+
+.mode-desc {
+  font-size: 0.85rem;
+  color: var(--text, #9ca3af);
+}
+
+/* --- Server Footer --- */
+
+.server-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text, #9ca3af);
+  opacity: 0.6;
+  border-top: 1px solid var(--border, #2e303a);
+}
+
+.server-footer:hover {
+  opacity: 1;
+}
+
+.btn-change-server {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  margin: 0;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.btn-change-server:hover {
+  opacity: 1;
+  background: transparent;
+}
+
 h1 {
   font-size: 2.5rem;
   margin-bottom: 0.5rem;
@@ -21,14 +128,44 @@ button {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   cursor: pointer;
-  border: 2px solid #333;
+  border: none;
   border-radius: 6px;
-  background: #333;
+  background: var(--accent, #FF3D5A);
   color: #fff;
+  transition: opacity 0.2s, transform 0.1s;
 }
 
 button:hover {
-  background: #555;
+  opacity: 0.85;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Logo styles */
+.logo {
+  width: 120px;
+  height: auto;
+  margin-bottom: 0.5rem;
+}
+
+.brand-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin: 0 0 0.5rem;
+  background: var(--gradient, linear-gradient(135deg, #FF3D5A, #C850C0, #00D4FF));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.brand-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
 button:disabled {
@@ -36,11 +173,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-select {
-  padding: 0.5rem;
-  font-size: 1rem;
-  border-radius: 4px;
-}
 
 /* --- Server Search UI --- */
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ClientProfile, SessionMode } from "../types/session";
+import type { ClientProfile, RealmMode } from "../types/session";
 import { useGoogleMaps } from "../hooks/useGoogleMaps";
 
 export interface StreetViewLocation {
@@ -13,8 +13,9 @@ interface Props {
   clients: string[];
   clientProfiles: Record<string, ClientProfile>;
   connected: boolean;
-  mode: SessionMode;
+  mode: RealmMode;
   onStart: (location?: StreetViewLocation) => void;
+  onLeave: () => void;
 }
 
 interface Suggestion {
@@ -66,7 +67,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onStart }: Props) {
+export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onStart, onLeave }: Props) {
   const isStreetView = mode === "streetview";
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
@@ -147,7 +148,9 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
 
   return (
     <div className="app">
-      <h1>PulseRealm</h1>
+      <div className="brand-header">
+        <img src="/logo.png" alt="PulseRealm" className="logo" />
+      </div>
       <p>
         Join Code: <strong style={{ fontSize: "2rem", letterSpacing: "0.15em" }}>{joinCode}</strong>
       </p>
@@ -192,7 +195,7 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
                   padding: "0.6rem 0.75rem",
                   fontSize: "1rem",
                   borderRadius: "6px",
-                  border: `2px solid ${location ? "#86efac" : "#555"}`,
+                  border: `2px solid ${location ? "#00D4FF" : "#555"}`,
                   width: "100%",
                   background: "#1a1a1a",
                   color: "#fff",
@@ -258,9 +261,9 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
                     cursor: "pointer",
                     fontSize: "0.9rem",
                     borderRadius: "4px",
-                    border: location?.address === loc.address ? "1px solid #86efac" : "1px solid #333",
+                    border: location?.address === loc.address ? "1px solid #00D4FF" : "1px solid #333",
                     marginBottom: "0.4rem",
-                    background: location?.address === loc.address ? "rgba(134,239,172,0.1)" : "#1a1a1a",
+                    background: location?.address === loc.address ? "rgba(0,212,255,0.1)" : "#1a1a1a",
                     transition: "background 0.15s, border-color 0.15s",
                   }}
                   onMouseEnter={(e) => {
@@ -283,8 +286,22 @@ export function Lobby({ joinCode, clients, clientProfiles, connected, mode, onSt
         disabled={!canStart}
         style={{ fontSize: "1.2rem", padding: "0.6rem 2rem" }}
       >
-        Start Session
+        Start Realm
       </button>
+      <div>
+        <button
+          onClick={onLeave}
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border, #2e303a)",
+            color: "var(--text, #9ca3af)",
+            fontSize: "0.85rem",
+            padding: "0.4rem 1rem",
+          }}
+        >
+          Leave Realm
+        </button>
+      </div>
     </div>
   );
 }

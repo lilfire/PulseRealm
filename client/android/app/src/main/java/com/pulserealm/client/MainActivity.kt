@@ -15,7 +15,7 @@ import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.pulserealm.client.ui.join.JoinScreen
-import com.pulserealm.client.ui.session.SessionScreen
+import com.pulserealm.client.ui.session.RealmScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -52,9 +52,9 @@ class MainActivity : ComponentActivity() {
             ) {
                 composable("join") {
                     JoinScreen(
-                        onJoined = { sessionId, clientId, serverUrl ->
+                        onJoined = { realmId, clientId, serverUrl ->
                             navController.navigate(
-                                "session/$sessionId/$clientId/${java.net.URLEncoder.encode(serverUrl, "UTF-8")}"
+                                "realm/$realmId/$clientId/${java.net.URLEncoder.encode(serverUrl, "UTF-8")}"
                             ) {
                                 popUpTo("join") { inclusive = true }
                             }
@@ -63,17 +63,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 composable(
-                    route = "session/{sessionId}/{clientId}/{serverUrl}",
+                    route = "realm/{realmId}/{clientId}/{serverUrl}",
                     arguments = listOf(
-                        navArgument("sessionId") { type = NavType.StringType },
+                        navArgument("realmId") { type = NavType.StringType },
                         navArgument("clientId") { type = NavType.StringType },
                         navArgument("serverUrl") { type = NavType.StringType }
                     )
                 ) {
-                    SessionScreen(
+                    RealmScreen(
                         onDisconnected = {
                             navController.navigate("join") {
-                                popUpTo("session/{sessionId}/{clientId}/{serverUrl}") {
+                                popUpTo("realm/{realmId}/{clientId}/{serverUrl}") {
                                     inclusive = true
                                 }
                             }

@@ -26,7 +26,7 @@ public class DiscoveryController : ControllerBase
             name = serverName,
             version = "1.0.0",
             hostname = Environment.MachineName,
-            hubPath = "/hubs/session",
+            hubPath = "/hubs/realm",
             apiPath = "/api",
         });
     }

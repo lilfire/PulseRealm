@@ -1,10 +1,10 @@
 package com.pulserealm.client.data.network
 
-import com.pulserealm.client.data.model.SessionInfo
+import com.pulserealm.client.data.model.RealmInfo
 import retrofit2.http.GET
 import retrofit2.http.Path
 
-interface SessionApi {
-    @GET("api/session/{joinCode}")
-    suspend fun getSession(@Path("joinCode") joinCode: String): SessionInfo
+interface RealmApi {
+    @GET("api/realm/{joinCode}")
+    suspend fun getRealm(@Path("joinCode") joinCode: String): RealmInfo
 }

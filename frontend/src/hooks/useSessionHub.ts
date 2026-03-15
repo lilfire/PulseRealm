@@ -6,7 +6,7 @@ import {
 } from "@microsoft/signalr";
 import type { ClientProfile, WearableData } from "../types/session";
 
-export interface SessionSummary {
+export interface RealmSummary {
   durationSeconds: number;
   totalDistanceMeters: number;
   totalSteps: number;
@@ -17,12 +17,12 @@ export interface SessionSummary {
 
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 
-export function useSessionHub(sessionId: string | null, hubUrl?: string) {
+export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
   const [connected, setConnected] = useState(false);
   const [started, setStarted] = useState(false);
   const [ended, setEnded] = useState(false);
-  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
+  const [realmSummary, setRealmSummary] = useState<RealmSummary | null>(null);
   const [clients, setClients] = useState<string[]>([]);
   const [clientProfiles, setClientProfiles] = useState<Record<string, ClientProfile>>({});
   const [latestData, setLatestData] = useState<WearableData | null>(null);
@@ -40,7 +40,7 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
   useEffect(() => {
-    if (!sessionId || !resolvedUrl) return;
+    if (!realmId || !resolvedUrl) return;
 
     const connection = new HubConnectionBuilder()
       .withUrl(resolvedUrl)
@@ -69,12 +69,12 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
       }
     });
 
-    connection.on("SessionStarted", () => {
+    connection.on("RealmStarted", () => {
       setStarted(true);
     });
 
-    connection.on("SessionEnded", (summary: SessionSummary) => {
-      setSessionSummary(summary);
+    connection.on("RealmEnded", (summary: RealmSummary) => {
+      setRealmSummary(summary);
       setEnded(true);
     });
 
@@ -82,7 +82,7 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
       .start()
       .then(() => {
         setConnected(true);
-        return connection.invoke("JoinSessionAsDashboard", sessionId);
+        return connection.invoke("JoinRealmAsDashboard", realmId);
       })
       .catch(console.error);
 
@@ -91,13 +91,13 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
     return () => {
       connection.stop();
     };
-  }, [sessionId, resolvedUrl]);
+  }, [realmId, resolvedUrl]);
 
-  const startSession = useCallback(() => {
-    connectionRef.current?.invoke("StartSession", sessionId);
-  }, [sessionId]);
+  const startRealm = useCallback(() => {
+    connectionRef.current?.invoke("StartRealm", realmId);
+  }, [realmId]);
 
-  const endSession = useCallback((totalDistanceMeters: number) => {
+  const endRealm = useCallback((totalDistanceMeters: number) => {
     const s = statsRef.current;
     const summary = {
       durationSeconds: 0, // server will fill this
@@ -107,8 +107,8 @@ export function useSessionHub(sessionId: string | null, hubUrl?: string) {
       maxHeartRate: s.maxHeartRate,
       averageSpeedKmh: s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0,
     };
-    connectionRef.current?.invoke("EndSession", sessionId, summary);
-  }, [sessionId]);
+    connectionRef.current?.invoke("EndRealm", realmId, summary);
+  }, [realmId]);
 
-  return { connected, started, ended, sessionSummary, clients, clientProfiles, latestData, startSession, endSession };
+  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, startRealm, endRealm };
 }

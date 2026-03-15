@@ -42,7 +42,7 @@ class DataStreamingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val sessionId = intent?.getStringExtra(EXTRA_SESSION_ID) ?: run {
+        val realmId = intent?.getStringExtra(EXTRA_REALM_ID) ?: run {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -54,7 +54,7 @@ class DataStreamingService : Service() {
 
         startForeground(NOTIFICATION_ID, buildNotification())
         sensorDataCollector.start()
-        startStreaming(sessionId, clientId, intervalMs)
+        startStreaming(realmId, clientId, intervalMs)
 
         _sendCount.value = 0
 
@@ -68,7 +68,7 @@ class DataStreamingService : Service() {
         super.onDestroy()
     }
 
-    private fun startStreaming(sessionId: String, clientId: String, intervalMs: Long) {
+    private fun startStreaming(realmId: String, clientId: String, intervalMs: Long) {
         streamingJob?.cancel()
         streamingJob = scope.launch {
             while (true) {
@@ -78,7 +78,7 @@ class DataStreamingService : Service() {
                     steps = sensorDataCollector.steps.value,
                     timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now().atOffset(ZoneOffset.UTC))
                 )
-                signalRClient.sendWearableData(sessionId, data)
+                signalRClient.sendWearableData(realmId, data)
                 _sendCount.value = _sendCount.value + 1
                 delay(intervalMs)
             }
@@ -107,7 +107,7 @@ class DataStreamingService : Service() {
     }
 
     companion object {
-        const val EXTRA_SESSION_ID = "session_id"
+        const val EXTRA_REALM_ID = "realm_id"
         const val EXTRA_CLIENT_ID = "client_id"
         const val EXTRA_INTERVAL_MS = "interval_ms"
         private const val CHANNEL_ID = "pulserealm_streaming"

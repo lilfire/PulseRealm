@@ -5,9 +5,9 @@ using PulseRealm.Server.Services;
 
 namespace PulseRealm.Server.Hubs;
 
-public class SessionHub : Hub
+public class RealmHub : Hub
 {
-    private readonly SessionManager _sessionManager;
+    private readonly RealmManager _realmManager;
 
     /// <summary>Tracks the last wearable snapshot per client for speed calculation.</summary>
     private static readonly ConcurrentDictionary<string, (WearableData Data, DateTime ReceivedAt)> _lastData = new();
@@ -15,73 +15,73 @@ public class SessionHub : Hub
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
 
-    public SessionHub(SessionManager sessionManager)
+    public RealmHub(RealmManager realmManager)
     {
-        _sessionManager = sessionManager;
+        _realmManager = realmManager;
     }
 
     /// <summary>
-    /// Called by a wearable client to join a session using a short code.
+    /// Called by a wearable client to join a realm using a short code.
     /// </summary>
-    public async Task JoinSession(string joinCode, string clientId, ClientProfile? profile = null)
+    public async Task JoinRealm(string joinCode, string clientId, ClientProfile? profile = null)
     {
-        var session = _sessionManager.GetByJoinCode(joinCode);
-        if (session is null)
+        var realm = _realmManager.GetByJoinCode(joinCode);
+        if (realm is null)
         {
             throw new HubException("Invalid join code.");
         }
 
-        if (session.Status != SessionStatus.Lobby)
+        if (realm.Status != RealmStatus.Lobby)
         {
-            throw new HubException("Session has already started.");
+            throw new HubException("Realm has already started.");
         }
 
-        if (session.ConnectedClientIds.Count >= session.MaxClients)
+        if (realm.ConnectedClientIds.Count >= realm.MaxClients)
         {
-            throw new HubException($"Session is full ({session.MaxClients}/{session.MaxClients} players).");
+            throw new HubException($"Realm is full ({realm.MaxClients}/{realm.MaxClients} players).");
         }
 
-        _sessionManager.AddClient(session.Id, clientId, profile);
-        await Groups.AddToGroupAsync(Context.ConnectionId, session.Id);
+        _realmManager.AddClient(realm.Id, clientId, profile);
+        await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
 
         var joinedProfile = profile ?? new ClientProfile { ClientId = clientId };
         joinedProfile.ClientId = clientId;
-        await Clients.Group(session.Id).SendAsync("ClientJoined", joinedProfile);
+        await Clients.Group(realm.Id).SendAsync("ClientJoined", joinedProfile);
     }
 
     /// <summary>
-    /// Called by the dashboard to start the session. No new clients can join after this.
+    /// Called by the dashboard to start the realm. No new clients can join after this.
     /// </summary>
-    public async Task StartSession(string sessionId)
+    public async Task StartRealm(string realmId)
     {
-        var session = _sessionManager.GetById(sessionId);
-        if (session is null)
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
         {
-            await Clients.Caller.SendAsync("Error", "Session not found.");
+            await Clients.Caller.SendAsync("Error", "Realm not found.");
             return;
         }
 
-        session.Status = SessionStatus.Started;
-        await Clients.Group(sessionId).SendAsync("SessionStarted");
+        realm.Status = RealmStatus.Started;
+        await Clients.Group(realmId).SendAsync("RealmStarted");
     }
 
     /// <summary>
     /// Called by a wearable client to stream live data (steps, heart rate).
-    /// The server forwards it to the dashboard in the same session group.
+    /// The server forwards it to the dashboard in the same realm group.
     /// </summary>
-    public async Task SendWearableData(string sessionId, WearableData data)
+    public async Task SendWearableData(string realmId, WearableData data)
     {
-        data.SpeedKmh = EstimateSpeed(sessionId, data);
+        data.SpeedKmh = EstimateSpeed(realmId, data);
 
-        // Forward enriched data to all dashboard listeners in this session
-        await Clients.Group(sessionId).SendAsync("WearableDataReceived", data);
+        // Forward enriched data to all dashboard listeners in this realm
+        await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
     }
 
     /// <summary>
     /// Estimates current speed (km/h) from step deltas and the client's height.
     /// Stride length ≈ heightCm × 0.415 / 100 (standard biomechanics approximation).
     /// </summary>
-    private double EstimateSpeed(string sessionId, WearableData data)
+    private double EstimateSpeed(string realmId, WearableData data)
     {
         var now = DateTime.UtcNow;
         var previous = _lastData.GetValueOrDefault(data.ClientId);
@@ -99,7 +99,7 @@ public class SessionHub : Hub
         if (timeDelta < 0.1)
             return 0;
 
-        var profile = _sessionManager.GetClientProfile(sessionId, data.ClientId);
+        var profile = _realmManager.GetClientProfile(realmId, data.ClientId);
         var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0; // fallback to average
 
         var strideLengthM = heightCm * StrideFactor / 100.0;
@@ -111,35 +111,35 @@ public class SessionHub : Hub
     }
 
     /// <summary>
-    /// Called by the dashboard to end a session. Broadcasts a summary to all clients.
+    /// Called by the dashboard to end a realm. Broadcasts a summary to all clients.
     /// </summary>
-    public async Task EndSession(string sessionId, SessionSummary summary)
+    public async Task EndRealm(string realmId, RealmSummary summary)
     {
-        var session = _sessionManager.GetById(sessionId);
-        if (session is null)
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
         {
-            await Clients.Caller.SendAsync("Error", "Session not found.");
+            await Clients.Caller.SendAsync("Error", "Realm not found.");
             return;
         }
 
-        session.Status = SessionStatus.Ended;
-        summary.DurationSeconds = (DateTime.UtcNow - session.CreatedAt).TotalSeconds;
+        realm.Status = RealmStatus.Ended;
+        summary.DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
 
-        await Clients.Group(sessionId).SendAsync("SessionEnded", summary);
+        await Clients.Group(realmId).SendAsync("RealmEnded", summary);
     }
 
     /// <summary>
-    /// Called by the dashboard to join a session's broadcast group.
+    /// Called by the dashboard to join a realm's broadcast group.
     /// </summary>
-    public async Task JoinSessionAsDashboard(string sessionId)
+    public async Task JoinRealmAsDashboard(string realmId)
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, sessionId);
-        await Clients.Caller.SendAsync("JoinedSession", sessionId);
+        await Groups.AddToGroupAsync(Context.ConnectionId, realmId);
+        await Clients.Caller.SendAsync("JoinedRealm", realmId);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // TODO: Handle client disconnection — remove from session, notify dashboard
+        // TODO: Handle client disconnection — remove from realm, notify dashboard
         await base.OnDisconnectedAsync(exception);
     }
 }

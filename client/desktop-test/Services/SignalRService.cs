@@ -6,14 +6,14 @@ namespace PulseRealm.DesktopTest.Services;
 public class SignalRService : IAsyncDisposable
 {
     private HubConnection? _connection;
-    private string? _sessionId;
+    private string? _realmId;
 
     public event Action<string, string>? LogReceived; // message, css class
     public event Action<bool>? ConnectionChanged;
-    public event Action<JsonElement>? SessionEnded;
+    public event Action<JsonElement>? RealmEnded;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
-    public string? SessionId => _sessionId;
+    public string? RealmId => _realmId;
 
     public async Task<bool> ConnectAsync(string serverUrl, string joinCode, string clientId,
         string playerName = "", double heightCm = 0, double weightKg = 0)
@@ -23,7 +23,7 @@ public class SignalRService : IAsyncDisposable
             var baseUrl = serverUrl.TrimEnd('/');
 
             _connection = new HubConnectionBuilder()
-                .WithUrl($"{baseUrl}/hubs/session")
+                .WithUrl($"{baseUrl}/hubs/realm")
                 .WithAutomaticReconnect()
                 .Build();
 
@@ -41,16 +41,16 @@ public class SignalRService : IAsyncDisposable
                 }
             });
 
-            _connection.On<JsonElement>("SessionEnded", summary =>
+            _connection.On<JsonElement>("RealmEnded", summary =>
             {
-                SessionEnded?.Invoke(summary);
+                RealmEnded?.Invoke(summary);
             });
 
             _connection.On<string>("Error", msg =>
                 LogReceived?.Invoke($"Server error: {msg}", "error"));
 
-            _connection.On<string>("JoinedSession", sid =>
-                LogReceived?.Invoke($"Confirmed in session: {sid}", "info"));
+            _connection.On<string>("JoinedRealm", sid =>
+                LogReceived?.Invoke($"Confirmed in realm: {sid}", "info"));
 
             _connection.Closed += _ =>
             {
@@ -74,7 +74,7 @@ public class SignalRService : IAsyncDisposable
             };
 
             await _connection.StartAsync();
-            LogReceived?.Invoke("SignalR connected. Joining session...", "info");
+            LogReceived?.Invoke("SignalR connected. Joining realm...", "info");
 
             var profile = new
             {
@@ -83,22 +83,22 @@ public class SignalRService : IAsyncDisposable
                 heightCm,
                 weightKg,
             };
-            await _connection.InvokeAsync("JoinSession", joinCode, clientId, profile);
+            await _connection.InvokeAsync("JoinRealm", joinCode, clientId, profile);
 
-            // Look up session ID
+            // Look up realm ID
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            var resp = await http.GetAsync($"{baseUrl}/api/session/{joinCode}");
+            var resp = await http.GetAsync($"{baseUrl}/api/realm/{joinCode}");
             if (!resp.IsSuccessStatusCode)
             {
-                LogReceived?.Invoke("Could not look up session info.", "error");
+                LogReceived?.Invoke("Could not look up realm info.", "error");
                 await _connection.StopAsync();
                 return false;
             }
 
-            var session = JsonSerializer.Deserialize<JsonElement>(await resp.Content.ReadAsStringAsync());
-            _sessionId = session.GetProperty("id").GetString();
+            var realm = JsonSerializer.Deserialize<JsonElement>(await resp.Content.ReadAsStringAsync());
+            _realmId = realm.GetProperty("id").GetString();
 
-            LogReceived?.Invoke($"Joined session {_sessionId} (code: {joinCode}) as {clientId}", "info");
+            LogReceived?.Invoke($"Joined realm {_realmId} (code: {joinCode}) as {clientId}", "info");
             ConnectionChanged?.Invoke(true);
             return true;
         }
@@ -112,7 +112,7 @@ public class SignalRService : IAsyncDisposable
 
     public async Task SendDataAsync(string clientId, int heartRate, int steps)
     {
-        if (_connection is null || _sessionId is null) return;
+        if (_connection is null || _realmId is null) return;
 
         var data = new
         {
@@ -124,7 +124,7 @@ public class SignalRService : IAsyncDisposable
 
         try
         {
-            await _connection.InvokeAsync("SendWearableData", _sessionId, data);
+            await _connection.InvokeAsync("SendWearableData", _realmId, data);
         }
         catch (Exception ex)
         {
@@ -134,7 +134,7 @@ public class SignalRService : IAsyncDisposable
 
     public async Task DisconnectAsync()
     {
-        _sessionId = null;
+        _realmId = null;
         if (_connection is not null)
         {
             await _connection.StopAsync();
