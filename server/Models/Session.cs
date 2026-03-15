@@ -1,37 +1,37 @@
 namespace PulseRealm.Server.Models;
 
-public class Session
+public class Realm
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string JoinCode { get; set; } = string.Empty;
-    public SessionMode Mode { get; set; }
-    public SessionStatus Status { get; set; } = SessionStatus.Lobby;
+    public RealmMode Mode { get; set; }
+    public RealmStatus Status { get; set; } = RealmStatus.Lobby;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<string> ConnectedClientIds { get; set; } = new();
     public Dictionary<string, ClientProfile> ClientProfiles { get; set; } = new();
 
     public int MaxClients => Mode switch
     {
-        SessionMode.Competition => 4,
-        SessionMode.StreetView => 1,
+        RealmMode.Competition => 4,
+        RealmMode.StreetView => 1,
         _ => 4,
     };
 }
 
-public enum SessionMode
+public enum RealmMode
 {
     Competition,
     StreetView
 }
 
-public enum SessionStatus
+public enum RealmStatus
 {
     Lobby,
     Started,
     Ended
 }
 
-public class SessionSummary
+public class RealmSummary
 {
     public double DurationSeconds { get; set; }
     public double TotalDistanceMeters { get; set; }

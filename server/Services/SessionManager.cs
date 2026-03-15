@@ -3,65 +3,65 @@ using PulseRealm.Server.Models;
 
 namespace PulseRealm.Server.Services;
 
-public class SessionManager
+public class RealmManager
 {
-    private readonly ConcurrentDictionary<string, Session> _sessions = new();
-    private readonly ConcurrentDictionary<string, Session> _joinCodes = new();
+    private readonly ConcurrentDictionary<string, Realm> _realms = new();
+    private readonly ConcurrentDictionary<string, Realm> _joinCodes = new();
     private static readonly Random _random = new();
 
-    public Session CreateSession(SessionMode mode)
+    public Realm CreateRealm(RealmMode mode)
     {
-        var session = new Session
+        var realm = new Realm
         {
             Mode = mode,
             JoinCode = GenerateJoinCode()
         };
 
-        _sessions[session.Id] = session;
-        _joinCodes[session.JoinCode] = session;
-        return session;
+        _realms[realm.Id] = realm;
+        _joinCodes[realm.JoinCode] = realm;
+        return realm;
     }
 
-    public Session? GetByJoinCode(string joinCode)
+    public Realm? GetByJoinCode(string joinCode)
     {
-        _joinCodes.TryGetValue(joinCode.ToUpperInvariant(), out var session);
-        return session;
+        _joinCodes.TryGetValue(joinCode.ToUpperInvariant(), out var realm);
+        return realm;
     }
 
-    public Session? GetById(string id)
+    public Realm? GetById(string id)
     {
-        _sessions.TryGetValue(id, out var session);
-        return session;
+        _realms.TryGetValue(id, out var realm);
+        return realm;
     }
 
-    public void AddClient(string sessionId, string clientId, ClientProfile? profile = null)
+    public void AddClient(string realmId, string clientId, ClientProfile? profile = null)
     {
-        if (_sessions.TryGetValue(sessionId, out var session))
+        if (_realms.TryGetValue(realmId, out var realm))
         {
-            session.ConnectedClientIds.Add(clientId);
+            realm.ConnectedClientIds.Add(clientId);
             if (profile != null)
             {
                 profile.ClientId = clientId;
-                session.ClientProfiles[clientId] = profile;
+                realm.ClientProfiles[clientId] = profile;
             }
         }
     }
 
-    public ClientProfile? GetClientProfile(string sessionId, string clientId)
+    public ClientProfile? GetClientProfile(string realmId, string clientId)
     {
-        if (_sessions.TryGetValue(sessionId, out var session))
+        if (_realms.TryGetValue(realmId, out var realm))
         {
-            session.ClientProfiles.TryGetValue(clientId, out var profile);
+            realm.ClientProfiles.TryGetValue(clientId, out var profile);
             return profile;
         }
         return null;
     }
 
-    public Dictionary<string, ClientProfile> GetClientProfiles(string sessionId)
+    public Dictionary<string, ClientProfile> GetClientProfiles(string realmId)
     {
-        if (_sessions.TryGetValue(sessionId, out var session))
+        if (_realms.TryGetValue(realmId, out var realm))
         {
-            return new Dictionary<string, ClientProfile>(session.ClientProfiles);
+            return new Dictionary<string, ClientProfile>(realm.ClientProfiles);
         }
         return new();
     }

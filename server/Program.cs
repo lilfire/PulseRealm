@@ -5,7 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
-builder.Services.AddSingleton<SessionManager>();
+builder.Services.AddSingleton<RealmManager>();
 builder.Services.AddHostedService<ServerDiscoveryService>();
 
 builder.Services.AddCors(options =>
@@ -25,7 +25,7 @@ app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();
-app.MapHub<SessionHub>("/hubs/session");
+app.MapHub<RealmHub>("/hubs/realm");
 app.MapFallbackToFile("index.html");
 
 app.Run();

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useSessionHub } from "./hooks/useSessionHub";
+import { useRealmHub } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
 import { Lobby, type StreetViewLocation } from "./components/Lobby";
 import { CompetitionMode } from "./components/modes/CompetitionMode";
 import { StreetViewMode } from "./components/modes/StreetViewMode";
-import { SessionSummaryScreen } from "./components/SessionSummaryScreen";
-import type { Session, SessionMode } from "./types/session";
+import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
+import type { Realm, RealmMode } from "./types/session";
 import "./App.css";
 
 // When VITE_API_URL is set (e.g. in Docker where frontend is served from the
@@ -15,18 +15,18 @@ const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
 
 function App() {
   const server = useServerConnection();
-  const [session, setSession] = useState<Session | null>(null);
-  const [selectedMode, setSelectedMode] = useState<SessionMode>("competition");
+  const [realm, setRealm] = useState<Realm | null>(null);
+  const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
   const hubUrl = PRESET_API_URL
-    ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/session`)
+    ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/realm`)
     : server.hubUrl;
 
-  const { connected, started, ended, sessionSummary, clients, clientProfiles, latestData, startSession, endSession } = useSessionHub(
-    session?.id ?? null,
+  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, startRealm, endRealm } = useRealmHub(
+    realm?.id ?? null,
     hubUrl
   );
 
@@ -45,92 +45,104 @@ function App() {
     );
   }
 
-  async function createSession() {
-    const modeValue = selectedMode === "competition" ? 0 : 1;
-    const res = await fetch(`${apiUrl}/api/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: modeValue }),
-    });
-    const data = await res.json();
-    setSession({
-      id: data.id,
-      joinCode: data.joinCode,
-      mode: selectedMode,
-    });
+  async function createRealm(mode: RealmMode) {
+    setCreatingMode(mode);
+    try {
+      const modeValue = mode === "competition" ? 0 : 1;
+      const res = await fetch(`${apiUrl}/api/realm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: modeValue }),
+      });
+      const data = await res.json();
+      setRealm({
+        id: data.id,
+        joinCode: data.joinCode,
+        mode,
+      });
+    } finally {
+      setCreatingMode(null);
+    }
   }
 
-  if (!session) {
+  if (!realm) {
     return (
-      <div className="app">
-        <h1>PulseRealm</h1>
-        {!PRESET_API_URL && server.serverInfo && (
-          <p style={{ fontSize: "0.85rem", color: "#888" }}>
-            Connected to {server.serverUrl}{" "}
+      <div className="home-screen">
+        <div className="home-content">
+          <div className="brand-header">
+            <img src="/logo.png" alt="PulseRealm" className="logo" />
+          </div>
+          <p className="home-subtitle">Choose a mode to create a realm</p>
+          <div className="mode-grid">
             <button
-              onClick={server.disconnect}
-              style={{
-                fontSize: "0.75rem",
-                padding: "0.2rem 0.5rem",
-                background: "transparent",
-                border: "1px solid #666",
-                color: "#aaa",
-                cursor: "pointer",
-              }}
+              className="mode-card"
+              onClick={() => createRealm("competition")}
+              disabled={creatingMode !== null}
             >
-              Change server
+              <span className="mode-icon">&#9876;</span>
+              <span className="mode-name">Competition</span>
+              <span className="mode-desc">Race against others in real-time</span>
             </button>
-          </p>
-        )}
-        <p>Create a session to get started.</p>
-        <div>
-          <label>
-            Mode:{" "}
-            <select
-              value={selectedMode}
-              onChange={(e) => setSelectedMode(e.target.value as SessionMode)}
+            <button
+              className="mode-card"
+              onClick={() => createRealm("streetview")}
+              disabled={creatingMode !== null}
             >
-              <option value="competition">Competition</option>
-              <option value="streetview">Street View</option>
-            </select>
-          </label>
+              <span className="mode-icon">&#127758;</span>
+              <span className="mode-name">Street View</span>
+              <span className="mode-desc">Explore the world together</span>
+            </button>
+          </div>
         </div>
-        <button onClick={createSession}>Create Session</button>
+        {!PRESET_API_URL && server.serverInfo && (
+          <footer className="server-footer">
+            <span>
+              {server.serverInfo.name ?? server.serverUrl}
+            </span>
+            <button className="btn-change-server" onClick={server.disconnect}>
+              Change
+            </button>
+          </footer>
+        )}
       </div>
     );
   }
 
-  // Show summary screen when session has ended
-  if (ended && sessionSummary) {
+  // Show summary screen when realm has ended
+  if (ended && realmSummary) {
     return (
-      <SessionSummaryScreen
-        summary={sessionSummary}
+      <RealmSummaryScreen
+        summary={realmSummary}
         onClose={() => {
-          setSession(null);
+          setRealm(null);
           setStreetViewLocation(null);
         }}
       />
     );
   }
 
-  // Show lobby until the session is started
+  // Show lobby until the realm is started
   if (!started) {
     return (
       <Lobby
-        joinCode={session.joinCode}
+        joinCode={realm.joinCode}
         clients={clients}
         clientProfiles={clientProfiles}
         connected={connected}
-        mode={session.mode}
+        mode={realm.mode}
         onStart={(location) => {
           if (location) setStreetViewLocation(location);
-          startSession();
+          startRealm();
+        }}
+        onLeave={() => {
+          setRealm(null);
+          setStreetViewLocation(null);
         }}
       />
     );
   }
 
-  if (session.mode === "streetview" && streetViewLocation) {
+  if (realm.mode === "streetview" && streetViewLocation) {
     return (
       <StreetViewMode
         clients={clients}
@@ -138,7 +150,7 @@ function App() {
         latestData={latestData}
         startLocation={streetViewLocation}
         onEnd={(totalDistance) => {
-          endSession(totalDistance);
+          endRealm(totalDistance);
         }}
       />
     );
@@ -146,13 +158,15 @@ function App() {
 
   return (
     <div className="app">
-      <h1>PulseRealm</h1>
+      <div className="brand-header">
+        <img src="/logo.png" alt="PulseRealm" className="logo" />
+      </div>
       <p>
-        Join Code: <strong>{session.joinCode}</strong>
+        Join Code: <strong>{realm.joinCode}</strong>
       </p>
       <p>Status: {connected ? "Connected" : "Connecting..."}</p>
 
-      {session.mode === "competition" && (
+      {realm.mode === "competition" && (
         <CompetitionMode clients={clients} clientProfiles={clientProfiles} latestData={latestData} />
       )}
     </div>

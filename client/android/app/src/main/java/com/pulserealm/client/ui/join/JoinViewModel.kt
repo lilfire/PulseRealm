@@ -7,7 +7,7 @@ import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.DiscoveredServer
 import com.pulserealm.client.data.network.ServerDiscoveryClient
 import com.pulserealm.client.data.network.SignalRClient
-import com.pulserealm.client.data.model.SessionInfo
+import com.pulserealm.client.data.model.RealmInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import com.pulserealm.client.data.network.SessionApi
+import com.pulserealm.client.data.network.RealmApi
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
@@ -29,7 +29,7 @@ data class JoinUiState(
     val weightKg: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val sessionInfo: SessionInfo? = null,
+    val realmInfo: RealmInfo? = null,
     val isJoined: Boolean = false,
     val clientId: String = "wear-" + java.util.UUID.randomUUID().toString().take(8),
     val showServerConfig: Boolean = true,
@@ -222,8 +222,8 @@ class JoinViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 2. Join session via SignalR with profile data
-                signalRClient.joinSession(
+                // 2. Join realm via SignalR with profile data
+                signalRClient.joinRealm(
                     state.joinCode,
                     state.clientId,
                     state.playerName,
@@ -239,28 +239,28 @@ class JoinViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 3. Fetch session info via REST to get the sessionId
+                // 3. Fetch realm info via REST to get the realmId
                 val retrofit = Retrofit.Builder()
                     .baseUrl(state.serverUrl.trimEnd('/') + "/")
                     .addConverterFactory(GsonConverterFactory.create())
                     .build()
 
-                val api = retrofit.create(SessionApi::class.java)
-                val sessionInfo = api.getSession(state.joinCode)
+                val api = retrofit.create(RealmApi::class.java)
+                val realmInfo = api.getRealm(state.joinCode)
 
                 // Cache the server URL on successful join
                 saveServerUrl(state.serverUrl)
 
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    sessionInfo = sessionInfo,
+                    realmInfo = realmInfo,
                     isJoined = true
                 )
             } catch (e: Exception) {
                 signalRClient.disconnect()
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Failed to join session"
+                    errorMessage = e.message ?: "Failed to join realm"
                 )
             }
         }
@@ -270,7 +270,7 @@ class JoinViewModel @Inject constructor(
         signalRClient.disconnect()
         _uiState.value = _uiState.value.copy(
             isJoined = false,
-            sessionInfo = null
+            realmInfo = null
         )
     }
 }

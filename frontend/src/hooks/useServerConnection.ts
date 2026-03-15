@@ -353,7 +353,7 @@ export function useServerConnection() {
 
   const apiUrl = serverUrl || "";
   const hubUrl = serverUrl
-    ? `${serverUrl}${serverInfo?.hubPath || "/hubs/session"}`
+    ? `${serverUrl}${serverInfo?.hubPath || "/hubs/realm"}`
     : "";
 
   return {

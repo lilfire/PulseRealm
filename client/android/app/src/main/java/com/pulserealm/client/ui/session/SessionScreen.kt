@@ -33,20 +33,20 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import com.pulserealm.client.data.network.ConnectionState
-import com.pulserealm.client.data.network.SessionSummaryData
+import com.pulserealm.client.data.network.RealmSummaryData
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SessionScreen(
+fun RealmScreen(
     onDisconnected: () -> Unit,
-    viewModel: SessionViewModel = hiltViewModel()
+    viewModel: RealmViewModel = hiltViewModel()
 ) {
     val heartRate by viewModel.heartRate.collectAsState()
     val steps by viewModel.steps.collectAsState()
     val sendCount by viewModel.sendCount.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val sensorsAvailable by viewModel.sensorsAvailable.collectAsState()
-    val sessionEnded by viewModel.sessionEnded.collectAsState()
+    val realmEnded by viewModel.realmEnded.collectAsState()
 
     // Start streaming when screen appears
     DisposableEffect(Unit) {
@@ -56,10 +56,10 @@ fun SessionScreen(
         }
     }
 
-    // Show summary when session ends
-    val summary = sessionEnded
+    // Show summary when realm ends
+    val summary = realmEnded
     if (summary != null) {
-        SessionEndedPage(
+        RealmEndedPage(
             summary = summary,
             onDismiss = {
                 viewModel.disconnect()
@@ -87,7 +87,7 @@ fun SessionScreen(
                     connectionState = connectionState,
                     sensorsAvailable = sensorsAvailable
                 )
-                1 -> SessionSettingsPage(
+                1 -> RealmSettingsPage(
                     onLeave = {
                         viewModel.disconnect()
                         onDisconnected()
@@ -190,8 +190,8 @@ private fun LivePage(
 }
 
 @Composable
-private fun SessionEndedPage(
-    summary: SessionSummaryData,
+private fun RealmEndedPage(
+    summary: RealmSummaryData,
     onDismiss: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
@@ -208,7 +208,7 @@ private fun SessionEndedPage(
         ) {
             item {
                 Text(
-                    text = "SESSION OVER",
+                    text = "REALM OVER",
                     color = Color(0xFF38BDF8),
                     style = MaterialTheme.typography.title3,
                     fontWeight = FontWeight.Bold,
@@ -282,7 +282,7 @@ private fun SessionEndedPage(
 }
 
 @Composable
-private fun SessionSettingsPage(
+private fun RealmSettingsPage(
     onLeave: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
