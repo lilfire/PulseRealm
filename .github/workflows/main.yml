@@ -31,8 +31,8 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:${{ github.event.inputs.tag }}
           labels: |
             org.opencontainers.image.description=A live treadmill session platform with wearable integration and multiple run modes.
-            org.opencontainers.image.documentation=https://github.com/lilfire/PulseRealm/blob/main/CHANGELOG.md
-            org.opencontainers.image.source=https://github.com/lilfire/PulseRealm
+            org.opencontainers.image.documentation=https://github.com/lilfire/pulserealm/blob/main/CHANGELOG.md
+            org.opencontainers.image.source=https://github.com/lilfire/pulserealm
 
   build-latest:
     runs-on: ubuntu-latest
@@ -58,5 +58,5 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:latest
           labels: |
             org.opencontainers.image.description=A live treadmill session platform with wearable integration and multiple run modes.
-            org.opencontainers.image.documentation=https://github.com/lilfire/PulseRealm/blob/main/CHANGELOG.md
-            org.opencontainers.image.source=https://github.com/lilfire/PulseRealm
+            org.opencontainers.image.documentation=https://github.com/lilfire/pulserealm/blob/main/CHANGELOG.md
+            org.opencontainers.image.source=https://github.com/lilfire/pulserealm
