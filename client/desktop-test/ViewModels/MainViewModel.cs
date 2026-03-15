@@ -15,9 +15,13 @@ public partial class MainViewModel : ObservableObject
     private readonly SignalRService _signalR = new();
 
     private Timer? _sendTimer;
-    private readonly List<double> _mouseSpeeds = new();
-    private double _lastMouseX, _lastMouseY;
-    private long _lastMouseTime;
+    private Timer? _targetHrTimer;
+    private Timer? _smoothHrTimer;
+    private double _lastMouseX = double.NaN;
+    private double _lastMouseY = double.NaN;
+    private double _mouseDistAccum;
+    private int _prevStepsSnapshot;
+    private int _targetHr = 65;
 
     public string ClientId { get; } = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
 
@@ -61,10 +65,16 @@ public partial class MainViewModel : ObservableObject
         _signalR.RealmEnded += summary =>
             Avalonia.Threading.Dispatcher.UIThread.Post(() => OnRealmEnded(summary));
 
-        // HR decay timer — every 200ms
-        var hrTimer = new Timer(_ =>
+        // HR target update — every 1 second, recompute target from activity
+        _targetHrTimer = new Timer(_ =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateHeartRate);
+            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateTargetHr);
+        }, null, 1000, 1000);
+
+        // HR smoothing — every 200ms, move HR toward target
+        _smoothHrTimer = new Timer(_ =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(SmoothHeartRate);
         }, null, 200, 200);
 
         AddLog($"Client ID: {ClientId}", "info");
@@ -176,15 +186,110 @@ public partial class MainViewModel : ObservableObject
         var totalSteps = summary.TryGetProperty("totalSteps", out var st) ? st.GetInt32() : 0;
         var avgHr = summary.TryGetProperty("averageHeartRate", out var ahr) ? ahr.GetInt32() : 0;
         var maxHr = summary.TryGetProperty("maxHeartRate", out var mhr) ? mhr.GetInt32() : 0;
-        var avgSpeed = summary.TryGetProperty("averageSpeedKmh", out var spd) ? spd.GetDouble() : 0;
+        var avgCadence = summary.TryGetProperty("avgCadenceSpm", out var cad) ? cad.GetInt32() : 0;
+        var activePeriod = summary.TryGetProperty("activePeriodSeconds", out var ap) ? ap.GetDouble() : 0;
+        var participantCount = summary.TryGetProperty("participantCount", out var pc) ? pc.GetInt32() : 0;
+        var isTeamFormat = summary.TryGetProperty("isTeamFormat", out var tf) && tf.GetBoolean();
 
-        var mins = (int)(duration / 60);
-        var secs = (int)(duration % 60);
-        var durationText = mins > 0 ? $"{mins}m {secs}s" : $"{secs}s";
-        var distanceText = distance >= 1000 ? $"{distance / 1000:F2} km" : $"{distance:F0} m";
+        var hasClientSummaries = summary.TryGetProperty("clientSummaries", out var csArr)
+                                 && csArr.ValueKind == JsonValueKind.Array
+                                 && csArr.GetArrayLength() > 0;
 
-        SummaryText = $"Duration: {durationText}  |  Distance: {distanceText}  |  Steps: {totalSteps}\n" +
-                      $"Avg Speed: {avgSpeed:F1} km/h  |  Avg HR: {avgHr} bpm  |  Max HR: {maxHr} bpm";
+        string FormatDur(double s) { var m2 = (int)(s / 60); var s2 = (int)(s % 60); return m2 > 0 ? $"{m2}m {s2}s" : $"{s2}s"; }
+        string FormatDist(double m) => m >= 1000 ? $"{m / 1000:F2} km" : $"{m:F0} m";
+        string FormatZone(int secs) { var zm = secs / 60; var zs = secs % 60; return zm > 0 ? $"{zm}m {zs:D2}s" : $"{zs}s"; }
+
+        // ── Find personal stats first (needed by team section too) ──
+        JsonElement? mySummary = null;
+        if (hasClientSummaries)
+        {
+            foreach (var cs in csArr.EnumerateArray())
+            {
+                var cid = cs.TryGetProperty("clientId", out var cidVal) ? cidVal.GetString() : null;
+                if (cid == ClientId)
+                {
+                    mySummary = cs;
+                    break;
+                }
+            }
+        }
+
+        // ── Realm stats ──
+        SummaryText = $"── Realm ──\nDuration: {FormatDur(duration)}  |  Active: {FormatDur(activePeriod)}  |  Participants: {participantCount}";
+
+        // ── Team stats (competition team format only) ──
+        if (isTeamFormat && hasClientSummaries)
+        {
+            // Find this client's team from clientSummaries
+            string? myTeam = null;
+            if (mySummary is { } myCs)
+            {
+                myTeam = myCs.TryGetProperty("teamName", out var tn) ? tn.GetString() : null;
+            }
+
+            // Compute team-specific stats by filtering to teammates
+            double teamDist = 0;
+            int teamSteps = 0;
+            int teamHrSum = 0, teamHrCount = 0, teamMaxHr = 0;
+            foreach (var cs in csArr.EnumerateArray())
+            {
+                var csTeam = cs.TryGetProperty("teamName", out var ctn) ? ctn.GetString() : null;
+                if (myTeam != null && csTeam != myTeam) continue;
+
+                teamDist += cs.TryGetProperty("distanceMeters", out var cdm) ? cdm.GetDouble() : 0;
+                teamSteps += cs.TryGetProperty("steps", out var csp) ? csp.GetInt32() : 0;
+                var csHr = cs.TryGetProperty("averageHeartRate", out var cahr) ? cahr.GetInt32() : 0;
+                if (csHr > 0) { teamHrSum += csHr; teamHrCount++; }
+                var csMhr = cs.TryGetProperty("maxHeartRate", out var cmhr2) ? cmhr2.GetInt32() : 0;
+                if (csMhr > teamMaxHr) teamMaxHr = csMhr;
+            }
+            var teamAvgHr = teamHrCount > 0 ? teamHrSum / teamHrCount : 0;
+            var teamLabel = myTeam ?? "Team";
+
+            SummaryText += $"\n\n── {teamLabel} ──\nDistance: {FormatDist(teamDist)}  |  Steps: {teamSteps}" +
+                           $"\nAvg HR: {teamAvgHr} bpm  |  Peak HR: {teamMaxHr} bpm";
+        }
+
+        if (mySummary is { } my)
+        {
+            var name = my.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+            var cSteps = my.TryGetProperty("steps", out var cst) ? cst.GetInt32() : 0;
+            var cDist = my.TryGetProperty("distanceMeters", out var cd) ? cd.GetDouble() : 0;
+            var cAvgHr = my.TryGetProperty("averageHeartRate", out var cah) ? cah.GetInt32() : 0;
+            var cMaxHr = my.TryGetProperty("maxHeartRate", out var cmh) ? cmh.GetInt32() : 0;
+            var cCadence = my.TryGetProperty("avgCadenceSpm", out var ccad) ? ccad.GetInt32() : 0;
+            SummaryText += $"\n\n── Personal ({name}) ──";
+            SummaryText += $"\n  {cSteps} steps, {FormatDist(cDist)}, Avg HR {cAvgHr}, Peak HR {cMaxHr}, Cadence {cCadence} spm";
+
+            if (my.TryGetProperty("timeInZone", out var tiz) && tiz.ValueKind == JsonValueKind.Object)
+            {
+                var zones = new List<string>();
+                for (var z = 1; z <= 5; z++)
+                {
+                    if (tiz.TryGetProperty(z.ToString(), out var zv) && zv.GetInt32() > 0)
+                        zones.Add($"Z{z}: {FormatZone(zv.GetInt32())}");
+                }
+                if (zones.Count > 0)
+                    SummaryText += $"\n  Zones: {string.Join(", ", zones)}";
+            }
+        }
+        else
+        {
+            SummaryText += $"\n\n── Personal ──\nDistance: {FormatDist(distance)}  |  Steps: {totalSteps}" +
+                           $"\nAvg HR: {avgHr} bpm  |  Peak HR: {maxHr} bpm  |  Cadence: {avgCadence} spm";
+
+            if (summary.TryGetProperty("timeInZone", out var tiz) && tiz.ValueKind == JsonValueKind.Object)
+            {
+                var zones = new List<string>();
+                for (var z = 1; z <= 5; z++)
+                {
+                    if (tiz.TryGetProperty(z.ToString(), out var zv) && zv.GetInt32() > 0)
+                        zones.Add($"Z{z}: {FormatZone(zv.GetInt32())}");
+                }
+                if (zones.Count > 0)
+                    SummaryText += $"\nZones: {string.Join(", ", zones)}";
+            }
+        }
 
         RealmIsEnded = true;
         AddLog("Realm ended by dashboard.", "warn");
@@ -242,41 +347,46 @@ public partial class MainViewModel : ObservableObject
     // Called from the view on PointerMoved
     public void OnMouseMove(double x, double y)
     {
-        var now = Environment.TickCount64;
-        if (_lastMouseTime > 0)
+        if (!double.IsNaN(_lastMouseX))
         {
-            var dt = (now - _lastMouseTime) / 1000.0;
-            if (dt > 0)
-            {
-                var dx = x - _lastMouseX;
-                var dy = y - _lastMouseY;
-                var dist = Math.Sqrt(dx * dx + dy * dy);
-                var speed = dist / dt;
-
-                _mouseSpeeds.Add(speed);
-                if (_mouseSpeeds.Count > 20) _mouseSpeeds.RemoveAt(0);
-            }
+            var dx = x - _lastMouseX;
+            var dy = y - _lastMouseY;
+            _mouseDistAccum += Math.Sqrt(dx * dx + dy * dy);
         }
         _lastMouseX = x;
         _lastMouseY = y;
-        _lastMouseTime = now;
     }
 
-    private void UpdateHeartRate()
+    /// <summary>Runs every 1s — computes a new target HR from mouse + step activity.</summary>
+    private void UpdateTargetHr()
     {
-        if (_mouseSpeeds.Count == 0)
-        {
-            HeartRate = Math.Max(0, HeartRate - 3);
-        }
-        else
-        {
-            var avg = _mouseSpeeds.Average();
-            HeartRate = (int)Math.Clamp(60 + avg / 2000.0 * 140, 60, 200);
-            _mouseSpeeds.Clear();
-        }
+        const int RestingHr = 65;
+        const int MaxHr = 190;
+
+        // Mouse: total pixels moved in the last 1s. 500px = moderate, 1500px+ = intense.
+        var mouseDist = _mouseDistAccum;
+        _mouseDistAccum = 0;
+        var mouseActivity = Math.Min(mouseDist / 1500.0, 1.0);
+
+        // Steps: clicks in the last 1s. 3 cps = intense (180 spm equivalent).
+        var stepDelta = Steps - _prevStepsSnapshot;
+        _prevStepsSnapshot = Steps;
+        var stepActivity = Math.Min(stepDelta / 3.0, 1.0);
+
+        var activity = Math.Max(mouseActivity, stepActivity);
+        _targetHr = (int)(RestingHr + activity * (MaxHr - RestingHr));
     }
 
-    private void AddLog(string message, string level)
+    /// <summary>Runs every 200ms — smoothly moves HR toward target.</summary>
+    private void SmoothHeartRate()
+    {
+        if (HeartRate < _targetHr)
+            HeartRate = Math.Min(_targetHr, HeartRate + 5);
+        else if (HeartRate > _targetHr)
+            HeartRate = Math.Max(_targetHr, HeartRate - 2);
+    }
+
+    internal void AddLog(string message, string level)
     {
         var ts = DateTime.Now.ToString("HH:mm:ss.f");
         LogEntries.Add(new LogEntry($"[{ts}] {message}", level));

@@ -95,3 +95,11 @@ dependencies {
 kapt {
     correctErrorTypes = true
 }
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("pulserealm-${output.versionName.orNull ?: variant.name}.apk")
+        }
+    }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { ClientProfile, WearableData } from "../../types/session";
-import type { StreetViewLocation } from "../Lobby";
+import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
 
 interface Props {
   clients: string[];

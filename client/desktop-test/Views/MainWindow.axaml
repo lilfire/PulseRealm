@@ -114,9 +114,7 @@
 
       <!-- Tracking area -->
       <Border Background="#0f172a" Cursor="Cross"
-              x:Name="TrackingArea"
-              PointerPressed="TrackingArea_PointerPressed"
-              PointerMoved="TrackingArea_PointerMoved">
+              x:Name="TrackingArea">
         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
                    Foreground="#475569" IsHitTestVisible="False">
           <Run Text="Click &amp; Move" FontSize="28" FontWeight="Bold" Foreground="#64748b" />
