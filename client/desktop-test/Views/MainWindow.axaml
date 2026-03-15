@@ -170,14 +170,14 @@
       </StackPanel>
     </Border>
 
-    <!-- Not found / manual entry overlay -->
+    <!-- Not found / manual entry overlay (local mode) -->
     <Border Background="#0f172a" IsVisible="{Binding ShowManualEntry}" ZIndex="100"
             HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Width="350">
         <Image Source="avares://PulseRealm.DesktopTest/Assets/logo.png" Width="80" Height="80" HorizontalAlignment="Center" />
         <TextBlock Text="PulseRealm" FontSize="28" Foreground="#38bdf8" FontWeight="Bold" HorizontalAlignment="Center" />
         <Border Width="48" Height="48" CornerRadius="24" Background="#28f87171" HorizontalAlignment="Center">
-          <TextBlock Text="✕" FontSize="24" FontWeight="Bold" Foreground="#f87171"
+          <TextBlock Text="&#x2715;" FontSize="24" FontWeight="Bold" Foreground="#f87171"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
         <TextBlock Text="No server found on the network" FontSize="15" Foreground="#94a3b8" HorizontalAlignment="Center" />
@@ -186,12 +186,12 @@
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,8,0,0">
           <Button Content="Retry Search" Command="{Binding RetrySearchCommand}" />
-          <Button Content="Enter Manually" Command="{Binding ShowManualCommand}"
+          <Button Content="Use Remote Server" Command="{Binding SwitchToRemoteCommand}"
                   Background="Transparent" BorderBrush="#475569" BorderThickness="1" Foreground="#94a3b8" />
         </StackPanel>
 
         <StackPanel Spacing="8" Margin="0,8,0,0">
-          <TextBlock Text="Enter server address" FontSize="15" Foreground="#94a3b8" HorizontalAlignment="Center" />
+          <TextBlock Text="Or enter a local address" FontSize="15" Foreground="#94a3b8" HorizontalAlignment="Center" />
           <TextBox Text="{Binding ManualUrl}" FontFamily="Consolas, monospace" />
           <Button Content="Connect" Command="{Binding ManualConnectCommand}" HorizontalAlignment="Center" />
           <TextBlock Text="{Binding ManualError}" Foreground="#f87171" FontSize="13"
@@ -199,6 +199,29 @@
           <TextBlock Text="Use the local IP of the machine running the server&#x0a;(e.g. http://10.0.5.2:5062)" FontSize="12"
                      Foreground="#64748b" HorizontalAlignment="Center" TextAlignment="Center" />
         </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Remote server overlay -->
+    <Border Background="#0f172a" IsVisible="{Binding IsRemoteMode}" ZIndex="100"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Width="350">
+        <Image Source="avares://PulseRealm.DesktopTest/Assets/logo.png" Width="80" Height="80" HorizontalAlignment="Center" />
+        <TextBlock Text="PulseRealm" FontSize="28" Foreground="#38bdf8" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock Text="Remote Server" FontSize="16" Foreground="#94a3b8" HorizontalAlignment="Center" />
+
+        <StackPanel Spacing="8" Margin="0,8,0,0">
+          <TextBlock Text="Enter the address of a hosted PulseRealm server" FontSize="13" Foreground="#94a3b8" HorizontalAlignment="Center" TextAlignment="Center" />
+          <TextBox Text="{Binding RemoteUrl}" FontFamily="Consolas, monospace" />
+          <Button Content="Connect" Command="{Binding RemoteConnectCommand}" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding ManualError}" Foreground="#f87171" FontSize="13"
+                     HorizontalAlignment="Center" IsVisible="{Binding ManualError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Text="e.g. https://pulserealm.example.com" FontSize="12"
+                     Foreground="#64748b" HorizontalAlignment="Center" TextAlignment="Center" />
+        </StackPanel>
+
+        <Button Content="&#x2190; Back to Local Network" Command="{Binding SwitchToLocalCommand}" HorizontalAlignment="Center"
+                Background="Transparent" BorderBrush="#475569" BorderThickness="1" Foreground="#94a3b8" Margin="0,8,0,0" />
       </StackPanel>
     </Border>
   </Panel>
