@@ -3,8 +3,6 @@
 All notable changes to this project will be documented in this file.
 Components are versioned independently: **Server**, **Frontend**, and **Android**.
 
-## [Unreleased]
-
 ### Server v0.1.0
 - Real-time heart rate and step data streaming via SignalR
 - UDP broadcast server discovery on port 5063
