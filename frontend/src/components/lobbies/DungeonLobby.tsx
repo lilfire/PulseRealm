@@ -16,6 +16,7 @@ interface Props {
   connected: boolean;
   onStart: (config: DungeonConfig) => void;
   onLeave: () => void;
+  viewOnly?: boolean;
 }
 
 const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] = [
@@ -26,7 +27,7 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave }: Props) {
+export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>("normal");
   const [timeframe, setTimeframe] = useState(30);
 
@@ -39,6 +40,7 @@ export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onS
       canStart={connected && clients.length > 0}
       onStart={() => onStart({ difficulty, timeframe })}
       onLeave={onLeave}
+      viewOnly={viewOnly}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Difficulty</h3>

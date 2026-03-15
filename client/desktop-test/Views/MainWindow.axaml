@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PulseRealm.DesktopTest.ViewModels"
+        xmlns:svc="using:PulseRealm.DesktopTest.Services"
         x:Class="PulseRealm.DesktopTest.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="PulseRealm — Desktop Test Client"
@@ -198,6 +199,57 @@
                      HorizontalAlignment="Center" IsVisible="{Binding ManualError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <TextBlock Text="Use the local IP of the machine running the server&#x0a;(e.g. http://10.0.5.2:5062)" FontSize="12"
                      Foreground="#64748b" HorizontalAlignment="Center" TextAlignment="Center" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Server selection overlay (multiple servers found) -->
+    <Border Background="#0f172a" IsVisible="{Binding ShowServerSelection}" ZIndex="100"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <StackPanel x:Name="ServerSelectionPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Width="400">
+        <Image Source="avares://PulseRealm.DesktopTest/Assets/logo.png" Width="80" Height="80" HorizontalAlignment="Center" />
+        <TextBlock Text="PulseRealm" FontSize="28" Foreground="#38bdf8" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock Text="Select a server" FontSize="16" Foreground="#94a3b8" HorizontalAlignment="Center" />
+
+        <ItemsControl ItemsSource="{Binding DiscoveredServers}" Margin="0,4,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="svc:DiscoveredServer">
+              <Button Command="{Binding #ServerSelectionPanel.DataContext.SelectServerCommand}"
+                      CommandParameter="{Binding}"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                      Background="#1e293b" Foreground="#e2e8f0" Margin="0,4" Padding="14,10" CornerRadius="8"
+                      BorderBrush="#334155" BorderThickness="1">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Version, StringFormat='v{0}'}" FontSize="12" Foreground="#64748b" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#38bdf8" />
+                    <TextBlock FontSize="12" Foreground="#94a3b8" FontFamily="Consolas, monospace">
+                      <Run Text="{Binding Address}" /><Run Text=" · " /><Run Text="{Binding Hostname}" />
+                    </TextBlock>
+                  </StackPanel>
+                </DockPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Spacing="8" Margin="0,8,0,0">
+          <TextBlock Text="Or enter an address manually" FontSize="13" Foreground="#64748b" HorizontalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+            <TextBox Text="{Binding ManualUrl}" FontFamily="Consolas, monospace" Width="260" Watermark="http://10.0.5.2:5062" />
+            <Button Content="Connect" Command="{Binding ManualConnectCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding ManualError}" Foreground="#f87171" FontSize="13"
+                     HorizontalAlignment="Center" IsVisible="{Binding ManualError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,4,0,0">
+          <Button Content="Retry Search" Command="{Binding RetrySearchCommand}"
+                  Background="Transparent" BorderBrush="#475569" BorderThickness="1" Foreground="#94a3b8" />
+          <Button Content="Use Remote Server" Command="{Binding SwitchToRemoteCommand}"
+                  Background="Transparent" BorderBrush="#475569" BorderThickness="1" Foreground="#94a3b8" />
         </StackPanel>
       </StackPanel>
     </Border>

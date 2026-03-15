@@ -51,8 +51,9 @@ public class RealmHub : Hub
 
     /// <summary>
     /// Called by the dashboard to start the realm. No new clients can join after this.
+    /// Optionally accepts a JSON config blob for mode-specific settings.
     /// </summary>
-    public async Task StartRealm(string realmId)
+    public async Task StartRealm(string realmId, string? config = null)
     {
         var realm = _realmManager.GetById(realmId);
         if (realm is null)
@@ -62,7 +63,8 @@ public class RealmHub : Hub
         }
 
         realm.Status = RealmStatus.Started;
-        await Clients.Group(realmId).SendAsync("RealmStarted");
+        realm.RealmConfig = config;
+        await Clients.Group(realmId).SendAsync("RealmStarted", config);
     }
 
     /// <summary>
@@ -138,11 +140,22 @@ public class RealmHub : Hub
 
     /// <summary>
     /// Called by the dashboard to join a realm's broadcast group.
+    /// Returns the current realm state so late-joining viewers can catch up.
     /// </summary>
     public async Task JoinRealmAsDashboard(string realmId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, realmId);
-        await Clients.Caller.SendAsync("JoinedRealm", realmId);
+
+        var realm = _realmManager.GetById(realmId);
+        var state = new
+        {
+            RealmId = realmId,
+            Status = realm?.Status.ToString() ?? "Lobby",
+            ConnectedClientIds = realm?.ConnectedClientIds ?? new List<string>(),
+            ClientProfiles = realm?.ClientProfiles ?? new Dictionary<string, ClientProfile>(),
+            Config = realm?.RealmConfig,
+        };
+        await Clients.Caller.SendAsync("JoinedRealm", state);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

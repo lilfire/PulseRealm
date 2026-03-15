@@ -9,6 +9,7 @@ interface Props {
   connected: boolean;
   onStart: (config: CompetitionConfig) => void;
   onLeave: () => void;
+  viewOnly?: boolean;
 }
 
 const SUB_MODES: { value: CompetitionSubMode; label: string; desc: string }[] = [
@@ -32,7 +33,7 @@ const btnStyle = (selected: boolean) => ({
   fontWeight: selected ? 600 : 400,
 });
 
-export function CompetitionLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave }: Props) {
+export function CompetitionLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
   const [subMode, setSubMode] = useState<CompetitionSubMode>("race");
   const [playerFormat, setPlayerFormat] = useState<PlayerFormat>("individual");
   const [teams, setTeams] = useState<TeamAssignment[]>([
@@ -89,6 +90,7 @@ export function CompetitionLobby({ joinCode, clients, clientProfiles, connected,
       canStart={connected && clients.length > 0 && allAssigned && (subMode !== "elimination" || clients.length >= 3)}
       onStart={() => onStart({ subMode, playerFormat, teams, targetDistanceKm, intervalMinutes, targetZone, durationMinutes })}
       onLeave={onLeave}
+      viewOnly={viewOnly}
     >
       {/* Sub-mode selector */}
       <div style={{ margin: "1.5rem 0" }}>

@@ -16,6 +16,7 @@ interface Props {
   connected: boolean;
   onStart: (location: StreetViewLocation) => void;
   onLeave: () => void;
+  viewOnly?: boolean;
 }
 
 interface Suggestion {
@@ -67,7 +68,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave }: Props) {
+export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
   const [query, setQuery] = useState("");
@@ -149,6 +150,7 @@ export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, 
       canStart={connected && clients.length > 0 && location !== null}
       onStart={() => location && onStart(location)}
       onLeave={onLeave}
+      viewOnly={viewOnly}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Starting Location</h3>

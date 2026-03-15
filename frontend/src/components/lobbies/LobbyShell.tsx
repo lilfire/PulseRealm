@@ -9,24 +9,41 @@ interface Props {
   canStart: boolean;
   onStart: () => void;
   onLeave: () => void;
+  viewOnly?: boolean;
   children?: ReactNode;
 }
 
-export function LobbyShell({ joinCode, clients, clientProfiles, connected, canStart, onStart, onLeave, children }: Props) {
+export function LobbyShell({ joinCode, clients, clientProfiles, connected, canStart, onStart, onLeave, viewOnly, children }: Props) {
   return (
     <div className="app">
       <div className="brand-header">
         <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
+      {viewOnly && (
+        <div style={{
+          display: "inline-block",
+          padding: "0.3rem 1rem",
+          borderRadius: "6px",
+          background: "rgba(51, 223, 255, 0.12)",
+          border: "1px solid rgba(51, 223, 255, 0.3)",
+          color: "#33DFFF",
+          fontSize: "0.85rem",
+          fontWeight: 600,
+          letterSpacing: "0.05em",
+          marginBottom: "0.5rem",
+        }}>
+          VIEW ONLY
+        </div>
+      )}
       <p>
         Join Code: <strong style={{ fontSize: "2rem", letterSpacing: "0.15em" }}>{joinCode}</strong>
       </p>
-      <p>Status: {connected ? "Waiting for players..." : "Connecting..."}</p>
+      <p>Status: {connected ? (viewOnly ? "Watching..." : "Waiting for players...") : "Connecting..."}</p>
 
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Players ({clients.length})</h3>
         {clients.length === 0 ? (
-          <p style={{ color: "#888" }}>No players yet. Share the join code to get started.</p>
+          <p style={{ color: "#888" }}>No players yet.</p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {clients.map((id) => {
@@ -42,15 +59,17 @@ export function LobbyShell({ joinCode, clients, clientProfiles, connected, canSt
         )}
       </div>
 
-      {children}
+      {!viewOnly && children}
 
-      <button
-        onClick={onStart}
-        disabled={!canStart}
-        style={{ fontSize: "1.2rem", padding: "0.6rem 2rem" }}
-      >
-        Start Realm
-      </button>
+      {!viewOnly && (
+        <button
+          onClick={onStart}
+          disabled={!canStart}
+          style={{ fontSize: "1.2rem", padding: "0.6rem 2rem" }}
+        >
+          Start Realm
+        </button>
+      )}
       <div>
         <button
           onClick={onLeave}
@@ -62,7 +81,7 @@ export function LobbyShell({ joinCode, clients, clientProfiles, connected, canSt
             padding: "0.4rem 1rem",
           }}
         >
-          Leave Realm
+          {viewOnly ? "Leave" : "Leave Realm"}
         </button>
       </div>
     </div>

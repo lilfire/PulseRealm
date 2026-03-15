@@ -20,6 +20,16 @@ import "./App.css";
 
 const APP_VERSION = __APP_VERSION__;
 
+// Map server numeric mode enum back to string
+const MODE_FROM_NUMBER: Record<number, RealmMode> = {
+  0: "competition",
+  1: "streetview",
+  2: "youtubetrail",
+  3: "route",
+  4: "dungeon",
+  5: "social",
+};
+
 // When VITE_API_URL is set (e.g. in Docker where frontend is served from the
 // same origin as the API), skip the server connect screen entirely.
 const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -27,6 +37,7 @@ const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
 function App() {
   const server = useServerConnection();
   const [realm, setRealm] = useState<Realm | null>(null);
+  const [viewOnly, setViewOnly] = useState(false);
   const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
   const [competitionConfig, setCompetitionConfig] = useState<CompetitionConfig | null>(null);
@@ -34,13 +45,19 @@ function App() {
   const [routeConfig, setRouteConfig] = useState<RouteConfig | null>(null);
   const [dungeonConfig, setDungeonConfig] = useState<DungeonConfig | null>(null);
 
+  // Join realm UI state
+  const [showJoinInput, setShowJoinInput] = useState(false);
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(false);
+
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
   const hubUrl = PRESET_API_URL
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/realm`)
     : server.hubUrl;
 
-  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, startRealm, endRealm, notifyEliminated } = useRealmHub(
+  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, startRealm, endRealm, notifyEliminated } = useRealmHub(
     realm?.id ?? null,
     hubUrl
   );
@@ -61,6 +78,19 @@ function App() {
         onRetrySearch={server.searchForServer}
       />
     );
+  }
+
+  function resetRealm() {
+    setRealm(null);
+    setViewOnly(false);
+    setStreetViewLocation(null);
+    setYoutubeVideo(null);
+    setRouteConfig(null);
+    setDungeonConfig(null);
+    setCompetitionConfig(null);
+    setShowJoinInput(false);
+    setJoinCodeInput("");
+    setJoinError("");
   }
 
   async function createRealm(mode: RealmMode) {
@@ -90,6 +120,43 @@ function App() {
       setCreatingMode(null);
     }
   }
+
+  async function joinRealm() {
+    const code = joinCodeInput.trim();
+    if (!code) return;
+    setJoinError("");
+    setJoining(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/realm/${encodeURIComponent(code)}`);
+      if (!res.ok) {
+        setJoinError(res.status === 404 ? "Realm not found. Check the code and try again." : "Failed to join realm.");
+        return;
+      }
+      const data = await res.json();
+      const mode = typeof data.mode === "number" ? MODE_FROM_NUMBER[data.mode] : (data.mode as RealmMode);
+      if (!mode) {
+        setJoinError("Unknown realm mode.");
+        return;
+      }
+      if (data.status === "Ended") {
+        setJoinError("This realm has already ended.");
+        return;
+      }
+      setRealm({ id: data.id, joinCode: data.joinCode, mode });
+      setViewOnly(true);
+    } catch {
+      setJoinError("Could not connect to server.");
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  // For view-only mode, use realmConfig from the hub when the host hasn't set local config
+  const effectiveStreetViewLocation = streetViewLocation ?? (realmConfig as StreetViewLocation | null);
+  const effectiveCompetitionConfig = competitionConfig ?? (realmConfig as CompetitionConfig | null);
+  const effectiveYoutubeVideo = youtubeVideo ?? (realmConfig as YouTubeVideo | null);
+  const effectiveRouteConfig = routeConfig ?? (realmConfig as RouteConfig | null);
+  const effectiveDungeonConfig = dungeonConfig ?? (realmConfig as DungeonConfig | null);
 
   if (!realm) {
     return (
@@ -155,6 +222,53 @@ function App() {
               <span className="mode-desc">Hang out and move together</span>
             </button>
           </div>
+
+          {/* Join Realm Section */}
+          <div className="join-realm-section">
+            {!showJoinInput ? (
+              <button
+                className="btn-join-realm"
+                onClick={() => setShowJoinInput(true)}
+              >
+                Join a Realm
+              </button>
+            ) : (
+              <div className="join-realm-form">
+                <p style={{ color: "var(--text, #9ca3af)", fontSize: "0.9rem", margin: "0 0 0.75rem" }}>
+                  Enter a 6-digit join code to watch a realm
+                </p>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={joinCodeInput}
+                    onChange={(e) => {
+                      setJoinCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
+                      setJoinError("");
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && joinRealm()}
+                    placeholder="000000"
+                    maxLength={6}
+                    className="input-join-code"
+                    autoFocus
+                  />
+                  <button
+                    onClick={joinRealm}
+                    disabled={joinCodeInput.length < 6 || joining}
+                    className="btn-join-go"
+                  >
+                    {joining ? "Joining..." : "Watch"}
+                  </button>
+                </div>
+                {joinError && <p className="error-message">{joinError}</p>}
+                <button
+                  className="btn-join-cancel"
+                  onClick={() => { setShowJoinInput(false); setJoinCodeInput(""); setJoinError(""); }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         {!PRESET_API_URL && server.serverInfo && (
           <footer className="server-footer">
@@ -180,14 +294,7 @@ function App() {
       <RealmSummaryScreen
         summary={realmSummary}
         clientProfiles={clientProfiles}
-        onClose={() => {
-          setRealm(null);
-          setStreetViewLocation(null);
-          setYoutubeVideo(null);
-          setRouteConfig(null);
-          setDungeonConfig(null);
-          setCompetitionConfig(null);
-        }}
+        onClose={resetRealm}
       />
     );
   }
@@ -199,14 +306,8 @@ function App() {
       clients,
       clientProfiles,
       connected,
-      onLeave: () => {
-        setRealm(null);
-        setStreetViewLocation(null);
-        setYoutubeVideo(null);
-        setRouteConfig(null);
-        setDungeonConfig(null);
-        setCompetitionConfig(null);
-      },
+      viewOnly,
+      onLeave: resetRealm,
     };
 
     if (realm.mode === "competition") {
@@ -215,7 +316,7 @@ function App() {
           {...lobbyProps}
           onStart={(config) => {
             setCompetitionConfig(config);
-            startRealm();
+            startRealm(config);
           }}
         />
       );
@@ -227,7 +328,7 @@ function App() {
           {...lobbyProps}
           onStart={(location) => {
             setStreetViewLocation(location);
-            startRealm();
+            startRealm(location);
           }}
         />
       );
@@ -239,7 +340,7 @@ function App() {
           {...lobbyProps}
           onStart={(video) => {
             setYoutubeVideo(video);
-            startRealm();
+            startRealm(video);
           }}
         />
       );
@@ -251,7 +352,7 @@ function App() {
           {...lobbyProps}
           onStart={(config) => {
             setRouteConfig(config);
-            startRealm();
+            startRealm(config);
           }}
         />
       );
@@ -263,7 +364,7 @@ function App() {
           {...lobbyProps}
           onStart={(cfg) => {
             setDungeonConfig(cfg);
-            startRealm();
+            startRealm(cfg);
           }}
         />
       );
@@ -286,54 +387,53 @@ function App() {
     );
   }
 
-  if (realm.mode === "youtubetrail" && youtubeVideo) {
+  // No-op end handler for view-only mode
+  const noOpEnd = () => {};
+
+  if (realm.mode === "youtubetrail" && effectiveYoutubeVideo) {
     return (
       <YouTubeTrailMode
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        video={youtubeVideo}
-        onEnd={(totalDistance) => {
-          endRealm(totalDistance);
-        }}
+        video={effectiveYoutubeVideo}
+        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
       />
     );
   }
 
-  if (realm.mode === "streetview" && streetViewLocation) {
+  if (realm.mode === "streetview" && effectiveStreetViewLocation) {
     return (
       <StreetViewMode
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        startLocation={streetViewLocation}
-        onEnd={(totalDistance) => {
-          endRealm(totalDistance);
-        }}
+        startLocation={effectiveStreetViewLocation}
+        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
       />
     );
   }
 
-  if (realm.mode === "route" && routeConfig) {
+  if (realm.mode === "route" && effectiveRouteConfig) {
     return (
       <RouteMode
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        route={routeConfig}
-        onEnd={(totalDistance) => endRealm(totalDistance)}
+        route={effectiveRouteConfig}
+        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
       />
     );
   }
 
-  if (realm.mode === "dungeon" && dungeonConfig) {
+  if (realm.mode === "dungeon" && effectiveDungeonConfig) {
     return (
       <DungeonMode
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        config={dungeonConfig}
-        onEnd={(totalDistance) => endRealm(totalDistance)}
+        config={effectiveDungeonConfig}
+        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
       />
     );
   }
@@ -344,20 +444,20 @@ function App() {
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        onEnd={(totalDistance, overrides) => endRealm(totalDistance, overrides)}
+        onEnd={viewOnly ? noOpEnd : (totalDistance, overrides) => endRealm(totalDistance, overrides)}
       />
     );
   }
 
-  if (realm.mode === "competition" && competitionConfig) {
+  if (realm.mode === "competition" && effectiveCompetitionConfig) {
     return (
       <CompetitionMode
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        config={competitionConfig}
-        onEnd={(totalDistance, overrides) => endRealm(totalDistance, overrides)}
-        onEliminate={notifyEliminated}
+        config={effectiveCompetitionConfig}
+        onEnd={viewOnly ? noOpEnd : (totalDistance, overrides) => endRealm(totalDistance, overrides)}
+        onEliminate={viewOnly ? () => {} : notifyEliminated}
       />
     );
   }
@@ -367,6 +467,21 @@ function App() {
       <div className="brand-header">
         <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
+      {viewOnly && (
+        <div style={{
+          display: "inline-block",
+          padding: "0.3rem 1rem",
+          borderRadius: "6px",
+          background: "rgba(51, 223, 255, 0.12)",
+          border: "1px solid rgba(51, 223, 255, 0.3)",
+          color: "#33DFFF",
+          fontSize: "0.85rem",
+          fontWeight: 600,
+          marginBottom: "0.5rem",
+        }}>
+          VIEW ONLY
+        </div>
+      )}
       <p>
         Join Code: <strong>{realm.joinCode}</strong>
       </p>

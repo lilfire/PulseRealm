@@ -8,9 +8,10 @@ interface Props {
   connected: boolean;
   onStart: () => void;
   onLeave: () => void;
+  viewOnly?: boolean;
 }
 
-export function DefaultLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave }: Props) {
+export function DefaultLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
   return (
     <LobbyShell
       joinCode={joinCode}
@@ -20,6 +21,7 @@ export function DefaultLobby({ joinCode, clients, clientProfiles, connected, onS
       canStart={connected && clients.length > 0}
       onStart={onStart}
       onLeave={onLeave}
+      viewOnly={viewOnly}
     />
   );
 }
