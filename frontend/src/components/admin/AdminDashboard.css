@@ -1,0 +1,200 @@
+/* --- Admin Screens --- */
+
+.admin-login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 2rem;
+}
+
+.admin-login-card {
+  background: var(--code-bg, #1f2028);
+  border: 1px solid var(--border, #2e303a);
+  border-radius: 12px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+
+.admin-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border, #2e303a);
+  margin-bottom: 1.5rem;
+}
+
+.admin-tab {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border: none;
+  margin: 0;
+  border-radius: 0;
+  background: var(--code-bg, #1f2028);
+  color: var(--text, #9ca3af);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-tab:hover {
+  background: #2a2b35;
+  color: var(--text-h, #f3f4f6);
+}
+
+.admin-tab-active {
+  background: var(--accent2, #33DFFF);
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.admin-tab-active:hover {
+  background: var(--accent2, #33DFFF);
+  color: #0f172a;
+}
+
+.admin-content {
+  flex: 1;
+  text-align: left;
+}
+
+.admin-footer-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border, #2e303a);
+}
+
+/* --- Admin Shared Elements --- */
+
+.admin-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 2px solid var(--border, #2e303a);
+  background: var(--bg, #16171d);
+  color: var(--text-h, #f3f4f6);
+  box-sizing: border-box;
+}
+
+.admin-input:focus {
+  outline: none;
+  border-color: var(--accent2, #33DFFF);
+}
+
+.admin-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text, #9ca3af);
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+}
+
+.admin-btn-primary {
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 8px;
+  background: var(--accent2, #33DFFF);
+  color: #0f172a;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  margin: 0;
+}
+
+.admin-btn-primary:hover {
+  opacity: 0.85;
+}
+
+.admin-btn-secondary {
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--border, #2e303a);
+  color: var(--text, #9ca3af);
+  cursor: pointer;
+  margin: 0;
+}
+
+.admin-btn-secondary:hover {
+  color: var(--text-h, #f3f4f6);
+  border-color: #555;
+}
+
+.admin-btn-back {
+  background: transparent;
+  border: none;
+  color: var(--text, #9ca3af);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin-top: 1rem;
+}
+
+.admin-btn-back:hover {
+  color: var(--text-h, #f3f4f6);
+  background: transparent;
+}
+
+.admin-btn-logout {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--border, #2e303a);
+  color: var(--text, #9ca3af);
+  cursor: pointer;
+  margin: 0;
+}
+
+.admin-btn-logout:hover {
+  color: #f87171;
+  border-color: #f87171;
+}
+
+/* --- Gear Icon --- */
+
+.btn-admin-gear {
+  background: transparent;
+  border: none;
+  color: var(--text, #9ca3af);
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+}
+
+.btn-admin-gear:hover {
+  opacity: 1;
+  color: var(--text-h, #f3f4f6);
+}

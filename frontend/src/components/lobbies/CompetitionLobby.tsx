@@ -2,6 +2,15 @@ import { useState } from "react";
 import type { ClientProfile, CompetitionConfig, CompetitionSubMode, PlayerFormat, TeamAssignment } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
+export interface CompetitionDefaults {
+  subMode?: string;
+  playerFormat?: string;
+  targetDistanceKm?: number;
+  intervalMinutes?: number;
+  targetZone?: number;
+  durationMinutes?: number;
+}
+
 interface Props {
   joinCode: string;
   clients: string[];
@@ -10,6 +19,7 @@ interface Props {
   onStart: (config: CompetitionConfig) => void;
   onLeave: () => void;
   viewOnly?: boolean;
+  defaults?: CompetitionDefaults | null;
 }
 
 const SUB_MODES: { value: CompetitionSubMode; label: string; desc: string }[] = [
@@ -33,23 +43,23 @@ const btnStyle = (selected: boolean) => ({
   fontWeight: selected ? 600 : 400,
 });
 
-export function CompetitionLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
-  const [subMode, setSubMode] = useState<CompetitionSubMode>("race");
-  const [playerFormat, setPlayerFormat] = useState<PlayerFormat>("individual");
+export function CompetitionLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
+  const [subMode, setSubMode] = useState<CompetitionSubMode>((defaults?.subMode as CompetitionSubMode) ?? "race");
+  const [playerFormat, setPlayerFormat] = useState<PlayerFormat>((defaults?.playerFormat as PlayerFormat) ?? "individual");
   const [teams, setTeams] = useState<TeamAssignment[]>([
     { name: "Team 1", color: TEAM_COLORS[0], clientIds: [] },
     { name: "Team 2", color: TEAM_COLORS[1], clientIds: [] },
   ]);
 
   // Race config
-  const [targetDistanceKm, setTargetDistanceKm] = useState(5.0);
+  const [targetDistanceKm, setTargetDistanceKm] = useState(defaults?.targetDistanceKm ?? 5.0);
 
   // Elimination config
-  const [intervalMinutes, setIntervalMinutes] = useState(3);
+  const [intervalMinutes, setIntervalMinutes] = useState(defaults?.intervalMinutes ?? 3);
 
   // Heartzone config
-  const [targetZone, setTargetZone] = useState(3);
-  const [hzDuration, setHzDuration] = useState(20);
+  const [targetZone, setTargetZone] = useState(defaults?.targetZone ?? 3);
+  const [hzDuration, setHzDuration] = useState(defaults?.durationMinutes ?? 20);
 
   // King config
   const [kingDuration, setKingDuration] = useState(15);

@@ -17,6 +17,7 @@ interface Props {
   onStart: (location: StreetViewLocation) => void;
   onLeave: () => void;
   viewOnly?: boolean;
+  curatedLocations?: StreetViewLocation[] | null;
 }
 
 interface Suggestion {
@@ -68,13 +69,14 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
+export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedLocations }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [randomLocations] = useState(() => pickRandom(CURATED_LOCATIONS, 5));
+  const locations = curatedLocations && curatedLocations.length > 0 ? curatedLocations : CURATED_LOCATIONS;
+  const [randomLocations] = useState(() => pickRandom(locations, 5));
 
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);

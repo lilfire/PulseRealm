@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRealmHub } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
@@ -15,6 +15,8 @@ import { RouteMode } from "./components/modes/RouteMode";
 import { DungeonMode } from "./components/modes/DungeonMode";
 import { SocialMode } from "./components/modes/SocialMode";
 import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
+import { AdminLogin } from "./components/admin/AdminLogin";
+import { AdminDashboard } from "./components/admin/AdminDashboard";
 import type { CompetitionConfig, Realm, RealmMode } from "./types/session";
 import "./App.css";
 
@@ -34,6 +36,23 @@ const MODE_FROM_NUMBER: Record<number, RealmMode> = {
 // same origin as the API), skip the server connect screen entirely.
 const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
 
+interface LobbyDefaults {
+  competition: {
+    subMode: string;
+    playerFormat: string;
+    targetDistanceKm: number;
+    intervalMinutes: number;
+    targetZone: number;
+    durationMinutes: number;
+  };
+  dungeon: {
+    difficulty: string;
+    timeframeMinutes: number;
+  };
+  streetViewLocations: { lat: number; lng: number; address: string }[];
+  youTubeVideos: { videoId: string; url: string; title: string }[];
+}
+
 function App() {
   const server = useServerConnection();
   const [realm, setRealm] = useState<Realm | null>(null);
@@ -44,6 +63,12 @@ function App() {
   const [youtubeVideo, setYoutubeVideo] = useState<YouTubeVideo | null>(null);
   const [routeConfig, setRouteConfig] = useState<RouteConfig | null>(null);
   const [dungeonConfig, setDungeonConfig] = useState<DungeonConfig | null>(null);
+
+  // Admin state
+  const [page, setPage] = useState<"home" | "admin-login" | "admin">("home");
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [adminEnabled, setAdminEnabled] = useState(false);
+  const [lobbyDefaults, setLobbyDefaults] = useState<LobbyDefaults | null>(null);
 
   // Join realm UI state
   const [showJoinInput, setShowJoinInput] = useState(false);
@@ -61,6 +86,38 @@ function App() {
     realm?.id ?? null,
     hubUrl
   );
+
+  // Fetch lobby defaults and admin status from server config
+  useEffect(() => {
+    if (!apiUrl) return;
+    fetch(`${apiUrl}/api/config`)
+      .then((r) => r.json())
+      .then((data) => {
+        setAdminEnabled(data.adminEnabled ?? false);
+        if (data.defaults) setLobbyDefaults(data.defaults);
+      })
+      .catch(() => {});
+  }, [apiUrl]);
+
+  // Admin pages
+  if (page === "admin-login") {
+    return (
+      <AdminLogin
+        apiUrl={apiUrl}
+        onSuccess={(token) => { setAdminToken(token); setPage("admin"); }}
+        onBack={() => setPage("home")}
+      />
+    );
+  }
+  if (page === "admin" && adminToken) {
+    return (
+      <AdminDashboard
+        apiUrl={apiUrl}
+        token={adminToken}
+        onLogout={() => { setAdminToken(null); setPage("home"); }}
+      />
+    );
+  }
 
   // If no preset URL and not connected to a server, show the connect screen
   if (!PRESET_API_URL && !server.isConnected) {
@@ -270,19 +327,26 @@ function App() {
             )}
           </div>
         </div>
-        {!PRESET_API_URL && server.serverInfo && (
-          <footer className="server-footer">
-            <span>
-              {server.serverInfo.name ?? server.serverUrl}
-              {server.serverInfo.version && (
-                <span className="server-version">v{server.serverInfo.version}</span>
-              )}
-            </span>
-            <button className="btn-change-server" onClick={server.disconnect}>
-              Change
+        <footer className="server-footer">
+          {!PRESET_API_URL && server.serverInfo && (
+            <>
+              <span>
+                {server.serverInfo.name ?? server.serverUrl}
+                {server.serverInfo.version && (
+                  <span className="server-version">v{server.serverInfo.version}</span>
+                )}
+              </span>
+              <button className="btn-change-server" onClick={server.disconnect}>
+                Change
+              </button>
+            </>
+          )}
+          {adminEnabled && (
+            <button className="btn-admin-gear" onClick={() => setPage("admin-login")} title="Admin Settings">
+              &#9881;
             </button>
-          </footer>
-        )}
+          )}
+        </footer>
         <span className="app-version">v{APP_VERSION}</span>
       </div>
     );
@@ -314,6 +378,7 @@ function App() {
       return (
         <CompetitionLobby
           {...lobbyProps}
+          defaults={lobbyDefaults?.competition}
           onStart={(config) => {
             setCompetitionConfig(config);
             startRealm(config);
@@ -326,6 +391,7 @@ function App() {
       return (
         <StreetViewLobby
           {...lobbyProps}
+          curatedLocations={lobbyDefaults?.streetViewLocations}
           onStart={(location) => {
             setStreetViewLocation(location);
             startRealm(location);
@@ -338,6 +404,7 @@ function App() {
       return (
         <YouTubeTrailLobby
           {...lobbyProps}
+          curatedVideos={lobbyDefaults?.youTubeVideos}
           onStart={(video) => {
             setYoutubeVideo(video);
             startRealm(video);
@@ -362,6 +429,7 @@ function App() {
       return (
         <DungeonLobby
           {...lobbyProps}
+          defaults={lobbyDefaults?.dungeon}
           onStart={(cfg) => {
             setDungeonConfig(cfg);
             startRealm(cfg);

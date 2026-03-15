@@ -9,6 +9,11 @@ export interface DungeonConfig {
   timeframe: number; // minutes
 }
 
+export interface DungeonDefaults {
+  difficulty?: string;
+  timeframeMinutes?: number;
+}
+
 interface Props {
   joinCode: string;
   clients: string[];
@@ -17,6 +22,7 @@ interface Props {
   onStart: (config: DungeonConfig) => void;
   onLeave: () => void;
   viewOnly?: boolean;
+  defaults?: DungeonDefaults | null;
 }
 
 const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] = [
@@ -27,9 +33,9 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
-  const [difficulty, setDifficulty] = useState<DungeonDifficulty>("normal");
-  const [timeframe, setTimeframe] = useState(30);
+export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
+  const [difficulty, setDifficulty] = useState<DungeonDifficulty>((defaults?.difficulty as DungeonDifficulty) ?? "normal");
+  const [timeframe, setTimeframe] = useState(defaults?.timeframeMinutes ?? 30);
 
   return (
     <LobbyShell
