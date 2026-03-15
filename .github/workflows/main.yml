@@ -35,6 +35,8 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.image.outputs.name }}:${{ github.event.inputs.tag }}
+          build-args: |
+            VITE_GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
           labels: |
             org.opencontainers.image.description=A live treadmill session platform with wearable integration and multiple run modes.
             org.opencontainers.image.documentation=https://github.com/lilfire/pulserealm/blob/main/CHANGELOG.md
@@ -66,6 +68,8 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.image.outputs.name }}:latest
+          build-args: |
+            VITE_GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
           labels: |
             org.opencontainers.image.description=A live treadmill session platform with wearable integration and multiple run modes.
             org.opencontainers.image.documentation=https://github.com/lilfire/pulserealm/blob/main/CHANGELOG.md
