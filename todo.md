@@ -14,3 +14,8 @@
 - [ ] Rate limiting on API endpoints
 - [ ] SignalR hub connection throttling
 - [ ] Input validation hardening
+
+
+## Reconnect
+- client reconnect realm
+- android keep wifi on
