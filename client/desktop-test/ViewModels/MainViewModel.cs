@@ -27,9 +27,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _serverUrl = "";
     [ObservableProperty] private string _joinCode = "";
-    [ObservableProperty] private string _playerName = "";
-    [ObservableProperty] private double _heightCm;
-    [ObservableProperty] private double _weightKg;
+    [ObservableProperty] private string _playerName = "TestPlayer";
+    [ObservableProperty] private double _heightCm = 175;
+    [ObservableProperty] private double _weightKg = 70;
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _realmIsEnded;
     [ObservableProperty] private string _summaryText = "";
