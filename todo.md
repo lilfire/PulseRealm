@@ -6,16 +6,14 @@
 - [ ] Richer real-time stats during gameplay
 - [ ] Enhanced summary screen with additional metrics
 
-## Automated Tests
-- [ ] Backend: xUnit test project for server
-- [ ] Frontend: Vitest setup and component/unit tests
 
 ## Rate Limiting / Abuse Prevention
 - [ ] Rate limiting on API endpoints
 - [ ] SignalR hub connection throttling
 - [ ] Input validation hardening
 
+## RealmHub
+- [ ] Add `LeaveRealm` hub method so the server can distinguish intentional leaves from connection drops (send `ClientLeft` vs `ClientDisconnected` events)
 
-## Reconnect
-- client reconnect realm
-- android keep wifi on
+## UI
+- [ ] Fix the summary screen on frontend, maby use som graphs
