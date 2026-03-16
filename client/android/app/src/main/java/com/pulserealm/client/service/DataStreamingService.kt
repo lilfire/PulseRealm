@@ -6,6 +6,10 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.IBinder
 import android.os.PowerManager
@@ -40,6 +44,7 @@ class DataStreamingService : Service() {
     private var streamingJob: Job? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -62,6 +67,7 @@ class DataStreamingService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         acquireWifiLock()
         acquireWakeLock()
+        registerNetworkCallback()
         sensorDataCollector.start()
         startStreaming(realmId, clientId, intervalMs)
 
@@ -73,6 +79,7 @@ class DataStreamingService : Service() {
     override fun onDestroy() {
         streamingJob?.cancel()
         sensorDataCollector.stop()
+        unregisterNetworkCallback()
         releaseWifiLock()
         releaseWakeLock()
         scope.cancel()
@@ -129,6 +136,28 @@ class DataStreamingService : Service() {
             wakeLock?.release()
         }
         wakeLock = null
+    }
+
+    private fun registerNetworkCallback() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                signalRClient.onNetworkAvailable()
+            }
+        }
+        networkCallback = callback
+        cm.registerNetworkCallback(request, callback)
+    }
+
+    private fun unregisterNetworkCallback() {
+        networkCallback?.let {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            cm.unregisterNetworkCallback(it)
+        }
+        networkCallback = null
     }
 
     private fun createNotificationChannel() {

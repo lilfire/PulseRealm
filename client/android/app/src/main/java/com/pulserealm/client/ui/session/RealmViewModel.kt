@@ -1,7 +1,11 @@
 package com.pulserealm.client.ui.session
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import com.pulserealm.client.data.network.ConnectionState
@@ -39,12 +43,25 @@ class RealmViewModel @Inject constructor(
         if (isStreaming) return
         isStreaming = true
 
+        requestBatteryOptimizationExemption()
+
         val intent = Intent(application, DataStreamingService::class.java).apply {
             putExtra(DataStreamingService.EXTRA_REALM_ID, realmId)
             putExtra(DataStreamingService.EXTRA_CLIENT_ID, clientId)
             putExtra(DataStreamingService.EXTRA_INTERVAL_MS, 1000L)
         }
         application.startForegroundService(intent)
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        val pm = application.getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(application.packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${application.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            application.startActivity(intent)
+        }
     }
 
     fun stopStreaming() {

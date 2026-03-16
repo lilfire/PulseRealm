@@ -216,17 +216,13 @@ class SignalRClient(
     fun sendWearableData(realmId: String, data: WearableData) {
         if (hubConnection?.connectionState != HubConnectionState.CONNECTED) return
 
-        try {
-            val dataMap = hashMapOf<String, Any>(
-                "clientId" to data.clientId,
-                "heartRate" to data.heartRate,
-                "steps" to data.steps,
-                "timestamp" to data.timestamp
-            )
-            hubConnection?.invoke("SendWearableData", realmId, dataMap)?.blockingAwait()
-        } catch (e: Exception) {
-            _error.value = "Send failed: ${e.message}"
-        }
+        val dataMap = hashMapOf<String, Any>(
+            "clientId" to data.clientId,
+            "heartRate" to data.heartRate,
+            "steps" to data.steps,
+            "timestamp" to data.timestamp
+        )
+        hubConnection?.send("SendWearableData", realmId, dataMap)
     }
 
     fun disconnect() {
@@ -250,15 +246,32 @@ class SignalRClient(
         _eliminated.value = false
     }
 
-    private fun attemptReconnect() {
+    /**
+     * Called externally when network connectivity is restored (e.g. WiFi back after Doze).
+     * Skips backoff and reconnects immediately if the connection is currently down.
+     */
+    fun onNetworkAvailable() {
+        val conn = hubConnection
+        if (intentionalDisconnect.get()) return
+        if (currentJoinCode == null) return
+        if (conn != null && conn.connectionState == HubConnectionState.CONNECTED) return
+
+        _connectionState.value = ConnectionState.RECONNECTING
+        reconnectJob?.cancel()
+        attemptReconnect(immediateFirstAttempt = true)
+    }
+
+    private fun attemptReconnect(immediateFirstAttempt: Boolean = false) {
         reconnectJob?.cancel()
         reconnectJob = reconnectScope.launch {
             val maxAttempts = 10
             var attempt = 0
             while (attempt < maxAttempts) {
                 attempt++
-                val delayMs = (2000L * (1L shl (attempt - 1).coerceAtMost(4))).coerceAtMost(30_000L)
-                delay(delayMs)
+                if (!(immediateFirstAttempt && attempt == 1)) {
+                    val delayMs = (2000L * (1L shl (attempt - 1).coerceAtMost(4))).coerceAtMost(30_000L)
+                    delay(delayMs)
+                }
 
                 val serverUrl = currentServerUrl ?: break
                 val joinCode = currentJoinCode ?: break
