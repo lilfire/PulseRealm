@@ -4,6 +4,7 @@ import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+const MAX_HR = 190;
 const STRIDE_FACTOR = 0.415 / 100; // height(cm) → stride(m)
 const IDLE_TIMEOUT_MS = 10_000;
 const CADENCE_WINDOW_MS = 10_000;
@@ -73,18 +74,34 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function getInitials(name: string): string {
   return name.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
 function avatarColor(index: number): string {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
+}
+
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  color: string;
+  distanceMeters: number;
+  distanceKm: number;
+  points: number;
+  heartRate: number;
+  cadence: number;
+  active: boolean;
+  finished: boolean;
+  finishPosition: number | null;
+  finishTime: number | null;
+  eliminated: boolean;
+  eliminatedPosition: number | null;
+  inZone?: boolean;
+  currentZone?: number;
+  kingSeconds?: number;
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -147,7 +164,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   function getMaxHrForClient(_clientId?: string): number {
     void _clientId; // placeholder for future per-client max HR (220 - age)
-    return 190;
+    return MAX_HR;
   }
 
   function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {
@@ -606,26 +623,6 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   // Trackers are mutated in effects and re-renders are driven by forceRender()
   const trackers = trackersRef.current;
 
-  interface LeaderboardEntry {
-    id: string;
-    name: string;
-    color: string;
-    distanceMeters: number;
-    distanceKm: number;
-    points: number;
-    heartRate: number;
-    cadence: number;
-    active: boolean;
-    finished: boolean;
-    finishPosition: number | null;
-    finishTime: number | null;
-    eliminated: boolean;
-    eliminatedPosition: number | null;
-    inZone?: boolean;
-    currentZone?: number;
-    kingSeconds?: number;
-  }
-
   function buildEntries(): LeaderboardEntry[] {
     if (isTeam) {
       return config.teams.map((team) => {
@@ -807,7 +804,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             Target: Zone {config.targetZone}
           </div>
           <div style={{ fontSize: 13, color: "var(--text)" }}>
-            {getZoneBpmRange(config.targetZone, 190)[0]}–{getZoneBpmRange(config.targetZone, 190)[1]} bpm
+            {getZoneBpmRange(config.targetZone, MAX_HR)[0]}–{getZoneBpmRange(config.targetZone, MAX_HR)[1]} bpm
           </div>
         </div>
       )}

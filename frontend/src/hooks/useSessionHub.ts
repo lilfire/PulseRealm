@@ -36,8 +36,12 @@ export interface RealmSummary {
 
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 
+/** Named constant for the maximum heart rate used in zone calculations. */
+const MAX_HR = 190;
+
 export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
+  const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [connected, setConnected] = useState(false);
   const [started, setStarted] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -147,14 +151,19 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       setEnded(true);
     });
 
+    // Clear any interval left over from a previous invocation (e.g. StrictMode
+    // double-invoke) before starting a fresh one.
+    if (tickIntervalRef.current !== null) {
+      clearInterval(tickIntervalRef.current);
+    }
     // 1-second interval for zone tracking and active period
-    const tickId = setInterval(() => {
+    tickIntervalRef.current = setInterval(() => {
       const s = statsRef.current;
       const now = Date.now();
       if (s.lastDataReceivedAt > 0 && now - s.lastDataReceivedAt < 5000) {
         s.activePeriodSeconds++;
         if (s.currentHr > 0) {
-          const pct = s.currentHr / 190;
+          const pct = s.currentHr / MAX_HR;
           const zone = pct < 0.57 ? 1 : pct < 0.63 ? 2 : pct < 0.76 ? 3 : pct < 0.89 ? 4 : 5;
           s.timeInZone[zone] = (s.timeInZone[zone] ?? 0) + 1;
         }
@@ -177,18 +186,27 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       }
     });
 
+    let active = true;
+
     connection
       .start()
       .then(() => {
+        if (!active) return;
         setConnected(true);
         return connection.invoke("JoinRealmAsDashboard", realmId);
       })
-      .catch(console.error);
+      .catch((err) => {
+        if (active) console.error(err);
+      });
 
     connectionRef.current = connection;
 
     return () => {
-      clearInterval(tickId);
+      active = false;
+      if (tickIntervalRef.current !== null) {
+        clearInterval(tickIntervalRef.current);
+        tickIntervalRef.current = null;
+      }
       connection.stop();
     };
   }, [realmId, resolvedUrl]);

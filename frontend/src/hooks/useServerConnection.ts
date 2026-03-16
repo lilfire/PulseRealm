@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 /**
  * Create an AbortSignal that auto-aborts after `ms` milliseconds.
- * Drop-in replacement for createTimeoutSignal() which isn't available
- * in older Android System WebView versions.
+ * Uses AbortSignal.timeout() which is natively supported in modern browsers
+ * and does not leak a timer handle the way a manual setTimeout approach would.
  */
 function createTimeoutSignal(ms: number): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
+  return AbortSignal.timeout(ms);
 }
 
 const STORAGE_KEY = "pulserealm_server_url";
@@ -36,7 +34,10 @@ export type SearchPhase = "idle" | "searching" | "found" | "not_found";
  */
 async function getLocalIp(): Promise<string | null> {
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(null), 3000);
+    const timeout = setTimeout(() => {
+      pc.close();
+      resolve(null);
+    }, 3000);
     try {
       const pc = new RTCPeerConnection({ iceServers: [] });
       pc.createDataChannel("");
@@ -299,7 +300,7 @@ export function useServerConnection() {
     }
   }
 
-  async function verifyServer(url: string): Promise<boolean> {
+  const verifyServer = useCallback(async (url: string): Promise<boolean> => {
     setChecking(true);
     setError(null);
     try {
@@ -320,7 +321,7 @@ export function useServerConnection() {
       setError(e instanceof Error ? e.message : "Connection failed");
       return false;
     }
-  }
+  }, []);
 
   const searchForServer = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort();
