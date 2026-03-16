@@ -8,14 +8,16 @@ public class AdminConfigService
     private AdminConfig _config;
     private readonly object _lock = new();
     private readonly string _filePath;
+    private readonly ILogger<AdminConfigService> _logger;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public AdminConfigService(IConfiguration configuration)
+    public AdminConfigService(IConfiguration configuration, ILogger<AdminConfigService> logger)
     {
+        _logger = logger;
         var dataDir = configuration["DATA_DIR"] ?? "data";
         Directory.CreateDirectory(dataDir);
         _filePath = Path.Combine(dataDir, "admin-config.json");
@@ -49,9 +51,9 @@ public class AdminConfigService
                 return JsonSerializer.Deserialize<AdminConfig>(json, _jsonOptions) ?? new AdminConfig();
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // If the file is corrupt, start fresh
+            _logger.LogWarning(ex, "Failed to load admin config from {Path}, using defaults", _filePath);
         }
         return new AdminConfig();
     }
@@ -63,9 +65,9 @@ public class AdminConfigService
             var json = JsonSerializer.Serialize(config, _jsonOptions);
             File.WriteAllText(_filePath, json);
         }
-        catch
+        catch (Exception ex)
         {
-            // Log would be nice, but don't crash on save failure
+            _logger.LogError(ex, "Failed to save admin config to {Path}", _filePath);
         }
     }
 }

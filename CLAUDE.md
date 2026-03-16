@@ -34,7 +34,7 @@ cd client/android && ./gradlew assembleDebug
 - Server auto-discovery uses UDP broadcast on port 5063
 - Frontend can connect in **local** (auto-discover on LAN) or **remote** (manual URL) mode
 - Speed is estimated server-side from step deltas and client height (stride = height * 0.415)
-- Realms use 6-digit alphanumeric join codes
+- Realms use 6-digit numeric join codes
 - All realm state is in-memory (no database)
 
 ## Code Conventions

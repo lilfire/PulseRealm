@@ -104,8 +104,8 @@ public class ServerDiscoveryService : BackgroundService
                     var result = await listener.ReceiveAsync(stoppingToken);
                     var message = Encoding.UTF8.GetString(result.Buffer);
 
-                    // Only respond to discovery requests, not our own broadcasts
-                    if (message.Contains("\"discover\"") && message.Contains("PulseRealm"))
+                    // Only respond to valid discovery requests, not our own broadcasts
+                    if (IsDiscoveryRequest(message))
                     {
                         var responseData = Encoding.UTF8.GetBytes(BuildPayload());
                         await listener.SendAsync(responseData, responseData.Length, result.RemoteEndPoint);
@@ -145,6 +145,25 @@ public class ServerDiscoveryService : BackgroundService
             urls = serverUrls,
             hostname = Environment.MachineName,
         });
+    }
+
+    /// <summary>
+    /// Validates that a received UDP message is a properly structured discovery request.
+    /// Expected format: {"discover":"PulseRealm"}
+    /// </summary>
+    private static bool IsDiscoveryRequest(string message)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(message);
+            return doc.RootElement.TryGetProperty("discover", out var value)
+                && value.ValueKind == JsonValueKind.String
+                && value.GetString() == "PulseRealm";
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

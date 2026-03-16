@@ -31,27 +31,45 @@ public class RealmHub : Hub
     /// </summary>
     public async Task JoinRealm(string joinCode, string clientId, ClientProfile? profile = null)
     {
+        if (profile is not null)
+        {
+            if (string.IsNullOrWhiteSpace(profile.Name) || profile.Name.Length > 50)
+                throw new HubException("Name must be between 1 and 50 characters.");
+            if (profile.HeightCm is < 50 or > 250)
+                throw new HubException("Height must be between 50 and 250 cm.");
+            if (profile.WeightKg is < 10 or > 500)
+                throw new HubException("Weight must be between 10 and 500 kg.");
+        }
+
         var realm = _realmManager.GetByJoinCode(joinCode);
         if (realm is null)
         {
             throw new HubException("Invalid join code.");
         }
 
-        if (realm.Status == RealmStatus.Ended)
+        // Read realm state under lock for thread-safe checks
+        var (status, isKnown, connectedCount, maxClients) = realm.WithLock(r => (
+            r.Status,
+            r.KnownClientIds.Contains(clientId),
+            r.ConnectedClientIds.Count,
+            r.MaxClients
+        ));
+
+        if (status == RealmStatus.Ended)
         {
             throw new HubException("Realm has ended.");
         }
 
-        if (realm.Status == RealmStatus.Started && !realm.KnownClientIds.Contains(clientId))
+        if (status == RealmStatus.Started && !isKnown)
         {
             throw new HubException("Realm has already started.");
         }
 
-        var isReconnect = realm.Status == RealmStatus.Started;
+        var isReconnect = status == RealmStatus.Started;
 
-        if (!isReconnect && realm.ConnectedClientIds.Count >= realm.MaxClients)
+        if (!isReconnect && connectedCount >= maxClients)
         {
-            throw new HubException($"Realm is full ({realm.MaxClients}/{realm.MaxClients} players).");
+            throw new HubException($"Realm is full ({maxClients}/{maxClients} players).");
         }
 
         _realmManager.AddClient(realm.Id, clientId, profile);
@@ -82,8 +100,11 @@ public class RealmHub : Hub
             return;
         }
 
-        realm.Status = RealmStatus.Started;
-        realm.RealmConfig = config;
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Started;
+            r.RealmConfig = config;
+        });
         await Clients.Group(realmId).SendAsync("RealmStarted", config);
     }
 
@@ -165,8 +186,11 @@ public class RealmHub : Hub
             return;
         }
 
-        realm.Status = RealmStatus.Ended;
+        realm.WithLock(r => r.Status = RealmStatus.Ended);
         summary.DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
+
+        // Clean up hub state for all clients that were in this realm
+        CleanupRealmHubState(realmId);
 
         await Clients.Group(realmId).SendAsync("RealmEnded", summary);
     }
@@ -180,14 +204,29 @@ public class RealmHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, realmId);
 
         var realm = _realmManager.GetById(realmId);
-        var state = new
+        object state;
+        if (realm is not null)
         {
-            RealmId = realmId,
-            Status = realm?.Status.ToString() ?? "Lobby",
-            ConnectedClientIds = realm?.ConnectedClientIds ?? new List<string>(),
-            ClientProfiles = realm?.ClientProfiles ?? new Dictionary<string, ClientProfile>(),
-            Config = realm?.RealmConfig,
-        };
+            state = realm.WithLock(r => new
+            {
+                RealmId = realmId,
+                Status = r.Status.ToString(),
+                ConnectedClientIds = new List<string>(r.ConnectedClientIds),
+                ClientProfiles = new Dictionary<string, ClientProfile>(r.ClientProfiles),
+                Config = r.RealmConfig,
+            });
+        }
+        else
+        {
+            state = new
+            {
+                RealmId = realmId,
+                Status = "Lobby",
+                ConnectedClientIds = new List<string>(),
+                ClientProfiles = new Dictionary<string, ClientProfile>(),
+                Config = (string?)null,
+            };
+        }
         await Clients.Caller.SendAsync("JoinedRealm", state);
     }
 
@@ -199,16 +238,32 @@ public class RealmHub : Hub
             if (realm is not null && realm.Status == RealmStatus.Started)
             {
                 // Started realm: only remove from connected list, keep profile and speed data for reconnect
-                realm.ConnectedClientIds.Remove(mapping.ClientId);
+                realm.WithLock(r => r.ConnectedClientIds.Remove(mapping.ClientId));
             }
             else
             {
                 _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId);
                 _lastData.TryRemove(mapping.ClientId, out _);
+                _stepOffsets.TryRemove(mapping.ClientId, out _);
             }
             await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
         }
 
         await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Removes hub-level state (_lastData, _stepOffsets) for all clients associated with a realm.
+    /// </summary>
+    private static void CleanupRealmHubState(string realmId)
+    {
+        foreach (var kvp in _connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId)
+            {
+                _lastData.TryRemove(kvp.Value.ClientId, out _);
+                _stepOffsets.TryRemove(kvp.Value.ClientId, out _);
+            }
+        }
     }
 }
