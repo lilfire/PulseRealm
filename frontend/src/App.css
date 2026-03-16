@@ -11,6 +11,7 @@
 .home-screen {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
   min-height: 100svh;
   font-family: system-ui, -apple-system, sans-serif;
 }
