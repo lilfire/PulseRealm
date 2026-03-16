@@ -74,6 +74,9 @@ class JoinViewModel @Inject constructor(
     private var cachedRetrofit: Retrofit? = null
     private var cachedRetrofitBaseUrl: String? = null
 
+    // Overridable for testing
+    internal var realmApiFactory: (String) -> RealmApi = ::getRealmApi
+
     init {
         // Load or generate a stable client ID
         val clientId = prefs.getString(PREF_CLIENT_ID, null) ?: run {
@@ -361,7 +364,7 @@ class JoinViewModel @Inject constructor(
                 }
 
                 // 4. Fetch realm info via REST to get the realmId
-                val api = getRealmApi(state.serverUrl)
+                val api = realmApiFactory(state.serverUrl)
                 val realmInfo = api.getRealm(state.joinCode)
 
                 // Cache the server URL on successful join

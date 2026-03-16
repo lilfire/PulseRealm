@@ -1,5 +1,6 @@
 package com.pulserealm.client.data.network
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,9 @@ data class DiscoveredServer(
  * 1. Sends a discovery request broadcast so servers respond immediately
  * 2. Listens for both direct responses and periodic server broadcast announcements
  */
-class ServerDiscoveryClient {
+class ServerDiscoveryClient(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
 
     companion object {
         const val DISCOVERY_PORT = 5063
@@ -43,7 +46,7 @@ class ServerDiscoveryClient {
      * Actively discovers servers by sending a broadcast request and listening for responses.
      * Should be called from a coroutine on IO dispatcher.
      */
-    suspend fun scan() = withContext(Dispatchers.IO) {
+    suspend fun scan() = withContext(ioDispatcher) {
         _isScanning.value = true
         _discoveredServers.value = emptyList()
         val found = mutableMapOf<String, DiscoveredServer>()

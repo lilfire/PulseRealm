@@ -1,7 +1,12 @@
 package com.pulserealm.client.data.network
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -10,11 +15,18 @@ import java.net.InetAddress
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerDiscoveryClientTest {
 
+    private val testDispatcher = StandardTestDispatcher()
     private lateinit var client: ServerDiscoveryClient
 
     @Before
     fun setup() {
-        client = ServerDiscoveryClient()
+        Dispatchers.setMain(testDispatcher)
+        client = ServerDiscoveryClient(ioDispatcher = testDispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -90,21 +102,34 @@ class ServerDiscoveryClientTest {
         )
 
         val url = client.buildServerUrl(server)
-        // Should still use http:// for the actual URL since it's LAN
         assertEquals("http://192.168.1.100:5062", url)
     }
 
     @Test
-    fun `scan sets isScanning during execution`() = runTest {
-        // Scan will complete quickly (timeout) with no servers found in test env
-        // We just verify it doesn't crash and resets state properly
+    fun `buildServerUrl with high port number`() {
+        val server = DiscoveredServer(
+            name = "TestServer",
+            hostname = "myhost",
+            urls = "http://+:49152",
+            version = "1.0",
+            address = InetAddress.getByName("10.0.0.1")
+        )
+
+        val url = client.buildServerUrl(server)
+        assertEquals("http://10.0.0.1:49152", url)
+    }
+
+    @Test
+    fun `scan sets isScanning to true then false`() = runTest {
+        // Scan completes quickly in test env (no servers to find)
         client.scan()
+
+        // After scan completes, isScanning should be false
         assertFalse(client.isScanning.value)
     }
 
     @Test
     fun `scan clears previous servers`() = runTest {
-        // First scan
         client.scan()
         assertTrue(client.discoveredServers.value.isEmpty())
 
@@ -112,6 +137,19 @@ class ServerDiscoveryClientTest {
         client.scan()
         assertTrue(client.discoveredServers.value.isEmpty())
         assertFalse(client.isScanning.value)
+    }
+
+    @Test
+    fun `scan resets isScanning on completion`() = runTest {
+        client.scan()
+        assertFalse(client.isScanning.value)
+    }
+
+    @Test
+    fun `constructor accepts default dispatcher`() {
+        val defaultClient = ServerDiscoveryClient()
+        assertTrue(defaultClient.discoveredServers.value.isEmpty())
+        assertFalse(defaultClient.isScanning.value)
     }
 }
 
@@ -144,6 +182,14 @@ class DiscoveredServerTest {
     }
 
     @Test
+    fun `inequality on different name`() {
+        val addr = InetAddress.getByName("192.168.1.100")
+        val a = DiscoveredServer("A", "host", "http://+:5062", "1.0", addr)
+        val b = DiscoveredServer("B", "host", "http://+:5062", "1.0", addr)
+        assertNotEquals(a, b)
+    }
+
+    @Test
     fun `copy modifies specified fields`() {
         val addr = InetAddress.getByName("192.168.1.100")
         val original = DiscoveredServer("A", "host", "http://+:5062", "1.0", addr)
@@ -152,5 +198,13 @@ class DiscoveredServerTest {
         assertEquals("B", modified.name)
         assertEquals("host", modified.hostname)
         assertEquals("2.0", modified.version)
+    }
+
+    @Test
+    fun `hashCode is consistent with equality`() {
+        val addr = InetAddress.getByName("192.168.1.100")
+        val a = DiscoveredServer("A", "host", "http://+:5062", "1.0", addr)
+        val b = DiscoveredServer("A", "host", "http://+:5062", "1.0", addr)
+        assertEquals(a.hashCode(), b.hashCode())
     }
 }

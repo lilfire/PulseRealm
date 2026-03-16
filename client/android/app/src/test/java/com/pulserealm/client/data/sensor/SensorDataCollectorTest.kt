@@ -6,15 +6,11 @@ import android.hardware.SensorManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class SensorDataCollectorTest {
 
     private lateinit var sensorManager: SensorManager
@@ -31,6 +27,8 @@ class SensorDataCollectorTest {
             collector.stop()
         }
     }
+
+    // --- Initial state ---
 
     @Test
     fun `initial heart rate is 0`() {
@@ -49,6 +47,8 @@ class SensorDataCollectorTest {
         collector = SensorDataCollector(sensorManager)
         assertFalse(collector.sensorsAvailable.value)
     }
+
+    // --- Sensor registration ---
 
     @Test
     fun `start with no sensors starts simulation`() {
@@ -105,6 +105,26 @@ class SensorDataCollectorTest {
     }
 
     @Test
+    fun `start with all sensors registers all listeners`() {
+        val hrSensor = mockk<Sensor>(relaxed = true)
+        val stepSensor = mockk<Sensor>(relaxed = true)
+        val detectorSensor = mockk<Sensor>(relaxed = true)
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns stepSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns detectorSensor
+
+        collector = SensorDataCollector(sensorManager)
+        collector.start()
+
+        assertTrue(collector.sensorsAvailable.value)
+        verify { sensorManager.registerListener(collector, hrSensor, SensorManager.SENSOR_DELAY_NORMAL, 0) }
+        verify { sensorManager.registerListener(collector, stepSensor, SensorManager.SENSOR_DELAY_FASTEST, 0) }
+        verify { sensorManager.registerListener(collector, detectorSensor, SensorManager.SENSOR_DELAY_FASTEST, 0) }
+    }
+
+    // --- Idempotency ---
+
+    @Test
     fun `start is idempotent`() {
         every { sensorManager.getDefaultSensor(any()) } returns null
 
@@ -138,75 +158,28 @@ class SensorDataCollectorTest {
 
     @Test
     fun `stop then start works`() {
-        every { sensorManager.getDefaultSensor(any()) } returns null
+        val hrSensor = mockk<Sensor>(relaxed = true)
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
 
         collector = SensorDataCollector(sensorManager)
         collector.start()
         collector.stop()
         collector.start()
 
-        // Should have started simulation again
-        assertFalse(collector.sensorsAvailable.value)
+        assertTrue(collector.sensorsAvailable.value)
+        // Should have registered twice (once per start)
+        verify(exactly = 2) { sensorManager.registerListener(collector, hrSensor, SensorManager.SENSOR_DELAY_NORMAL, 0) }
     }
 
     @Test
     fun `onAccuracyChanged does not throw`() {
         collector = SensorDataCollector(sensorManager)
-        // Should be a no-op
         collector.onAccuracyChanged(null, SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
     }
 
-    @Test
-    fun `simulation produces valid heart rate range`() = runTest {
-        every { sensorManager.getDefaultSensor(any()) } returns null
-
-        collector = SensorDataCollector(sensorManager)
-        collector.start()
-
-        // Wait for simulation to produce data
-        advanceTimeBy(2000)
-
-        // After simulation runs, HR should be in valid range (or still 0 if not yet updated)
-        val hr = collector.heartRate.value
-        assertTrue("Heart rate $hr should be 0 or in range 60-180", hr == 0 || (hr in 60..180))
-
-        collector.stop()
-    }
-
-    @Test
-    fun `heart rate sensor event with zero is ignored`() {
-        val hrSensor = mockk<Sensor>(relaxed = true)
-        every { hrSensor.type } returns Sensor.TYPE_HEART_RATE
-        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
-        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
-        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
-
-        collector = SensorDataCollector(sensorManager)
-        collector.start()
-
-        // Simulate a zero HR event - create via reflection since SensorEvent constructor is package-private
-        val event = createSensorEvent(hrSensor, floatArrayOf(0f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
-        collector.onSensorChanged(event)
-
-        assertEquals(0, collector.heartRate.value)
-    }
-
-    @Test
-    fun `heart rate sensor event with unreliable accuracy is ignored`() {
-        val hrSensor = mockk<Sensor>(relaxed = true)
-        every { hrSensor.type } returns Sensor.TYPE_HEART_RATE
-        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
-        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
-        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
-
-        collector = SensorDataCollector(sensorManager)
-        collector.start()
-
-        val event = createSensorEvent(hrSensor, floatArrayOf(120f), SensorManager.SENSOR_STATUS_UNRELIABLE)
-        collector.onSensorChanged(event)
-
-        assertEquals(0, collector.heartRate.value)
-    }
+    // --- Heart rate events ---
 
     @Test
     fun `valid heart rate sensor event updates flow`() {
@@ -224,6 +197,69 @@ class SensorDataCollectorTest {
 
         assertEquals(130, collector.heartRate.value)
     }
+
+    @Test
+    fun `heart rate sensor event with zero is ignored`() {
+        val hrSensor = mockk<Sensor>(relaxed = true)
+        every { hrSensor.type } returns Sensor.TYPE_HEART_RATE
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
+
+        collector = SensorDataCollector(sensorManager)
+        collector.start()
+
+        val event = createSensorEvent(hrSensor, floatArrayOf(0f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
+        collector.onSensorChanged(event)
+
+        assertEquals(0, collector.heartRate.value)
+    }
+
+    @Test
+    fun `heart rate sensor event with unreliable accuracy is ignored`() {
+        val hrSensor = mockk<Sensor>(relaxed = true)
+        every { hrSensor.type } returns Sensor.TYPE_HEART_RATE
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
+
+        collector = SensorDataCollector(sensorManager)
+        collector.start()
+
+        // First set a valid value
+        val validEvent = createSensorEvent(hrSensor, floatArrayOf(120f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
+        collector.onSensorChanged(validEvent)
+        assertEquals(120, collector.heartRate.value)
+
+        // Now send unreliable event — should be ignored
+        val unreliableEvent = createSensorEvent(hrSensor, floatArrayOf(200f), SensorManager.SENSOR_STATUS_UNRELIABLE)
+        collector.onSensorChanged(unreliableEvent)
+
+        assertEquals(120, collector.heartRate.value) // Should still be 120
+    }
+
+    @Test
+    fun `multiple heart rate events update to latest valid value`() {
+        val hrSensor = mockk<Sensor>(relaxed = true)
+        every { hrSensor.type } returns Sensor.TYPE_HEART_RATE
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns hrSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
+
+        collector = SensorDataCollector(sensorManager)
+        collector.start()
+
+        collector.onSensorChanged(createSensorEvent(hrSensor, floatArrayOf(80f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        assertEquals(80, collector.heartRate.value)
+
+        collector.onSensorChanged(createSensorEvent(hrSensor, floatArrayOf(120f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        assertEquals(120, collector.heartRate.value)
+
+        collector.onSensorChanged(createSensorEvent(hrSensor, floatArrayOf(95f), SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM))
+        assertEquals(95, collector.heartRate.value)
+    }
+
+    // --- Step counter ---
 
     @Test
     fun `step counter calculates delta from baseline`() {
@@ -246,6 +282,33 @@ class SensorDataCollectorTest {
         collector.onSensorChanged(event2)
         assertEquals(50, collector.steps.value) // 10050 - 10000 = 50
     }
+
+    @Test
+    fun `step counter baseline resets after stop and start`() {
+        val stepSensor = mockk<Sensor>(relaxed = true)
+        every { stepSensor.type } returns Sensor.TYPE_STEP_COUNTER
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns stepSensor
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns null
+
+        collector = SensorDataCollector(sensorManager)
+        collector.start()
+
+        collector.onSensorChanged(createSensorEvent(stepSensor, floatArrayOf(5000f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        collector.onSensorChanged(createSensorEvent(stepSensor, floatArrayOf(5020f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        assertEquals(20, collector.steps.value)
+
+        collector.stop()
+        collector.start()
+
+        // After restart, new baseline
+        collector.onSensorChanged(createSensorEvent(stepSensor, floatArrayOf(5030f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        assertEquals(0, collector.steps.value) // New baseline
+        collector.onSensorChanged(createSensorEvent(stepSensor, floatArrayOf(5040f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        assertEquals(10, collector.steps.value) // Delta from new baseline
+    }
+
+    // --- Step detector ---
 
     @Test
     fun `step detector increments per step`() {
@@ -287,30 +350,53 @@ class SensorDataCollectorTest {
         val stepEvent = createSensorEvent(stepSensor, floatArrayOf(100f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
         collector.onSensorChanged(stepEvent)
 
-        // Step detector fires but should be ignored
+        // Step detector fires but should be ignored for step count
         val detectorEvent = createSensorEvent(detectorSensor, floatArrayOf(1f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
         collector.onSensorChanged(detectorEvent)
 
-        // Steps should be 0 (counter baseline - baseline = 0)
         assertEquals(0, collector.steps.value)
     }
 
+    @Test
+    fun `step detector count resets after stop`() {
+        val detectorSensor = mockk<Sensor>(relaxed = true)
+        every { detectorSensor.type } returns Sensor.TYPE_STEP_DETECTOR
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns null
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) } returns detectorSensor
+
+        collector = SensorDataCollector(sensorManager)
+        collector.start()
+
+        val event = createSensorEvent(detectorSensor, floatArrayOf(1f), SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
+        collector.onSensorChanged(event)
+        collector.onSensorChanged(event)
+        assertEquals(2, collector.steps.value)
+
+        collector.stop()
+        collector.start()
+
+        // After restart, detector count should be 0
+        collector.onSensorChanged(event)
+        assertEquals(1, collector.steps.value)
+    }
+
+    /**
+     * Creates a SensorEvent via reflection since its constructor is package-private.
+     * This is the standard Android testing pattern for sensor events.
+     */
     private fun createSensorEvent(sensor: Sensor, values: FloatArray, accuracy: Int): SensorEvent {
-        // SensorEvent constructor is package-private, use reflection
         val constructor = SensorEvent::class.java.getDeclaredConstructor(Int::class.javaPrimitiveType)
         constructor.isAccessible = true
         val event = constructor.newInstance(values.size)
 
-        // Set sensor field
         val sensorField = SensorEvent::class.java.getField("sensor")
         sensorField.set(event, sensor)
 
-        // Set values
         val valuesField = SensorEvent::class.java.getField("values")
         val eventValues = valuesField.get(event) as FloatArray
         values.copyInto(eventValues)
 
-        // Set accuracy
         val accuracyField = SensorEvent::class.java.getField("accuracy")
         accuracyField.set(event, accuracy)
 

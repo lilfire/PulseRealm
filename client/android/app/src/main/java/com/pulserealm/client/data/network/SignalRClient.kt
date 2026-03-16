@@ -51,7 +51,9 @@ data class RealmSummaryData(
     val clientSummaries: List<ClientSummaryData> = emptyList()
 )
 
-class SignalRClient {
+class SignalRClient(
+    private val reconnectScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) {
 
     @Volatile private var hubConnection: HubConnection? = null
     @Volatile private var currentServerUrl: String? = null
@@ -62,7 +64,6 @@ class SignalRClient {
     @Volatile private var currentWeightKg: Double = 0.0
     private val intentionalDisconnect = AtomicBoolean(false)
     private var reconnectJob: Job? = null
-    private val reconnectScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
