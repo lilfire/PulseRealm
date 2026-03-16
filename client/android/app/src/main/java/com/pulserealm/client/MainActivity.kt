@@ -13,6 +13,8 @@ import androidx.navigation.navArgument
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import com.pulserealm.client.ui.setup.ProfileSetupScreen
+import com.pulserealm.client.ui.server.ServerScreen
 import com.pulserealm.client.ui.join.JoinScreen
 import com.pulserealm.client.ui.session.RealmScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -44,16 +46,47 @@ class MainActivity : ComponentActivity() {
 
             SwipeDismissableNavHost(
                 navController = navController,
-                startDestination = "join"
+                startDestination = "profile_setup"
             ) {
-                composable("join") {
+                composable("profile_setup") {
+                    ProfileSetupScreen(
+                        onComplete = {
+                            navController.navigate("server") {
+                                popUpTo("profile_setup") { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
+                composable("server") {
+                    ServerScreen(
+                        onConnected = { serverUrl ->
+                            val encodedUrl = java.net.URLEncoder.encode(serverUrl, "UTF-8")
+                            navController.navigate("join?serverUrl=$encodedUrl") {
+                                popUpTo("server") { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
+                composable(
+                    route = "join?serverUrl={serverUrl}",
+                    arguments = listOf(
+                        navArgument("serverUrl") { type = NavType.StringType }
+                    )
+                ) {
                     JoinScreen(
                         onJoined = { realmId, clientId, serverUrl ->
                             val encodedUrl = java.net.URLEncoder.encode(serverUrl, "UTF-8")
                             navController.navigate(
                                 "realm?realmId=$realmId&clientId=$clientId&serverUrl=$encodedUrl"
                             ) {
-                                popUpTo("join") { inclusive = true }
+                                popUpTo("join?serverUrl={serverUrl}") { inclusive = true }
+                            }
+                        },
+                        onChangeServer = {
+                            navController.navigate("server") {
+                                popUpTo("join?serverUrl={serverUrl}") { inclusive = true }
                             }
                         }
                     )
@@ -69,7 +102,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     RealmScreen(
                         onDisconnected = {
-                            navController.navigate("join") {
+                            navController.navigate("server") {
                                 popUpTo("realm?realmId={realmId}&clientId={clientId}&serverUrl={serverUrl}") {
                                     inclusive = true
                                 }
