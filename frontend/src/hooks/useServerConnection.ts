@@ -1,5 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+/**
+ * Create an AbortSignal that auto-aborts after `ms` milliseconds.
+ * Drop-in replacement for createTimeoutSignal() which isn't available
+ * in older Android System WebView versions.
+ */
+function createTimeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 const STORAGE_KEY = "pulserealm_server_url";
 const STORAGE_MODE_KEY = "pulserealm_connection_mode";
 const STORAGE_REMOTE_URL_KEY = "pulserealm_remote_url";
@@ -276,7 +287,7 @@ export function useServerConnection() {
   ): Promise<ServerInfo | null> {
     try {
       const res = await fetch(`${url.replace(/\/+$/, "")}/api/discovery`, {
-        signal: signal || AbortSignal.timeout(PROBE_TIMEOUT),
+        signal: signal || createTimeoutSignal(PROBE_TIMEOUT),
       });
       if (!res.ok) return null;
       const info: ServerInfo = await res.json();
@@ -292,7 +303,7 @@ export function useServerConnection() {
     setError(null);
     try {
       const res = await fetch(`${url.replace(/\/+$/, "")}/api/discovery`, {
-        signal: AbortSignal.timeout(5000),
+        signal: createTimeoutSignal(5000),
       });
       if (!res.ok) throw new Error("Server responded with " + res.status);
       const info: ServerInfo = await res.json();

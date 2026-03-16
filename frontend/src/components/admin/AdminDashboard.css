@@ -4,6 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 100vh;
   min-height: 100svh;
   font-family: system-ui, -apple-system, sans-serif;
   padding: 2rem;
@@ -22,6 +23,7 @@
 .admin-screen {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
   min-height: 100svh;
   font-family: system-ui, -apple-system, sans-serif;
   padding: 2rem;
