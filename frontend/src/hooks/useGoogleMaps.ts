@@ -54,13 +54,12 @@ export function useGoogleMaps() {
     getApiKey()
       .then((apiKey) => {
         if (!apiKey) {
-          setError("Google Maps API key not configured (GOOGLE_MAPS_API_KEY)");
-          return;
+          throw new Error("Google Maps API key not configured (GOOGLE_MAPS_API_KEY)");
         }
         return loadGoogleMaps(apiKey);
       })
       .then(() => setLoaded(true))
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [loaded]);
 
   return { loaded, error };
