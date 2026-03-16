@@ -202,7 +202,7 @@ class SignalRClient(
         } catch (e: Exception) {
             // HubException messages from the server get wrapped by RxJava;
             // walk the cause chain to find the original server message.
-            val root = generateSequence(e) { it.cause }.last()
+            val root = generateSequence<Throwable>(e) { it.cause }.last()
             _error.value = root.message ?: "Join failed"
         }
     }
