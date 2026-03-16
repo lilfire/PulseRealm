@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useRealmHub } from "./hooks/useSessionHub";
+import { useRealmHub, type RealmSummary } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
 import { CompetitionLobby } from "./components/lobbies/CompetitionLobby";
@@ -130,7 +130,7 @@ function App() {
     [viewOnly, endRealm]
   );
   const onEndWithOverrides = useCallback(
-    (totalDistance: number, overrides?: Record<string, number>) => {
+    (totalDistance: number, overrides?: Partial<RealmSummary>) => {
       if (viewOnly) return;
       endRealm(totalDistance, overrides);
     },

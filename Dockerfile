@@ -23,12 +23,13 @@ ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 RUN npm run build
 
 # Stage 2: Build the server
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS server-build
+FROM mcr.microsoft.com/dotnet/sdk:8.0.418-bookworm-slim AS server-build
 WORKDIR /app
 COPY server/*.csproj ./
 RUN dotnet restore
 COPY server/ ./
-RUN dotnet publish -c Release -o /out
+RUN rm -rf PulseRealm.Server.Tests
+RUN dotnet publish PulseRealm.Server.csproj -c Release -o /out
 
 # Stage 3: Final runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0

@@ -99,7 +99,7 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
     onLogout();
   }
 
-  function updateField(field: keyof AdminConfig, value: string | number) {
+  function updateField(field: string, value: string | number) {
     if (!config) return;
     setConfig({ ...config, [field]: value });
   }
