@@ -56,3 +56,17 @@ No automated test suite. Use the desktop test client (`client/desktop-test/`) to
 
 - `.env` at project root contains `VITE_GOOGLE_MAPS_API_KEY`
 - Server config in `server/appsettings.json`
+
+## Not In Scope
+
+The following features are intentionally excluded — do not suggest or implement them:
+
+- User accounts / authentication / registration (for players — admin auth is fine)
+- Database / persistence / workout history — the app is intentionally in-memory like Kahoot
+- In-game chat / reactions / messaging
+- Sound effects / audio feedback
+- Spectator mode
+- New realm modes or sub-modes beyond the existing six
+- Custom route creation / editing
+- Multi-server scaling / distributed state
+- Content moderation system
