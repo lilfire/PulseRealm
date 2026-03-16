@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.pulserealm.client.ui.session
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import android.app.Activity
 import android.view.WindowManager
 import androidx.compose.foundation.layout.Arrangement
