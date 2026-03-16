@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace PulseRealm.DesktopTest.Services;
@@ -104,7 +105,11 @@ public class SignalRService : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            LogReceived?.Invoke($"Connection failed: {ex.Message}", "error");
+            // HubException carries the server's validation message directly
+            var msg = ex is HubException
+                ? ex.Message
+                : $"Connection failed: {ex.Message}";
+            LogReceived?.Invoke(msg, "error");
             ConnectionChanged?.Invoke(false);
             return false;
         }

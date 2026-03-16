@@ -200,7 +200,10 @@ class SignalRClient(
             )
             hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
         } catch (e: Exception) {
-            _error.value = "Join failed: ${e.message}"
+            // HubException messages from the server get wrapped by RxJava;
+            // walk the cause chain to find the original server message.
+            val root = generateSequence(e) { it.cause }.last()
+            _error.value = root.message ?: "Join failed"
         }
     }
 
