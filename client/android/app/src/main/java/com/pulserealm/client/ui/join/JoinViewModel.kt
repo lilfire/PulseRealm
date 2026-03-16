@@ -39,6 +39,7 @@ data class JoinUiState(
     val showManualEntry: Boolean = false,
     val connectionMode: ConnectionMode = ConnectionMode.LOCAL,
     val remoteUrl: String = "",
+    val isVerifyingServer: Boolean = false,
 )
 
 @HiltViewModel
@@ -100,14 +101,18 @@ class JoinViewModel @Inject constructor(
             // Remote mode — try saved remote URL directly
             _uiState.value = _uiState.value.copy(
                 serverUrl = savedRemoteUrl,
-                showManualEntry = true
+                showManualEntry = true,
+                isVerifyingServer = true
             )
             verifyCachedServer(savedRemoteUrl)
         } else {
             // Local mode — try cached URL first, then fall back to UDP scan
             val cachedUrl = prefs.getString(PREF_SERVER_URL, null)
             if (cachedUrl != null) {
-                _uiState.value = _uiState.value.copy(serverUrl = cachedUrl)
+                _uiState.value = _uiState.value.copy(
+                    serverUrl = cachedUrl,
+                    isVerifyingServer = true
+                )
                 verifyCachedServer(cachedUrl)
             } else {
                 scanForServers()
@@ -136,6 +141,7 @@ class JoinViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(
                             serverUrl = url,
                             showServerConfig = false,
+                            isVerifyingServer = false,
                             errorMessage = null
                         )
                         return@launch
@@ -147,6 +153,7 @@ class JoinViewModel @Inject constructor(
             }
 
             // Cached URL unreachable — fall back to scan
+            _uiState.value = _uiState.value.copy(isVerifyingServer = false)
             scanForServers()
         }
     }
