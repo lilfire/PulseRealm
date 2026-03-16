@@ -2,6 +2,8 @@ namespace PulseRealm.Server.Models;
 
 public class Realm
 {
+    private readonly object _lock = new();
+
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string JoinCode { get; set; } = string.Empty;
     public RealmMode Mode { get; set; }
@@ -24,6 +26,29 @@ public class Realm
         RealmMode.Social => 4,
         _ => 4,
     };
+
+    /// <summary>
+    /// Executes the given action while holding the realm's lock.
+    /// Use for all mutations to ConnectedClientIds, KnownClientIds, and ClientProfiles.
+    /// </summary>
+    public void WithLock(Action<Realm> action)
+    {
+        lock (_lock)
+        {
+            action(this);
+        }
+    }
+
+    /// <summary>
+    /// Executes the given function while holding the realm's lock and returns the result.
+    /// </summary>
+    public T WithLock<T>(Func<Realm, T> func)
+    {
+        lock (_lock)
+        {
+            return func(this);
+        }
+    }
 }
 
 public enum RealmMode

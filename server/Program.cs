@@ -11,6 +11,7 @@ builder.Services.AddSingleton<AdminConfigService>();
 builder.Services.AddSingleton<AdminAuthService>();
 builder.Services.AddTransient<AdminAuthFilter>();
 builder.Services.AddHostedService<ServerDiscoveryService>();
+builder.Services.AddHostedService<RealmCleanupService>();
 
 builder.Services.AddCors(options =>
 {

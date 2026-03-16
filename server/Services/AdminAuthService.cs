@@ -1,10 +1,15 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace PulseRealm.Server.Services;
 
 public class AdminAuthService
 {
+    private static readonly TimeSpan TokenTtl = TimeSpan.FromHours(8);
+
     private readonly string? _username;
     private readonly string? _password;
-    private readonly HashSet<string> _tokens = [];
+    private readonly Dictionary<string, DateTime> _tokens = new();
     private readonly object _lock = new();
 
     public AdminAuthService(IConfiguration configuration)
@@ -19,12 +24,12 @@ public class AdminAuthService
     {
         if (!IsConfigured) return null;
         if (!string.Equals(username, _username, StringComparison.OrdinalIgnoreCase)) return null;
-        if (password != _password) return null;
+        if (!TimingSafeEqual(password, _password!)) return null;
 
         var token = Guid.NewGuid().ToString("N");
         lock (_lock)
         {
-            _tokens.Add(token);
+            _tokens[token] = DateTime.UtcNow;
         }
         return token;
     }
@@ -41,7 +46,23 @@ public class AdminAuthService
     {
         lock (_lock)
         {
-            return _tokens.Contains(token);
+            if (!_tokens.TryGetValue(token, out var createdAt))
+                return false;
+
+            if (DateTime.UtcNow - createdAt > TokenTtl)
+            {
+                _tokens.Remove(token);
+                return false;
+            }
+
+            return true;
         }
+    }
+
+    private static bool TimingSafeEqual(string a, string b)
+    {
+        var bytesA = Encoding.UTF8.GetBytes(a);
+        var bytesB = Encoding.UTF8.GetBytes(b);
+        return CryptographicOperations.FixedTimeEquals(bytesA, bytesB);
     }
 }
