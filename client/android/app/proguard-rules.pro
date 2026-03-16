@@ -8,9 +8,12 @@
 -keep class retrofit2.** { *; }
 -dontwarn retrofit2.**
 
-# Gson
+# Gson — keep model and network data classes used for serialization
 -keep class com.pulserealm.client.data.model.** { *; }
 -keepclassmembers class com.pulserealm.client.data.model.** { *; }
+-keep class com.pulserealm.client.data.network.ClientSummaryData { *; }
+-keep class com.pulserealm.client.data.network.RealmSummaryData { *; }
+-keep class com.pulserealm.client.data.network.DiscoveredServer { *; }
 
 # OkHttp (used by SignalR and Retrofit)
 -dontwarn okhttp3.**

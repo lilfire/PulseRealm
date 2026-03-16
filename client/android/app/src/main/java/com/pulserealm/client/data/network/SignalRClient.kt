@@ -4,15 +4,17 @@ import com.microsoft.signalr.HubConnection
 import com.microsoft.signalr.HubConnectionBuilder
 import com.microsoft.signalr.HubConnectionState
 import com.pulserealm.client.data.model.WearableData
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.HashMap
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 enum class ConnectionState {
     DISCONNECTED,
@@ -49,18 +51,19 @@ data class RealmSummaryData(
     val clientSummaries: List<ClientSummaryData> = emptyList()
 )
 
-class SignalRClient {
+class SignalRClient(
+    private val reconnectScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) {
 
-    private var hubConnection: HubConnection? = null
-    private var currentServerUrl: String? = null
-    private var currentJoinCode: String? = null
-    private var currentClientId: String? = null
-    private var currentName: String = ""
-    private var currentHeightCm: Double = 0.0
-    private var currentWeightKg: Double = 0.0
-    private var intentionalDisconnect = false
+    @Volatile private var hubConnection: HubConnection? = null
+    @Volatile private var currentServerUrl: String? = null
+    @Volatile private var currentJoinCode: String? = null
+    @Volatile private var currentClientId: String? = null
+    @Volatile private var currentName: String = ""
+    @Volatile private var currentHeightCm: Double = 0.0
+    @Volatile private var currentWeightKg: Double = 0.0
+    private val intentionalDisconnect = AtomicBoolean(false)
     private var reconnectJob: Job? = null
-    private val reconnectScope = CoroutineScope(Dispatchers.IO + Job())
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -74,10 +77,10 @@ class SignalRClient {
     private val _eliminated = MutableStateFlow(false)
     val eliminated: StateFlow<Boolean> = _eliminated.asStateFlow()
 
-    fun connect(serverUrl: String) {
-        intentionalDisconnect = true
-        disconnect()
-        intentionalDisconnect = false
+    suspend fun connect(serverUrl: String) = withContext(Dispatchers.IO) {
+        intentionalDisconnect.set(true)
+        disconnectInternal()
+        intentionalDisconnect.set(false)
 
         currentServerUrl = serverUrl
         _connectionState.value = ConnectionState.CONNECTING
@@ -85,14 +88,15 @@ class SignalRClient {
 
         val url = serverUrl.trimEnd('/') + "/hubs/realm"
 
-        hubConnection = HubConnectionBuilder.create(url)
+        val connection = HubConnectionBuilder.create(url)
             .shouldSkipNegotiate(false)
             .build()
 
-        registerHubHandlers(hubConnection!!)
+        registerHubHandlers(connection)
 
         try {
-            hubConnection?.start()?.blockingAwait()
+            connection.start()?.blockingAwait()
+            hubConnection = connection
             _connectionState.value = ConnectionState.CONNECTED
         } catch (e: Exception) {
             _connectionState.value = ConnectionState.DISCONNECTED
@@ -170,7 +174,7 @@ class SignalRClient {
             }, String::class.java)
 
             onClosed {
-                if (!intentionalDisconnect && currentJoinCode != null) {
+                if (!intentionalDisconnect.get() && currentJoinCode != null) {
                     _connectionState.value = ConnectionState.RECONNECTING
                     attemptReconnect()
                 } else {
@@ -180,7 +184,7 @@ class SignalRClient {
         }
     }
 
-    fun joinRealm(joinCode: String, clientId: String, name: String = "", heightCm: Double = 0.0, weightKg: Double = 0.0) {
+    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", heightCm: Double = 0.0, weightKg: Double = 0.0) = withContext(Dispatchers.IO) {
         currentJoinCode = joinCode
         currentClientId = clientId
         currentName = name
@@ -188,12 +192,12 @@ class SignalRClient {
         currentWeightKg = weightKg
 
         try {
-            val profile = HashMap<String, Any>().apply {
-                put("clientId", clientId)
-                put("name", name)
-                put("heightCm", heightCm)
-                put("weightKg", weightKg)
-            }
+            val profile = hashMapOf<String, Any>(
+                "clientId" to clientId,
+                "name" to name,
+                "heightCm" to heightCm,
+                "weightKg" to weightKg
+            )
             hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
         } catch (e: Exception) {
             _error.value = "Join failed: ${e.message}"
@@ -204,12 +208,12 @@ class SignalRClient {
         if (hubConnection?.connectionState != HubConnectionState.CONNECTED) return
 
         try {
-            val dataMap = HashMap<String, Any>().apply {
-                put("clientId", data.clientId)
-                put("heartRate", data.heartRate)
-                put("steps", data.steps)
-                put("timestamp", data.timestamp)
-            }
+            val dataMap = hashMapOf<String, Any>(
+                "clientId" to data.clientId,
+                "heartRate" to data.heartRate,
+                "steps" to data.steps,
+                "timestamp" to data.timestamp
+            )
             hubConnection?.invoke("SendWearableData", realmId, dataMap)?.blockingAwait()
         } catch (e: Exception) {
             _error.value = "Send failed: ${e.message}"
@@ -217,7 +221,11 @@ class SignalRClient {
     }
 
     fun disconnect() {
-        intentionalDisconnect = true
+        intentionalDisconnect.set(true)
+        disconnectInternal()
+    }
+
+    private fun disconnectInternal() {
         reconnectJob?.cancel()
         reconnectJob = null
         try {
@@ -258,12 +266,12 @@ class SignalRClient {
                     _connectionState.value = ConnectionState.CONNECTED
 
                     // Re-join the realm
-                    val profile = HashMap<String, Any>().apply {
-                        put("clientId", clientId)
-                        put("name", currentName)
-                        put("heightCm", currentHeightCm)
-                        put("weightKg", currentWeightKg)
-                    }
+                    val profile = hashMapOf<String, Any>(
+                        "clientId" to clientId,
+                        "name" to currentName,
+                        "heightCm" to currentHeightCm,
+                        "weightKg" to currentWeightKg
+                    )
                     hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
                     return@launch
                 } catch (_: Exception) {
@@ -282,5 +290,10 @@ class SignalRClient {
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun dispose() {
+        disconnect()
+        reconnectScope.coroutineContext[Job]?.cancel()
     }
 }

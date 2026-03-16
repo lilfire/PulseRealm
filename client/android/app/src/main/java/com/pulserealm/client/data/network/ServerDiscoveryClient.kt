@@ -1,5 +1,6 @@
 package com.pulserealm.client.data.network
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -9,6 +10,7 @@ import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
 
 data class DiscoveredServer(
     val name: String,
@@ -24,7 +26,9 @@ data class DiscoveredServer(
  * 1. Sends a discovery request broadcast so servers respond immediately
  * 2. Listens for both direct responses and periodic server broadcast announcements
  */
-class ServerDiscoveryClient {
+class ServerDiscoveryClient(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
 
     companion object {
         const val DISCOVERY_PORT = 5063
@@ -42,15 +46,16 @@ class ServerDiscoveryClient {
      * Actively discovers servers by sending a broadcast request and listening for responses.
      * Should be called from a coroutine on IO dispatcher.
      */
-    suspend fun scan() = withContext(Dispatchers.IO) {
+    suspend fun scan() = withContext(ioDispatcher) {
         _isScanning.value = true
         _discoveredServers.value = emptyList()
         val found = mutableMapOf<String, DiscoveredServer>()
 
         try {
+            // Use ephemeral port to avoid conflicts with concurrent scans or the server
             val socket = DatagramSocket(null)
             socket.reuseAddress = true
-            socket.bind(java.net.InetSocketAddress(DISCOVERY_PORT))
+            socket.bind(InetSocketAddress(0))
             socket.broadcast = true
             socket.soTimeout = SOCKET_TIMEOUT_MS
 
@@ -90,7 +95,9 @@ class ServerDiscoveryClient {
             }
 
             socket.close()
-        } catch (e: Exception) {
+        } catch (_: java.net.BindException) {
+            // Port already in use — scan silently fails, user can retry
+        } catch (_: Exception) {
             // Discovery failed silently — user can still enter manually
         }
 

@@ -4,11 +4,17 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Timer
-import java.util.TimerTask
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SensorDataCollector(
     private val sensorManager: SensorManager
@@ -26,12 +32,11 @@ class SensorDataCollector(
     private var stepBaseline: Float? = null
     private var detectorSteps = 0
     private var useDetectorForSteps = false
-    private var isRunning = false
-    private var simulationTimer: Timer? = null
+    private val isRunning = AtomicBoolean(false)
+    private var simulationScope: CoroutineScope? = null
 
     fun start() {
-        if (isRunning) return
-        isRunning = true
+        if (!isRunning.compareAndSet(false, true)) return
 
         val heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
         val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
@@ -59,11 +64,10 @@ class SensorDataCollector(
     }
 
     fun stop() {
-        if (!isRunning) return
-        isRunning = false
+        if (!isRunning.compareAndSet(true, false)) return
         sensorManager.unregisterListener(this)
-        simulationTimer?.cancel()
-        simulationTimer = null
+        simulationScope?.cancel()
+        simulationScope = null
         stepBaseline = null
         detectorSteps = 0
         useDetectorForSteps = false
@@ -72,6 +76,7 @@ class SensorDataCollector(
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
             Sensor.TYPE_HEART_RATE -> {
+                if (event.accuracy == SensorManager.SENSOR_STATUS_UNRELIABLE) return
                 val hr = event.values[0].toInt()
                 if (hr > 0) {
                     _heartRate.value = hr
@@ -102,22 +107,22 @@ class SensorDataCollector(
 
     private fun startSimulation() {
         var simSteps = 0
-        simulationTimer = Timer().apply {
-            scheduleAtFixedRate(object : TimerTask() {
-                override fun run() {
-                    if (!isRunning) return
-                    // Simulate heart rate between 60-180 bpm with slight variation
-                    val baseHr = 90 + (Math.sin(System.currentTimeMillis() / 5000.0) * 40).toInt()
-                    val jitter = (-5..5).random()
-                    _heartRate.value = (baseHr + jitter).coerceIn(60, 180)
+        simulationScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        simulationScope?.launch {
+            while (isRunning.get()) {
+                // Simulate heart rate between 60-180 bpm with slight variation
+                val baseHr = 90 + (Math.sin(System.currentTimeMillis() / 5000.0) * 40).toInt()
+                val jitter = (-5..5).random()
+                _heartRate.value = (baseHr + jitter).coerceIn(60, 180)
 
-                    // Increment steps occasionally
-                    if ((0..2).random() > 0) {
-                        simSteps++
-                        _steps.value = simSteps
-                    }
+                // Increment steps occasionally
+                if ((0..2).random() > 0) {
+                    simSteps++
+                    _steps.value = simSteps
                 }
-            }, 0L, 1000L)
+
+                delay(1000L)
+            }
         }
     }
 }

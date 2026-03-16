@@ -1,5 +1,7 @@
 package com.pulserealm.client.ui.session
 
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,8 +38,8 @@ import androidx.wear.compose.material.VignettePosition
 import com.pulserealm.client.data.network.ClientSummaryData
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.RealmSummaryData
+import com.pulserealm.client.ui.theme.PulseColors
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun RealmScreen(
     onDisconnected: () -> Unit,
@@ -50,11 +53,13 @@ fun RealmScreen(
     val realmEnded by viewModel.realmEnded.collectAsState()
     val eliminated by viewModel.eliminated.collectAsState()
 
-    // Start streaming when screen appears
+    // Keep screen on only while in the realm (active workout)
+    val activity = LocalContext.current as? Activity
     DisposableEffect(Unit) {
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         viewModel.startStreaming()
         onDispose {
-            // Streaming continues in the foreground service
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -131,9 +136,9 @@ private fun LivePage(
         // Connection indicator
         item {
             val statusColor = when (connectionState) {
-                ConnectionState.CONNECTED -> Color(0xFF86EFAC)
-                ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> Color(0xFFFBBF24)
-                ConnectionState.DISCONNECTED -> Color(0xFFF87171)
+                ConnectionState.CONNECTED -> PulseColors.LightGreen
+                ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> PulseColors.Yellow
+                ConnectionState.DISCONNECTED -> PulseColors.Red
             }
             val statusText = when (connectionState) {
                 ConnectionState.CONNECTED -> "LIVE"
@@ -156,7 +161,7 @@ private fun LivePage(
             ) {
                 Text(
                     text = "$heartRate",
-                    color = Color(0xFFF87171),
+                    color = PulseColors.Red,
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
@@ -164,7 +169,7 @@ private fun LivePage(
                 )
                 Text(
                     text = "BPM",
-                    color = Color(0xFFF87171).copy(alpha = 0.7f),
+                    color = PulseColors.Red.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.caption3
                 )
             }
@@ -179,12 +184,12 @@ private fun LivePage(
                 StatItem(
                     value = "$steps",
                     label = "STEPS",
-                    color = Color(0xFF34D399)
+                    color = PulseColors.Green
                 )
                 StatItem(
                     value = "$sendCount",
                     label = "SENT",
-                    color = Color(0xFFA78BFA)
+                    color = PulseColors.Purple
                 )
             }
         }
@@ -194,7 +199,7 @@ private fun LivePage(
             item {
                 Text(
                     text = "Simulated sensors",
-                    color = Color(0xFFFBBF24),
+                    color = PulseColors.Yellow,
                     style = MaterialTheme.typography.caption3,
                     textAlign = TextAlign.Center
                 )
@@ -203,7 +208,6 @@ private fun LivePage(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun RealmEndedPager(
     summary: RealmSummaryData,
@@ -267,7 +271,7 @@ private fun PersonalSummaryPage(
         item {
             Text(
                 text = "PERSONAL",
-                color = Color(0xFF38BDF8),
+                color = PulseColors.Cyan,
                 style = MaterialTheme.typography.title3,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -281,12 +285,12 @@ private fun PersonalSummaryPage(
             } else {
                 "${distance.toInt()} m"
             }
-            StatItem(value = distanceText, label = "DISTANCE", color = Color(0xFF34D399))
+            StatItem(value = distanceText, label = "DISTANCE", color = PulseColors.Green)
         }
 
         // Steps
         item {
-            StatItem(value = "$steps", label = "STEPS", color = Color(0xFF34D399))
+            StatItem(value = "$steps", label = "STEPS", color = PulseColors.Green)
         }
 
         // Heart rate
@@ -296,8 +300,8 @@ private fun PersonalSummaryPage(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(value = "$avgHr", label = "AVG HR", color = Color(0xFFF87171))
-                    StatItem(value = "$peakHr", label = "PEAK HR", color = Color(0xFFF87171))
+                    StatItem(value = "$avgHr", label = "AVG HR", color = PulseColors.Red)
+                    StatItem(value = "$peakHr", label = "PEAK HR", color = PulseColors.Red)
                 }
             }
         }
@@ -305,14 +309,14 @@ private fun PersonalSummaryPage(
         // Cadence
         if (avgCadence > 0) {
             item {
-                StatItem(value = "$avgCadence", label = "AVG CADENCE", color = Color(0xFFA78BFA))
+                StatItem(value = "$avgCadence", label = "AVG CADENCE", color = PulseColors.Purple)
             }
         }
 
         // Zone breakdown
         val zoneColors = listOf(
-            Color(0xFF2DD4BF), Color(0xFF22C55E), Color(0xFFF59E0B),
-            Color(0xFFF87171), Color(0xFFEF4444)
+            PulseColors.Teal, PulseColors.BrightGreen, PulseColors.Amber,
+            PulseColors.Red, PulseColors.BrightRed
         )
         for (z in 1..5) {
             val secs = timeInZone[z.toString()] ?: 0
@@ -350,7 +354,7 @@ private fun PersonalSummaryPage(
                     .fillMaxWidth(0.7f)
                     .padding(vertical = 4.dp),
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(0xFF38BDF8)
+                    backgroundColor = PulseColors.Cyan
                 )
             ) {
                 Text(text = "OK", color = Color.White)
@@ -382,7 +386,7 @@ private fun TeamSummaryPage(teamName: String?, teamMembers: List<ClientSummaryDa
         item {
             Text(
                 text = teamName?.uppercase() ?: "TEAM",
-                color = Color(0xFFFBBF24),
+                color = PulseColors.Yellow,
                 style = MaterialTheme.typography.title3,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -396,12 +400,12 @@ private fun TeamSummaryPage(teamName: String?, teamMembers: List<ClientSummaryDa
             } else {
                 "${teamDistance.toInt()} m"
             }
-            StatItem(value = distanceText, label = "DISTANCE", color = Color(0xFF34D399))
+            StatItem(value = distanceText, label = "DISTANCE", color = PulseColors.Green)
         }
 
         // Team steps
         item {
-            StatItem(value = "$teamSteps", label = "STEPS", color = Color(0xFF34D399))
+            StatItem(value = "$teamSteps", label = "STEPS", color = PulseColors.Green)
         }
 
         // Team HR
@@ -411,8 +415,8 @@ private fun TeamSummaryPage(teamName: String?, teamMembers: List<ClientSummaryDa
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(value = "$teamAvgHr", label = "AVG HR", color = Color(0xFFF87171))
-                    StatItem(value = "$teamMaxHr", label = "PEAK HR", color = Color(0xFFF87171))
+                    StatItem(value = "$teamAvgHr", label = "AVG HR", color = PulseColors.Red)
+                    StatItem(value = "$teamMaxHr", label = "PEAK HR", color = PulseColors.Red)
                 }
             }
         }
@@ -432,7 +436,7 @@ private fun RealmSummaryPage(summary: RealmSummaryData) {
         item {
             Text(
                 text = "REALM",
-                color = Color(0xFF38BDF8),
+                color = PulseColors.Cyan,
                 style = MaterialTheme.typography.title3,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -444,7 +448,7 @@ private fun RealmSummaryPage(summary: RealmSummaryData) {
             val minutes = (summary.durationSeconds / 60).toInt()
             val seconds = (summary.durationSeconds % 60).toInt()
             val durationText = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
-            StatItem(value = durationText, label = "DURATION", color = Color(0xFF38BDF8))
+            StatItem(value = durationText, label = "DURATION", color = PulseColors.Cyan)
         }
 
         // Active period
@@ -452,12 +456,12 @@ private fun RealmSummaryPage(summary: RealmSummaryData) {
             val minutes = (summary.activePeriodSeconds / 60).toInt()
             val seconds = (summary.activePeriodSeconds % 60).toInt()
             val activeText = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
-            StatItem(value = activeText, label = "ACTIVE TIME", color = Color(0xFF34D399))
+            StatItem(value = activeText, label = "ACTIVE TIME", color = PulseColors.Green)
         }
 
         // Participants
         item {
-            StatItem(value = "${summary.participantCount}", label = "PARTICIPANTS", color = Color(0xFFA78BFA))
+            StatItem(value = "${summary.participantCount}", label = "PARTICIPANTS", color = PulseColors.Purple)
         }
     }
 }
@@ -478,7 +482,7 @@ private fun RealmSettingsPage(
             Text(
                 text = "Settings",
                 style = MaterialTheme.typography.title3,
-                color = Color(0xFF38BDF8),
+                color = PulseColors.Cyan,
                 textAlign = TextAlign.Center
             )
         }
@@ -491,7 +495,7 @@ private fun RealmSettingsPage(
                     .fillMaxWidth(0.7f)
                     .padding(vertical = 4.dp),
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(0xFFEF4444)
+                    backgroundColor = PulseColors.BrightRed
                 )
             ) {
                 Text(
@@ -522,7 +526,7 @@ private fun EliminatedScreen(
             item {
                 Text(
                     text = "ELIMINATED",
-                    color = Color(0xFFEF4444),
+                    color = PulseColors.BrightRed,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
@@ -554,7 +558,7 @@ private fun EliminatedScreen(
                         .fillMaxWidth(0.7f)
                         .padding(vertical = 4.dp),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFFEF4444)
+                        backgroundColor = PulseColors.BrightRed
                     )
                 ) {
                     Text(text = "LEAVE", color = Color.White)
