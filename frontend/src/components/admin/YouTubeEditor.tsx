@@ -93,7 +93,16 @@ export function YouTubeEditor({ videos, onChange }: Props) {
               alt=""
               style={{ width: "48px", height: "36px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }}
             />
-            <span style={{ flex: 1, fontSize: "0.9rem", color: "var(--text-h, #f3f4f6)" }}>{v.title}</span>
+            <a
+              href={v.url || `https://www.youtube.com/watch?v=${v.videoId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ flex: 1, fontSize: "0.9rem", color: "var(--accent2, #33DFFF)", textDecoration: "none" }}
+              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+            >
+              {v.title}
+            </a>
             <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>{v.videoId}</span>
             <button onClick={() => startEdit(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "var(--text)" }}>
               Edit

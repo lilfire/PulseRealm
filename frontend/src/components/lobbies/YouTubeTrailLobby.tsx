@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { ClientProfile } from "../../types/session";
+import type { ClientProfile, RealmMode } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
 export interface YouTubeVideo {
@@ -10,6 +10,7 @@ export interface YouTubeVideo {
 
 interface Props {
   joinCode: string;
+  mode: RealmMode;
   clients: string[];
   clientProfiles: Record<string, ClientProfile>;
   connected: boolean;
@@ -60,7 +61,7 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedVideos }: Props) {
+export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedVideos }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -97,6 +98,7 @@ export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected
   return (
     <LobbyShell
       joinCode={joinCode}
+      mode={mode}
       clients={clients}
       clientProfiles={clientProfiles}
       connected={connected}

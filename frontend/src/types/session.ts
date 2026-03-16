@@ -33,6 +33,18 @@ export interface Realm {
   mode: RealmMode;
 }
 
+export function maxClientsForMode(mode: RealmMode): number {
+  switch (mode) {
+    case "competition": return 8;
+    case "streetview": return 1;
+    case "youtubetrail": return 4;
+    case "route": return 1;
+    case "dungeon": return 4;
+    case "social": return 4;
+    default: return 4;
+  }
+}
+
 export interface ClientProfile {
   clientId: string;
   name: string;

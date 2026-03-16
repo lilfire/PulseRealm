@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ClientProfile } from "../../types/session";
+import type { ClientProfile, RealmMode } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
 export type DungeonDifficulty = "easy" | "normal" | "hard";
@@ -16,6 +16,7 @@ export interface DungeonDefaults {
 
 interface Props {
   joinCode: string;
+  mode: RealmMode;
   clients: string[];
   clientProfiles: Record<string, ClientProfile>;
   connected: boolean;
@@ -33,7 +34,7 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
+export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
   const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
     validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
@@ -43,6 +44,7 @@ export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onS
   return (
     <LobbyShell
       joinCode={joinCode}
+      mode={mode}
       clients={clients}
       clientProfiles={clientProfiles}
       connected={connected}

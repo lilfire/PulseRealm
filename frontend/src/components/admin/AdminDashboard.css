@@ -23,12 +23,13 @@
 .admin-screen {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100svh;
+  height: 100vh;
+  height: 100svh;
   font-family: system-ui, -apple-system, sans-serif;
   padding: 2rem;
   max-width: 800px;
   margin: 0 auto;
+  overflow: hidden;
 }
 
 .admin-header {
@@ -80,14 +81,17 @@
 .admin-content {
   flex: 1;
   text-align: left;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .admin-footer-bar {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid var(--border, #2e303a);
 }
 

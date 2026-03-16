@@ -434,6 +434,7 @@ function App() {
   if (!started) {
     const lobbyProps = {
       joinCode: realm.joinCode,
+      mode: realm.mode,
       clients,
       clientProfiles,
       connected,

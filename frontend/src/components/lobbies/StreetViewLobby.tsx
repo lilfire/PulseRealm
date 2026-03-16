@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ClientProfile } from "../../types/session";
+import type { ClientProfile, RealmMode } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { LobbyShell } from "./LobbyShell";
 
@@ -11,6 +11,7 @@ export interface StreetViewLocation {
 
 interface Props {
   joinCode: string;
+  mode: RealmMode;
   clients: string[];
   clientProfiles: Record<string, ClientProfile>;
   connected: boolean;
@@ -68,7 +69,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedLocations }: Props) {
+export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedLocations }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
   const [query, setQuery] = useState("");
@@ -151,6 +152,7 @@ export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, 
   return (
     <LobbyShell
       joinCode={joinCode}
+      mode={mode}
       clients={clients}
       clientProfiles={clientProfiles}
       connected={connected}

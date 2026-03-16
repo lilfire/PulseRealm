@@ -69,7 +69,16 @@ export function StreetViewEditor({ locations, onChange }: Props) {
               border: editIdx === i ? "1px solid var(--accent2, #33DFFF)" : "1px solid var(--border, #2e303a)",
             }}
           >
-            <span style={{ flex: 1, fontSize: "0.9rem", color: "var(--text-h, #f3f4f6)" }}>{loc.address}</span>
+            <a
+              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${loc.lat},${loc.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ flex: 1, fontSize: "0.9rem", color: "var(--accent2, #33DFFF)", textDecoration: "none" }}
+              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+            >
+              {loc.address}
+            </a>
             <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>
               {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}
             </span>
