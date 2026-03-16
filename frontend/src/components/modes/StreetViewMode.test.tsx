@@ -15,7 +15,7 @@ beforeAll(() => {
     }
     lat() { return this._lat; }
     lng() { return this._lng; }
-    equals(other: any) { return other.lat() === this._lat && other.lng() === this._lng; }
+    equals(other: MockLatLng) { return other.lat() === this._lat && other.lng() === this._lng; }
   }
 
   class MockStreetViewPanorama {
@@ -28,11 +28,11 @@ beforeAll(() => {
     getPano = vi.fn(() => "test-pano");
     getPosition = vi.fn(() => new MockLatLng(0, 0));
     setVisible = vi.fn();
-    constructor(_el: any, _opts?: any) {}
+    constructor(_el: unknown, _opts?: unknown) {}
   }
 
   class MockStreetViewService {
-    getPanorama = vi.fn((_req: any, cb: Function) => {
+    getPanorama = vi.fn((_req: unknown, cb: Function) => {
       cb(
         {
           location: {
@@ -91,7 +91,7 @@ const makeData = (clientId: string, heartRate: number, steps: number, speedKmh =
 });
 
 const startLocation: StreetViewLocation = {
-  name: "Test Location",
+  address: "Test Location",
   lat: 48.8566,
   lng: 2.3522,
 };

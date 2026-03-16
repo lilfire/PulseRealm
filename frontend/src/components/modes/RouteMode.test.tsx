@@ -15,14 +15,14 @@ beforeAll(() => {
     }
     lat() { return this._lat; }
     lng() { return this._lng; }
-    equals(other: any) { return other.lat() === this._lat && other.lng() === this._lng; }
+    equals(other: MockLatLng) { return other.lat() === this._lat && other.lng() === this._lng; }
   }
 
   class MockMap {
     fitBounds = vi.fn();
     panTo = vi.fn();
     setCenter = vi.fn();
-    constructor(_el: any, _opts?: any) {}
+    constructor(_el: unknown, _opts?: unknown) {}
   }
 
   class MockMarker {
@@ -37,12 +37,12 @@ beforeAll(() => {
       strokeWeight: 2,
       rotation: 0,
     }));
-    constructor(_opts?: any) {}
+    constructor(_opts?: unknown) {}
   }
 
   class MockPolyline {
     setPath = vi.fn();
-    constructor(_opts?: any) {}
+    constructor(_opts?: unknown) {}
   }
 
   class MockLatLngBounds {
@@ -51,7 +51,7 @@ beforeAll(() => {
   }
 
   class MockDirectionsService {
-    route = vi.fn((_req: any, cb: Function) => {
+    route = vi.fn((_req: unknown, cb: Function) => {
       cb(
         {
           routes: [
@@ -80,7 +80,7 @@ beforeAll(() => {
     constructor() {}
   }
 
-  (window as any).google = {
+  (window as unknown as Record<string, unknown>).google = {
     maps: {
       Map: MockMap,
       Marker: MockMarker,
@@ -273,15 +273,15 @@ describe("RouteMode", () => {
 
   it("handles directions failure gracefully (draws fallback straight line)", () => {
     // Override DirectionsService to return failure
-    const OriginalDirectionsService = (window as any).google.maps.DirectionsService;
+    const OriginalDirectionsService = (window as unknown as Record<string, Record<string, Record<string, unknown>>>).google.maps.DirectionsService;
 
     class FailingDirectionsService {
-      route = vi.fn((_req: any, cb: Function) => {
+      route = vi.fn((_req: unknown, cb: Function) => {
         cb(null, "NOT_FOUND");
       });
       constructor() {}
     }
-    (window as any).google.maps.DirectionsService = FailingDirectionsService;
+    (window as unknown as Record<string, Record<string, Record<string, unknown>>>).google.maps.DirectionsService = FailingDirectionsService;
 
     render(<RouteMode {...defaultProps} />);
     // Component should render without crashing even when directions fail
@@ -290,6 +290,6 @@ describe("RouteMode", () => {
     expect(screen.queryByText("5 km")).toBeNull();
 
     // Restore original
-    (window as any).google.maps.DirectionsService = OriginalDirectionsService;
+    (window as unknown as Record<string, Record<string, Record<string, unknown>>>).google.maps.DirectionsService = OriginalDirectionsService;
   });
 });

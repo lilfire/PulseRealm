@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import type { Mock } from "vitest";
+import type { ClientProfile } from "./types/session";
 
 // __APP_VERSION__ is defined in vitest.config.ts via `define`, but we also set
 // it here so the module-level const in App.tsx resolves correctly when the
@@ -175,7 +176,7 @@ const baseRealmHub = {
   ended: false,
   realmSummary: null,
   clients: [] as string[],
-  clientProfiles: {} as Record<string, unknown>,
+  clientProfiles: {} as Record<string, ClientProfile>,
   latestData: null,
   realmConfig: null,
   startRealm: mockStartRealm,
@@ -687,7 +688,6 @@ describe("game mode rendering", () => {
     });
 
     // Click Start in the stubbed lobby — this calls onStart which sets competitionConfig
-    const config = { subMode: "race" as const, playerFormat: "individual" as const, teams: [], targetDistanceKm: 5, intervalMinutes: 3, targetZone: 3, durationMinutes: 20 };
     fireEvent.click(screen.getByRole("button", { name: "Start Competition" }));
 
     await waitFor(() => {

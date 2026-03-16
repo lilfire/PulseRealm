@@ -243,17 +243,8 @@ describe("CompetitionMode — HeartZone", () => {
 
   it("shows bpm range for target zone", () => {
     render(<CompetitionMode {...defaultProps} config={makeHeartzoneConfig({ targetZone: 3 })} />);
-    // Zone 3: 63-76% of 190 => 119-144 bpm — text is split across JSX nodes
-    // Find container element whose textContent includes the expected values
-    const containers = document.querySelectorAll("*");
-    const found = Array.from(containers).some(
-      (el) => el.children.length === 0 || (
-        el.textContent?.includes("119") &&
-        el.textContent?.includes("144") &&
-        el.textContent?.includes("bpm")
-      )
-    );
-    expect(found).toBe(true);
+    // Zone 3: ZONE_BOUNDS[2..3] = [0.63, 0.76] → round(0.63*190)=120, round(0.76*190)=144
+    expect(screen.getByText(/120.*144.*bpm/)).toBeInTheDocument();
   });
 
   it("shows remaining time countdown", () => {

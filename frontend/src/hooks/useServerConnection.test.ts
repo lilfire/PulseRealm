@@ -309,13 +309,15 @@ describe("useServerConnection – searchForServer", () => {
     const { useServerConnection } = await import("./useServerConnection");
     const { result } = renderHook(() => useServerConnection());
 
+    // Real timers required — the hook uses internal setTimeout for search retries.
+    // The scan completes quickly with fast-failing fetch mocks.
     await waitFor(
       () => {
         expect(result.current.searchPhase).toBe("not_found");
       },
-      { timeout: 15000 }
+      { timeout: 10000 }
     );
-  }, 20000);
+  }, 15000);
 
   it("isConnected becomes true when connectRemote discovers a server", async () => {
     const targetUrl = "http://my-server.local:5062";
