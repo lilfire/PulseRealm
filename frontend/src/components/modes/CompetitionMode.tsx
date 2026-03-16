@@ -146,6 +146,9 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   const [realmEnded, setRealmEnded] = useState(false);
   const endedRef = useRef(false);
 
+  // Idle detection: track previous active states to avoid spurious re-renders
+  const prevActiveStatesRef = useRef<Record<string, boolean>>({});
+
   // Stable ref for onEnd so handleEnd doesn't change every render
   const onEndRef = useRef(onEnd);
   useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
@@ -328,10 +331,16 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
     const id = setInterval(() => {
       const now = Date.now();
       const trackers = trackersRef.current;
+      let changed = false;
       for (const cid of Object.keys(trackers)) {
-        trackers[cid].active = now - trackers[cid].lastDataTime < IDLE_TIMEOUT_MS;
+        const nextActive = now - trackers[cid].lastDataTime < IDLE_TIMEOUT_MS;
+        if (nextActive !== prevActiveStatesRef.current[cid]) {
+          prevActiveStatesRef.current[cid] = nextActive;
+          changed = true;
+        }
+        trackers[cid].active = nextActive;
       }
-      rerender();
+      if (changed) rerender();
     }, 2000);
     return () => clearInterval(id);
   }, []);
@@ -340,12 +349,14 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   useEffect(() => {
     const id = setInterval(() => {
+      if (endedRef.current) return;
+
       const trackers = trackersRef.current;
       const now = Date.now();
       const secs = Math.floor((now - startTimeRef.current) / 1000);
 
       // Check timed modes for end
-      if ((config.subMode === "heartzone" || config.subMode === "king") && secs >= config.durationMinutes * 60 && !realmEnded) {
+      if ((config.subMode === "heartzone" || config.subMode === "king") && secs >= config.durationMinutes * 60) {
         setRealmEnded(true);
         return;
       }
@@ -445,7 +456,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         const activeEntities = getActiveEntities(trackers);
 
         // Last man standing — auto-end
-        if (activeEntities.length <= 1 && !realmEnded && !endedRef.current) {
+        if (activeEntities.length <= 1 && !endedRef.current) {
           if (activeEntities.length === 1) {
             setElimWinner(activeEntities[0]);
           }
@@ -497,8 +508,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           }
         }
 
-        // Auto-end if a winner was determined but realmEnded hasn't been set yet
-        if (raceWinner && !realmEnded && !endedRef.current) {
+        // Auto-end if a winner was determined but realm hasn't ended yet
+        if (raceWinner && !endedRef.current) {
           setRealmEnded(true);
         }
       }
@@ -507,7 +518,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
     }, 1000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- eliminateLowest/getActiveEntities are stable within the same render
-  }, [clients, config, isTeam, realmEnded, raceWinner]);
+  }, [clients, config, isTeam, raceWinner]);
 
   // ── End handler ────────────────────────────────────────────────────────────
 
@@ -762,7 +773,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 color: elimCountdown <= 10 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
-                {formatCountdown(elimCountdown)}
+                {formatDuration(elimCountdown)}
               </div>
               <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
                 until elimination
@@ -776,7 +787,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 color: remainingSecs <= 60 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
-                {formatCountdown(remainingSecs)}
+                {formatDuration(remainingSecs)}
               </div>
               <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
                 remaining

@@ -18,7 +18,10 @@ function getApiKey(): Promise<string> {
       return key;
     })
     .catch(() => {
-      // Server not reachable (local dev), fall back to build-time key
+      // Server not reachable (local dev), fall back to build-time key.
+      // Reset the promise so the next call retries the fetch rather than
+      // permanently returning a rejected promise.
+      keyPromise = null;
       cachedApiKey = BUILD_TIME_KEY;
       return BUILD_TIME_KEY;
     });
@@ -37,7 +40,12 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,routes`;
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Maps API"));
+    script.onerror = () => {
+      // Reset so the next call re-attempts appending the script rather than
+      // permanently returning a rejected promise.
+      loadPromise = null;
+      reject(new Error("Failed to load Google Maps API"));
+    };
     document.head.appendChild(script);
   });
 

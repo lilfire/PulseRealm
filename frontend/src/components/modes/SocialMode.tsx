@@ -242,7 +242,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
         setSyncDuration(0);
       }
     }
-  }, [latestData, clients, syncZone, elapsed]);
+  }, [latestData, clients, syncZone]);
 
   // ── Derived values ───────────────────────────────────────────────────────
 
@@ -531,14 +531,6 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
           {formatDuration(elapsed)}
         </div>
       </div>
-
-      {/* Pulse animation keyframes */}
-      <style>{`
-        @keyframes pulse-dot {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.3); }
-        }
-      `}</style>
 
       {/* Hidden end button — session ends from the lobby/host */}
       <button

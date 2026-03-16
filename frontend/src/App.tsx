@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRealmHub } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
@@ -70,6 +70,9 @@ function App() {
   const [adminEnabled, setAdminEnabled] = useState(false);
   const [lobbyDefaults, setLobbyDefaults] = useState<LobbyDefaults | null>(null);
 
+  // Create realm error state (auto-cleared after display)
+  const [createError, setCreateError] = useState<string | null>(null);
+
   // Join realm UI state
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState("");
@@ -94,10 +97,70 @@ function App() {
       .then((r) => r.json())
       .then((data) => {
         setAdminEnabled(data.adminEnabled ?? false);
-        if (data.defaults) setLobbyDefaults(data.defaults);
+        if (data.defaults && typeof data.defaults === "object") {
+          setLobbyDefaults(data.defaults as LobbyDefaults);
+        }
       })
       .catch(() => {});
   }, [apiUrl]);
+
+  // Issue #7 — resetRealm wrapped in useCallback so identity is stable across renders
+  const resetRealm = useCallback(() => {
+    setRealm(null);
+    setViewOnly(false);
+    setStreetViewLocation(null);
+    setYoutubeVideo(null);
+    setRouteConfig(null);
+    setDungeonConfig(null);
+    setCompetitionConfig(null);
+    setShowJoinInput(false);
+    setJoinCodeInput("");
+    setJoinError("");
+  }, []);
+
+  // Issue #8 — noOpEnd is a stable no-op for view-only mode
+  const noOpEnd = useCallback(() => {}, []);
+
+  // Issue #8 — stable onEnd handlers for each mode; they delegate to noOpEnd or endRealm
+  const onEndSimple = useCallback(
+    (totalDistance: number) => {
+      if (viewOnly) return;
+      endRealm(totalDistance);
+    },
+    [viewOnly, endRealm]
+  );
+  const onEndWithOverrides = useCallback(
+    (totalDistance: number, overrides?: Record<string, number>) => {
+      if (viewOnly) return;
+      endRealm(totalDistance, overrides);
+    },
+    [viewOnly, endRealm]
+  );
+  // Stable eliminate handler — noOpEnd reused here for the view-only branch
+  const onEliminate = useCallback(
+    (clientId: string) => {
+      if (viewOnly) return;
+      notifyEliminated(clientId);
+    },
+    [viewOnly, notifyEliminated]
+  );
+
+  // Issue #16 — lightweight runtime type guards before casting realmConfig
+  function isStreetViewLocation(v: unknown): v is StreetViewLocation {
+    return typeof v === "object" && v !== null && "lat" in v && "lng" in v;
+  }
+  function isCompetitionConfig(v: unknown): v is CompetitionConfig {
+    return typeof v === "object" && v !== null && "subMode" in v;
+  }
+  function isYouTubeVideo(v: unknown): v is YouTubeVideo {
+    return typeof v === "object" && v !== null && "videoId" in v;
+  }
+  function isRouteConfig(v: unknown): v is RouteConfig {
+    return typeof v === "object" && v !== null && "waypoints" in v;
+  }
+  function isDungeonConfig(v: unknown): v is DungeonConfig {
+    return typeof v === "object" && v !== null && "difficulty" in v;
+  }
 
   // Admin pages
   if (page === "admin-login") {
@@ -137,21 +200,9 @@ function App() {
     );
   }
 
-  function resetRealm() {
-    setRealm(null);
-    setViewOnly(false);
-    setStreetViewLocation(null);
-    setYoutubeVideo(null);
-    setRouteConfig(null);
-    setDungeonConfig(null);
-    setCompetitionConfig(null);
-    setShowJoinInput(false);
-    setJoinCodeInput("");
-    setJoinError("");
-  }
-
   async function createRealm(mode: RealmMode) {
     setCreatingMode(mode);
+    setCreateError(null);
     try {
       const modeMap: Record<RealmMode, number> = {
         competition: 0,
@@ -167,12 +218,20 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: modeValue }),
       });
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
       const data = await res.json();
       setRealm({
         id: data.id,
         joinCode: data.joinCode,
         mode,
       });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create realm.";
+      setCreateError(message);
+      // Auto-clear the error after 5 seconds
+      setTimeout(() => setCreateError(null), 5000);
     } finally {
       setCreatingMode(null);
     }
@@ -208,12 +267,13 @@ function App() {
     }
   }
 
-  // For view-only mode, use realmConfig from the hub when the host hasn't set local config
-  const effectiveStreetViewLocation = streetViewLocation ?? (realmConfig as StreetViewLocation | null);
-  const effectiveCompetitionConfig = competitionConfig ?? (realmConfig as CompetitionConfig | null);
-  const effectiveYoutubeVideo = youtubeVideo ?? (realmConfig as YouTubeVideo | null);
-  const effectiveRouteConfig = routeConfig ?? (realmConfig as RouteConfig | null);
-  const effectiveDungeonConfig = dungeonConfig ?? (realmConfig as DungeonConfig | null);
+  // For view-only mode, use realmConfig from the hub when the host hasn't set local config.
+  // Runtime type guards (Issue #16) prevent unsafe blind casts.
+  const effectiveStreetViewLocation = streetViewLocation ?? (isStreetViewLocation(realmConfig) ? realmConfig : null);
+  const effectiveCompetitionConfig = competitionConfig ?? (isCompetitionConfig(realmConfig) ? realmConfig : null);
+  const effectiveYoutubeVideo = youtubeVideo ?? (isYouTubeVideo(realmConfig) ? realmConfig : null);
+  const effectiveRouteConfig = routeConfig ?? (isRouteConfig(realmConfig) ? realmConfig : null);
+  const effectiveDungeonConfig = dungeonConfig ?? (isDungeonConfig(realmConfig) ? realmConfig : null);
 
   if (!realm) {
     return (
@@ -279,6 +339,13 @@ function App() {
               <span className="mode-desc">Hang out and move together</span>
             </button>
           </div>
+
+          {/* Create realm error banner (Issue #28) */}
+          {createError && (
+            <p className="error-message" style={{ textAlign: "center", marginTop: "0.75rem" }}>
+              {createError}
+            </p>
+          )}
 
           {/* Join Realm Section */}
           <div className="join-realm-section">
@@ -455,9 +522,6 @@ function App() {
     );
   }
 
-  // No-op end handler for view-only mode
-  const noOpEnd = () => {};
-
   if (realm.mode === "youtubetrail" && effectiveYoutubeVideo) {
     return (
       <YouTubeTrailMode
@@ -465,7 +529,7 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         video={effectiveYoutubeVideo}
-        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
+        onEnd={viewOnly ? noOpEnd : onEndSimple}
       />
     );
   }
@@ -477,7 +541,7 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         startLocation={effectiveStreetViewLocation}
-        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
+        onEnd={viewOnly ? noOpEnd : onEndSimple}
       />
     );
   }
@@ -489,7 +553,7 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         route={effectiveRouteConfig}
-        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
+        onEnd={viewOnly ? noOpEnd : onEndSimple}
       />
     );
   }
@@ -501,7 +565,7 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         config={effectiveDungeonConfig}
-        onEnd={viewOnly ? noOpEnd : (totalDistance) => endRealm(totalDistance)}
+        onEnd={viewOnly ? noOpEnd : onEndSimple}
       />
     );
   }
@@ -512,7 +576,7 @@ function App() {
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        onEnd={viewOnly ? noOpEnd : (totalDistance, overrides) => endRealm(totalDistance, overrides)}
+        onEnd={viewOnly ? noOpEnd : onEndWithOverrides}
       />
     );
   }
@@ -524,8 +588,8 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         config={effectiveCompetitionConfig}
-        onEnd={viewOnly ? noOpEnd : (totalDistance, overrides) => endRealm(totalDistance, overrides)}
-        onEliminate={viewOnly ? () => {} : notifyEliminated}
+        onEnd={viewOnly ? noOpEnd : onEndWithOverrides}
+        onEliminate={onEliminate}
       />
     );
   }

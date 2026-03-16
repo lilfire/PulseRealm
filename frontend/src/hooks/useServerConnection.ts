@@ -34,14 +34,17 @@ export type SearchPhase = "idle" | "searching" | "found" | "not_found";
  */
 async function getLocalIp(): Promise<string | null> {
   return new Promise((resolve) => {
+    let pc: RTCPeerConnection | null = null;
+
     const timeout = setTimeout(() => {
-      pc.close();
+      pc?.close();
       resolve(null);
     }, 3000);
+
     try {
-      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc = new RTCPeerConnection({ iceServers: [] });
       pc.createDataChannel("");
-      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+      pc.createOffer().then((offer) => pc!.setLocalDescription(offer));
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
         const match = event.candidate.candidate.match(
@@ -51,15 +54,15 @@ async function getLocalIp(): Promise<string | null> {
           const ip = match[1];
           if (!ip.startsWith("127.") && !ip.startsWith("0.")) {
             clearTimeout(timeout);
-            pc.close();
+            pc!.close();
             resolve(ip);
           }
         }
       };
       pc.onicegatheringstatechange = () => {
-        if (pc.iceGatheringState === "complete") {
+        if (pc!.iceGatheringState === "complete") {
           clearTimeout(timeout);
-          pc.close();
+          pc!.close();
           resolve(null);
         }
       };

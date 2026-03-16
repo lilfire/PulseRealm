@@ -59,6 +59,12 @@ function PlaceInput({
     }
   }, [mapsLoaded]);
 
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
   const fetchSuggestions = useCallback((input: string) => {
     if (!autocompleteService.current || input.length < 2) {
       setSuggestions([]);
@@ -132,6 +138,7 @@ function PlaceInput({
         />
         {showSuggestions && suggestions.length > 0 && (
           <ul
+            role="listbox"
             style={{
               position: "absolute",
               top: "100%",
@@ -152,6 +159,8 @@ function PlaceInput({
             {suggestions.map((s) => (
               <li
                 key={s.placeId}
+                role="option"
+                aria-selected={false}
                 onMouseDown={() => selectSuggestion(s)}
                 style={{
                   padding: "0.5rem 0.75rem",
