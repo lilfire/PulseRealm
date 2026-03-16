@@ -228,7 +228,7 @@ export function CompetitionLobby({ joinCode, clients, clientProfiles, connected,
           <h3>Team Assignment</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "0.75rem", maxWidth: 500, margin: "0.75rem auto 0" }}>
             {teams.map((team, ti) => (
-              <div key={ti} style={{
+              <div key={team.name} style={{
                 background: "var(--code-bg, #1f2028)",
                 border: `2px solid ${team.color}`,
                 borderRadius: 10,

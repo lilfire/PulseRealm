@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SearchPhase, ConnectionMode } from "../hooks/useServerConnection";
 
 interface ServerConnectProps {
@@ -28,6 +28,10 @@ export function ServerConnect({
 }: ServerConnectProps) {
   const [url, setUrl] = useState(remoteUrl || "");
   const [activeMode, setActiveMode] = useState<ConnectionMode>(connectionMode);
+
+  useEffect(() => {
+    setActiveMode(connectionMode);
+  }, [connectionMode]);
 
   async function handleRemoteSubmit(e: React.FormEvent) {
     e.preventDefault();

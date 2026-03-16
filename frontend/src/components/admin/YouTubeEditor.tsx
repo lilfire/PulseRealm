@@ -77,7 +77,7 @@ export function YouTubeEditor({ videos, onChange }: Props) {
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {videos.map((v, i) => (
           <div
-            key={i}
+            key={v.videoId || i}
             style={{
               display: "flex",
               alignItems: "center",
