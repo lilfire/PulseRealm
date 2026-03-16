@@ -55,7 +55,7 @@ describe("YouTubeTrailLobby", () => {
       }));
       render(<YouTubeTrailLobby {...baseProps} clients={[]} clientProfiles={{}} curatedVideos={manyVideos} />);
       // With no players, only the video suggestion list items are rendered
-      const items = screen.getAllByRole("listitem");
+      const items = screen.getAllByRole("option");
       // randomVideos picks 5
       expect(items.length).toBe(5);
     });
