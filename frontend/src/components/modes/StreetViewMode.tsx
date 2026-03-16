@@ -155,6 +155,13 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     }
   }, [getActivePanorama, preloadOnBack]);
 
+  // Keep a ref to the latest preloadCurrentLinks so the init effect can call it
+  // without listing it as a dependency (which would risk re-initializing the panos).
+  const preloadCurrentLinksRef = useRef(preloadCurrentLinks);
+  useEffect(() => {
+    preloadCurrentLinksRef.current = preloadCurrentLinks;
+  }, [preloadCurrentLinks]);
+
   // Initialize both panoramas once
   useEffect(() => {
     if (!containerARef.current || !containerBRef.current || panoARef.current) return;
@@ -162,6 +169,9 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     const startPos = new google.maps.LatLng(startLocation.lat, startLocation.lng);
     const svService = new google.maps.StreetViewService();
     svServiceRef.current = svService;
+
+    // Listeners registered inside the async callback — stored for cleanup.
+    const registeredListeners: google.maps.MapsEventListener[] = [];
 
     svService.getPanorama(
       { location: startPos, radius: 500 },
@@ -183,7 +193,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
         // Track position changes on both panos (whichever is active)
         const trackPosition = (pano: google.maps.StreetViewPanorama) => {
-          pano.addListener("position_changed", () => {
+          const listener = pano.addListener("position_changed", () => {
             const newPos = pano.getPosition();
             if (!newPos) return;
             const prevPos = currentPositionRef.current;
@@ -195,17 +205,22 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
             }
             currentPositionRef.current = newPos;
           });
+          registeredListeners.push(listener);
         };
         trackPosition(panoA);
         trackPosition(panoB);
 
         // Preload upcoming panos when links become available
-        panoA.addListener("links_changed", () => {
-          if (activePanoRef.current === "A") preloadCurrentLinks();
-        });
-        panoB.addListener("links_changed", () => {
-          if (activePanoRef.current === "B") preloadCurrentLinks();
-        });
+        registeredListeners.push(
+          panoA.addListener("links_changed", () => {
+            if (activePanoRef.current === "A") preloadCurrentLinksRef.current();
+          }),
+        );
+        registeredListeners.push(
+          panoB.addListener("links_changed", () => {
+            if (activePanoRef.current === "B") preloadCurrentLinksRef.current();
+          }),
+        );
 
         currentPositionRef.current = data.location.latLng as google.maps.LatLng;
         if (data.location.pano) {
@@ -218,10 +233,15 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     );
 
     return () => {
+      registeredListeners.forEach((l) => l.remove());
+      if (backTilesListenerRef.current) {
+        backTilesListenerRef.current.remove();
+        backTilesListenerRef.current = null;
+      }
       panoARef.current = null;
       panoBRef.current = null;
     };
-  }, [startLocation, preloadCurrentLinks]);
+  }, [startLocation]);
 
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;

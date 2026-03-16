@@ -18,6 +18,7 @@ const MAX_PLAYBACK_RATE = 2.0;
 export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, onEnd }: Props) {
   const playerRef = useRef<YT.Player | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevYTCallbackRef = useRef<(() => void) | undefined>(undefined);
   const speedRef = useRef(0);
   const totalDistanceRef = useRef(0);
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
@@ -52,8 +53,10 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
       return;
     }
 
-    // Set up callback before loading script
+    // Set up callback before loading script; persist prevCallback in a ref
+    // so the cleanup function can restore it even after this effect has closed.
     const prevCallback = ytWindow.onYouTubeIframeAPIReady;
+    prevYTCallbackRef.current = prevCallback;
     ytWindow.onYouTubeIframeAPIReady = () => {
       prevCallback?.();
       createPlayer();
@@ -94,6 +97,11 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
     }
 
     return () => {
+      // Restore the global callback that was in place before this component
+      // installed its own, so other callers are not silently dropped.
+      const ytWin = window as Window & { onYouTubeIframeAPIReady?: () => void };
+      ytWin.onYouTubeIframeAPIReady = prevYTCallbackRef.current;
+
       if (playerRef.current) {
         playerRef.current.destroy();
         playerRef.current = null;
