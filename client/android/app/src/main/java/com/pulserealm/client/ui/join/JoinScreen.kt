@@ -72,7 +72,9 @@ fun JoinScreen(
         return
     }
 
-    if (uiState.showServerConfig) {
+    if (uiState.isVerifyingServer) {
+        ConnectingScreen()
+    } else if (uiState.showServerConfig) {
         ServerConfigScreen(viewModel = viewModel)
     } else {
         JoinCodeScreen(
@@ -80,6 +82,35 @@ fun JoinScreen(
             connectionState = connectionState,
             viewModel = viewModel
         )
+    }
+}
+
+@Composable
+private fun ConnectingScreen() {
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    indicatorColor = Color(0xFF38BDF8)
+                )
+                Text(
+                    text = "Connecting...",
+                    color = Color(0xFF94A3B8),
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
