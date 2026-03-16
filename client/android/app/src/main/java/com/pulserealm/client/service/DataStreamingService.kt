@@ -4,8 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
 import android.os.IBinder
+import android.os.PowerManager
 import com.pulserealm.client.R
 import com.pulserealm.client.data.model.WearableData
 import com.pulserealm.client.data.network.SignalRClient
@@ -33,6 +36,8 @@ class DataStreamingService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var streamingJob: Job? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,6 +58,8 @@ class DataStreamingService : Service() {
         val intervalMs = intent.getLongExtra(EXTRA_INTERVAL_MS, 1000L)
 
         startForeground(NOTIFICATION_ID, buildNotification())
+        acquireWifiLock()
+        acquireWakeLock()
         sensorDataCollector.start()
         startStreaming(realmId, clientId, intervalMs)
 
@@ -64,6 +71,8 @@ class DataStreamingService : Service() {
     override fun onDestroy() {
         streamingJob?.cancel()
         sensorDataCollector.stop()
+        releaseWifiLock()
+        releaseWakeLock()
         scope.cancel()
         super.onDestroy()
     }
@@ -83,6 +92,35 @@ class DataStreamingService : Service() {
                 delay(intervalMs)
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireWifiLock() {
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "PulseRealm:Streaming")
+        wifiLock?.setReferenceCounted(false)
+        wifiLock?.acquire()
+    }
+
+    private fun releaseWifiLock() {
+        if (wifiLock?.isHeld == true) {
+            wifiLock?.release()
+        }
+        wifiLock = null
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PulseRealm:Streaming")
+        wakeLock?.setReferenceCounted(false)
+        wakeLock?.acquire(4 * 60 * 60 * 1000L) // 4-hour timeout safety net
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
+        wakeLock = null
     }
 
     private fun createNotificationChannel() {
