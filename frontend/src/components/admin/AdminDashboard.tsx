@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CompetitionDefaults } from "./CompetitionDefaults";
 import { DungeonDefaults } from "./DungeonDefaults";
 import { StreetViewEditor, type StreetViewLocationItem } from "./StreetViewEditor";
@@ -32,12 +32,15 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
+  const saveMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    fetchConfig();
+    return () => {
+      if (saveMsgTimer.current) clearTimeout(saveMsgTimer.current);
+    };
   }, []);
 
-  async function fetchConfig() {
+  const fetchConfig = useCallback(async () => {
     try {
       const res = await fetch(`${apiUrl}/api/admin/config`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -51,7 +54,11 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
     } catch {
       setError("Failed to load config");
     }
-  }
+  }, [apiUrl, token, onLogout]);
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
 
   async function saveConfig() {
     if (!config) return;
@@ -73,7 +80,8 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
       const data = await res.json();
       setConfig(data);
       setSaveMsg("Saved");
-      setTimeout(() => setSaveMsg(""), 2000);
+      if (saveMsgTimer.current) clearTimeout(saveMsgTimer.current);
+      saveMsgTimer.current = setTimeout(() => setSaveMsg(""), 2000);
     } catch {
       setSaveMsg("Save failed");
     } finally {
@@ -91,7 +99,7 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
     onLogout();
   }
 
-  function updateField(field: string, value: string | number) {
+  function updateField(field: keyof AdminConfig, value: string | number) {
     if (!config) return;
     setConfig({ ...config, [field]: value });
   }

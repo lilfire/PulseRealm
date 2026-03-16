@@ -49,7 +49,7 @@ function PlaceInput({
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);
   const placesDiv = useRef<HTMLDivElement>(null);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!mapsLoaded) return;
@@ -58,6 +58,12 @@ function PlaceInput({
       placesService.current = new google.maps.places.PlacesService(placesDiv.current);
     }
   }, [mapsLoaded]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
 
   const fetchSuggestions = useCallback((input: string) => {
     if (!autocompleteService.current || input.length < 2) {
@@ -132,6 +138,7 @@ function PlaceInput({
         />
         {showSuggestions && suggestions.length > 0 && (
           <ul
+            role="listbox"
             style={{
               position: "absolute",
               top: "100%",
@@ -152,6 +159,8 @@ function PlaceInput({
             {suggestions.map((s) => (
               <li
                 key={s.placeId}
+                role="option"
+                aria-selected={false}
                 onMouseDown={() => selectSuggestion(s)}
                 style={{
                   padding: "0.5rem 0.75rem",

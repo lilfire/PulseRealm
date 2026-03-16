@@ -92,11 +92,11 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
             <SectionTitle title="Individual" />
             <div style={{
               display: "grid",
-              gridTemplateColumns: `repeat(${summary.clientSummaries!.length}, 1fr)`,
+              gridTemplateColumns: `repeat(${summary.clientSummaries?.length ?? 0}, 1fr)`,
               gap: "1rem",
               height: "calc(100% - 2rem)",
             }}>
-              {summary.clientSummaries!.map((cs) => (
+              {summary.clientSummaries?.map((cs) => (
                 <ClientCard key={cs.clientId || cs.name} cs={cs} />
               ))}
             </div>
@@ -112,7 +112,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
 
 function TeamSection({ summary }: { summary: RealmSummary }) {
   const teamMap = new Map<string, { color: string; clients: ClientSummary[] }>();
-  for (const cs of summary.clientSummaries!) {
+  for (const cs of summary.clientSummaries ?? []) {
     const tName = cs.teamName ?? "Unknown";
     if (!teamMap.has(tName)) teamMap.set(tName, { color: cs.teamColor ?? "var(--accent2)", clients: [] });
     teamMap.get(tName)!.clients.push(cs);

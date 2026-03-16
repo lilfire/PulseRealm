@@ -58,7 +58,7 @@ export function StreetViewEditor({ locations, onChange }: Props) {
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {locations.map((loc, i) => (
           <div
-            key={i}
+            key={loc.address || i}
             style={{
               display: "flex",
               alignItems: "center",

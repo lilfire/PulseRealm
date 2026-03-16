@@ -44,8 +44,14 @@ const btnStyle = (selected: boolean) => ({
 });
 
 export function CompetitionLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
-  const [subMode, setSubMode] = useState<CompetitionSubMode>((defaults?.subMode as CompetitionSubMode) ?? "race");
-  const [playerFormat, setPlayerFormat] = useState<PlayerFormat>((defaults?.playerFormat as PlayerFormat) ?? "individual");
+  const validSubModes: CompetitionSubMode[] = ["race", "elimination", "heartzone", "king"];
+  const validFormats: PlayerFormat[] = ["individual", "team"];
+  const [subMode, setSubMode] = useState<CompetitionSubMode>(
+    validSubModes.includes(defaults?.subMode as CompetitionSubMode) ? (defaults!.subMode as CompetitionSubMode) : "race"
+  );
+  const [playerFormat, setPlayerFormat] = useState<PlayerFormat>(
+    validFormats.includes(defaults?.playerFormat as PlayerFormat) ? (defaults!.playerFormat as PlayerFormat) : "individual"
+  );
   const [teams, setTeams] = useState<TeamAssignment[]>([
     { name: "Team 1", color: TEAM_COLORS[0], clientIds: [] },
     { name: "Team 2", color: TEAM_COLORS[1], clientIds: [] },
@@ -222,7 +228,7 @@ export function CompetitionLobby({ joinCode, clients, clientProfiles, connected,
           <h3>Team Assignment</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "0.75rem", maxWidth: 500, margin: "0.75rem auto 0" }}>
             {teams.map((team, ti) => (
-              <div key={ti} style={{
+              <div key={team.name} style={{
                 background: "var(--code-bg, #1f2028)",
                 border: `2px solid ${team.color}`,
                 borderRadius: 10,

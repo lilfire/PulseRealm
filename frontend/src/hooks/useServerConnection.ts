@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 /**
  * Create an AbortSignal that auto-aborts after `ms` milliseconds.
- * Drop-in replacement for createTimeoutSignal() which isn't available
- * in older Android System WebView versions.
+ * Uses AbortSignal.timeout() which is natively supported in modern browsers
+ * and does not leak a timer handle the way a manual setTimeout approach would.
  */
 function createTimeoutSignal(ms: number): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
+  return AbortSignal.timeout(ms);
 }
 
 const STORAGE_KEY = "pulserealm_server_url";
@@ -36,11 +34,17 @@ export type SearchPhase = "idle" | "searching" | "found" | "not_found";
  */
 async function getLocalIp(): Promise<string | null> {
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(null), 3000);
+    let pc: RTCPeerConnection | null = null;
+
+    const timeout = setTimeout(() => {
+      pc?.close();
+      resolve(null);
+    }, 3000);
+
     try {
-      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc = new RTCPeerConnection({ iceServers: [] });
       pc.createDataChannel("");
-      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+      pc.createOffer().then((offer) => pc!.setLocalDescription(offer));
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
         const match = event.candidate.candidate.match(
@@ -50,15 +54,15 @@ async function getLocalIp(): Promise<string | null> {
           const ip = match[1];
           if (!ip.startsWith("127.") && !ip.startsWith("0.")) {
             clearTimeout(timeout);
-            pc.close();
+            pc!.close();
             resolve(ip);
           }
         }
       };
       pc.onicegatheringstatechange = () => {
-        if (pc.iceGatheringState === "complete") {
+        if (pc!.iceGatheringState === "complete") {
           clearTimeout(timeout);
-          pc.close();
+          pc!.close();
           resolve(null);
         }
       };
@@ -279,6 +283,7 @@ export function useServerConnection() {
     } else {
       searchForServer();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: reads initial values from state/localStorage
   }, []);
 
   async function probeUrl(
@@ -298,7 +303,7 @@ export function useServerConnection() {
     }
   }
 
-  async function verifyServer(url: string): Promise<boolean> {
+  const verifyServer = useCallback(async (url: string): Promise<boolean> => {
     setChecking(true);
     setError(null);
     try {
@@ -319,7 +324,7 @@ export function useServerConnection() {
       setError(e instanceof Error ? e.message : "Connection failed");
       return false;
     }
-  }
+  }, []);
 
   const searchForServer = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort();
@@ -394,7 +399,7 @@ export function useServerConnection() {
       localStorage.setItem(STORAGE_KEY, cleanUrl);
     }
     return ok;
-  }, []);
+  }, [setRemoteUrl, setConnectionMode]);
 
   const switchToLocal = useCallback(() => {
     setConnectionMode("local");
@@ -404,7 +409,7 @@ export function useServerConnection() {
     setError(null);
     localStorage.removeItem(STORAGE_KEY);
     searchForServer();
-  }, []);
+  }, [searchForServer, setConnectionMode]);
 
   const disconnect = useCallback(() => {
     setServerUrl("");

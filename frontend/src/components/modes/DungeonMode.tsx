@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
+import { CADENCE_WINDOW_MS } from "../../utils/wearable";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -250,7 +251,6 @@ interface Props {
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const STEPS_PER_TILE = 10;
-const CADENCE_WINDOW_MS = 10_000;
 const TICK_MS = 500;
 const ENEMY_REGEN_CADENCE_THRESHOLD = 60;
 const REST_IDLE_TIMEOUT_MS = 5000;
@@ -268,8 +268,9 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
   const [display, setDisplay] = useState<Display | null>(null);
   const initRef = useRef(false);
 
-  // Initialize dungeon
-  if (!initRef.current) {
+  // Initialize dungeon on mount
+  useEffect(() => {
+    if (initRef.current) return;
     initRef.current = true;
     const p = params.current;
     const generatedRooms = generateDungeon(config.timeframe);
@@ -308,7 +309,8 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       hpReductionBuff: false,
       totalPooledSteps: 0,
     };
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only init
+  }, []);
 
   // Scale pooled-step thresholds by number of active clients.
   // Base values are tuned for 1 player; more players = proportionally higher targets.
@@ -336,6 +338,37 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     }
     return t;
   }, []);
+
+  const initBossPhase = useCallback((phase: number) => {
+    const g = gs.current!;
+    const p = params.current;
+    const scale = playerScale();
+    g.bossPhase = phase;
+
+    if (phase === 0) {
+      let hp = p.bossHp * scale;
+      if (g.hpReductionBuff) {
+        hp = Math.round(hp * 0.8);
+        g.hpReductionBuff = false;
+      }
+      g.bossMaxHp = hp;
+      g.bossHp = hp;
+      g.bossLowCadenceSince = null;
+    } else if (phase === 1) {
+      g.bossTrapSafe = 0;
+      g.bossTrapSafeTarget = Math.round(p.bossTrapSafeTarget * scale * (g.stepReductionBuff ? 0.9 : 1));
+      g.stepReductionBuff = false;
+      g.bossTrapDamage = 0;
+      g.bossTrapDamageLimit = Math.round(p.bossTrapDamageLimit * scale);
+      g.bossTrapCadenceMin = p.bossTrapCadenceMin;
+      g.bossTrapCadenceMax = p.bossTrapCadenceMax;
+    } else if (phase === 2) {
+      for (const t of trackers.current.values()) {
+        t.enduranceHrAboveSince = null;
+        t.enduranceReady = false;
+      }
+    }
+  }, [playerScale]);
 
   // Enter a room: initialize room-specific state
   const enterRoom = useCallback(() => {
@@ -388,38 +421,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         initBossPhase(0);
         break;
     }
-  }, [playerScale]);
-
-  const initBossPhase = useCallback((phase: number) => {
-    const g = gs.current!;
-    const p = params.current;
-    const scale = playerScale();
-    g.bossPhase = phase;
-
-    if (phase === 0) {
-      let hp = p.bossHp * scale;
-      if (g.hpReductionBuff) {
-        hp = Math.round(hp * 0.8);
-        g.hpReductionBuff = false;
-      }
-      g.bossMaxHp = hp;
-      g.bossHp = hp;
-      g.bossLowCadenceSince = null;
-    } else if (phase === 1) {
-      g.bossTrapSafe = 0;
-      g.bossTrapSafeTarget = Math.round(p.bossTrapSafeTarget * scale * (g.stepReductionBuff ? 0.9 : 1));
-      g.stepReductionBuff = false;
-      g.bossTrapDamage = 0;
-      g.bossTrapDamageLimit = Math.round(p.bossTrapDamageLimit * scale);
-      g.bossTrapCadenceMin = p.bossTrapCadenceMin;
-      g.bossTrapCadenceMax = p.bossTrapCadenceMax;
-    } else if (phase === 2) {
-      for (const t of trackers.current.values()) {
-        t.enduranceHrAboveSince = null;
-        t.enduranceReady = false;
-      }
-    }
-  }, [playerScale]);
+  }, [playerScale, initBossPhase]);
 
   // Advance to the next room (back to corridor, or complete)
   const advanceRoom = useCallback(() => {
@@ -481,48 +483,196 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       g.corridorSteps += stepDelta;
     } else if (g.phase === "room") {
       const room = rooms.current[g.currentRoom];
-      processRoomSteps(room.type, stepDelta, t);
+      // Inline room step processing to avoid hoisting issues
+      switch (room.type) {
+        case "enemy":
+          g.enemyHp = Math.max(0, g.enemyHp - stepDelta);
+          break;
+        case "trap": {
+          const inWindow = t.cadence >= g.trapCadenceMin && t.cadence <= g.trapCadenceMax;
+          if (inWindow) {
+            g.trapSafeSteps += stepDelta;
+          } else {
+            g.trapDamage += stepDelta;
+          }
+          break;
+        }
+        case "rest":
+          // Steps ignored in rest rooms
+          break;
+        case "treasure":
+          g.treasureSteps += stepDelta;
+          break;
+        case "boss":
+          if (g.bossPhase === 0) {
+            g.bossHp = Math.max(0, g.bossHp - stepDelta);
+          } else if (g.bossPhase === 1) {
+            const inWindow = t.cadence >= g.bossTrapCadenceMin && t.cadence <= g.bossTrapCadenceMax;
+            if (inWindow) {
+              g.bossTrapSafe += stepDelta;
+            } else {
+              g.bossTrapDamage += stepDelta;
+            }
+          }
+          // Phase 2: steps are counted but don't affect completion
+          break;
+      }
     }
   }, [latestData, getTracker]);
 
-  // Process steps for current room mechanic
-  const processRoomSteps = useCallback((type: RoomType, delta: number, tracker: ClientTracker) => {
-    const g = gs.current!;
-
-    switch (type) {
-      case "enemy":
-        g.enemyHp = Math.max(0, g.enemyHp - delta);
-        break;
-      case "trap": {
-        const inWindow = tracker.cadence >= g.trapCadenceMin && tracker.cadence <= g.trapCadenceMax;
-        if (inWindow) {
-          g.trapSafeSteps += delta;
-        } else {
-          g.trapDamage += delta;
-        }
-        break;
-      }
-      case "rest":
-        // Steps ignored in rest rooms
-        break;
-      case "treasure":
-        g.treasureSteps += delta;
-        break;
-      case "boss":
-        if (g.bossPhase === 0) {
-          g.bossHp = Math.max(0, g.bossHp - delta);
-        } else if (g.bossPhase === 1) {
-          const inWindow = tracker.cadence >= g.bossTrapCadenceMin && tracker.cadence <= g.bossTrapCadenceMax;
-          if (inWindow) {
-            g.bossTrapSafe += delta;
-          } else {
-            g.bossTrapDamage += delta;
-          }
-        }
-        // Phase 2: steps are counted but don't affect completion
-        break;
+  const getTeamCadence = useCallback((): number => {
+    let total = 0;
+    for (const t of trackers.current.values()) {
+      total += t.cadence;
     }
+    return total;
   }, []);
+
+  const updateDisplay = useCallback(() => {
+    const g = gs.current!;
+    const room = rooms.current[g.currentRoom] ?? rooms.current[rooms.current.length - 1];
+    const p = params.current;
+    const teamCadence = getTeamCadence();
+    const now = Date.now();
+
+    const activeClients = clients.length > 0 ? clients : [...trackers.current.keys()];
+
+    const restClients = activeClients.map((cid) => {
+      const t = getTracker(cid);
+      const profile = clientProfiles[cid];
+      let holdSeconds = 0;
+      if (t.restReady) {
+        holdSeconds = p.restHoldSeconds;
+      } else if (t.restHrBelowSince !== null) {
+        holdSeconds = Math.min(p.restHoldSeconds, (now - t.restHrBelowSince) / 1000);
+      }
+      return {
+        name: profile?.name || cid,
+        ready: t.restReady,
+        hr: t.heartRate,
+        holdSeconds: Math.round(holdSeconds * 10) / 10,
+        holdTarget: p.restHoldSeconds,
+        hrThreshold: p.restHrThreshold,
+        idle: !t.restReady && now - t.lastStepTime > REST_IDLE_TIMEOUT_MS,
+      };
+    });
+
+    const enduranceClients = activeClients.map((cid) => {
+      const t = getTracker(cid);
+      const profile = clientProfiles[cid];
+      let holdSeconds = 0;
+      if (t.enduranceReady) {
+        holdSeconds = p.bossEnduranceSeconds;
+      } else if (t.enduranceHrAboveSince !== null) {
+        holdSeconds = Math.min(p.bossEnduranceSeconds, (now - t.enduranceHrAboveSince) / 1000);
+      }
+      return {
+        name: profile?.name || cid,
+        ready: t.enduranceReady,
+        hr: t.heartRate,
+        holdSeconds: Math.round(holdSeconds * 10) / 10,
+        holdTarget: p.bossEnduranceSeconds,
+        hrThreshold: Math.round(MAX_HR * 0.7),
+      };
+    });
+
+    const clientStats = activeClients.map((cid) => {
+      const t = getTracker(cid);
+      const profile = clientProfiles[cid];
+      return { name: profile?.name || cid, cadence: Math.round(t.cadence), hr: t.heartRate, steps: t.prevSteps };
+    });
+
+    const treasureTimeLeft =
+      g.treasureStartTime !== null
+        ? Math.max(0, g.treasureDuration - (now - g.treasureStartTime))
+        : g.treasureDuration;
+
+    const hasBuff = g.stepReductionBuff || g.hpReductionBuff;
+    const buffParts: string[] = [];
+    if (g.stepReductionBuff) buffParts.push("Step threshold -10%");
+    if (g.hpReductionBuff) buffParts.push("Enemy HP -20%");
+
+    let roomMessage = "";
+    if (g.phase === "room") {
+      switch (room.type) {
+        case "empty":
+          roomMessage = "An empty chamber... moving on.";
+          break;
+        case "enemy":
+          roomMessage = g.enemyHp > 0
+            ? (g.lowCadenceSince !== null ? "Keep moving! The enemy is regenerating!" : "Attack! Every step deals damage!")
+            : "Enemy defeated!";
+          break;
+        case "trap":
+          roomMessage = `Keep cadence between ${g.trapCadenceMin}–${g.trapCadenceMax} spm`;
+          break;
+        case "rest":
+          roomMessage = `Lower HR below ${p.restHrThreshold} bpm for ${p.restHoldSeconds}s — keep walking!`;
+          break;
+        case "treasure":
+          roomMessage = "Collect as many steps as you can!";
+          break;
+        case "boss":
+          if (g.bossPhase === 0) roomMessage = g.bossHp > 0 ? "Strike! Every step damages the boss!" : "Boss staggered!";
+          else if (g.bossPhase === 1) roomMessage = `Keep cadence ${g.bossTrapCadenceMin}–${g.bossTrapCadenceMax} spm`;
+          else roomMessage = `Raise HR above ${Math.round(MAX_HR * 0.7)} bpm!`;
+          break;
+      }
+    } else if (g.phase === "corridor") {
+      roomMessage = "Walk to reach the next room...";
+    } else if (g.phase === "complete") {
+      roomMessage = "Dungeon cleared!";
+    }
+
+    let trapInWindow = false;
+    if (room.type === "trap") {
+      trapInWindow = teamCadence >= g.trapCadenceMin && teamCadence <= g.trapCadenceMax;
+    }
+
+    let bossInWindow = false;
+    if (room.type === "boss" && g.bossPhase === 1) {
+      bossInWindow = teamCadence >= g.bossTrapCadenceMin && teamCadence <= g.bossTrapCadenceMax;
+    }
+
+    setDisplay({
+      phase: g.phase,
+      currentRoom: g.currentRoom,
+      rooms: rooms.current,
+      corridorProgress: g.corridorTarget > 0 ? Math.min(1, g.corridorSteps / g.corridorTarget) : 0,
+      teamCadence: Math.round(teamCadence),
+      totalSteps: g.totalPooledSteps,
+      enemyHp: g.enemyHp,
+      enemyMaxHp: g.enemyMaxHp,
+      enemyRegen: g.lowCadenceSince !== null && Date.now() - g.lowCadenceSince > ENEMY_REGEN_DELAY_MS,
+      trapSafeSteps: g.trapSafeSteps,
+      trapSafeTarget: g.trapSafeTarget,
+      trapDamage: g.trapDamage,
+      trapDamageLimit: g.trapDamageLimit,
+      trapCadenceMin: g.trapCadenceMin,
+      trapCadenceMax: g.trapCadenceMax,
+      trapInWindow,
+      restClients,
+      treasureTimeLeft: Math.round(treasureTimeLeft / 1000),
+      treasureSteps: g.treasureSteps,
+      treasureMediumThreshold: g.treasureMediumThreshold,
+      treasureLargeThreshold: g.treasureLargeThreshold,
+      bossPhase: g.bossPhase,
+      bossHp: g.bossHp,
+      bossMaxHp: g.bossMaxHp,
+      bossTrapSafe: g.bossTrapSafe,
+      bossTrapSafeTarget: g.bossTrapSafeTarget,
+      bossTrapDamage: g.bossTrapDamage,
+      bossTrapDamageLimit: g.bossTrapDamageLimit,
+      bossTrapCadenceMin: g.bossTrapCadenceMin,
+      bossTrapCadenceMax: g.bossTrapCadenceMax,
+      bossInWindow,
+      bossEnduranceClients: enduranceClients,
+      clientStats,
+      hasBuff,
+      buffDesc: buffParts.join(" + "),
+      roomMessage,
+    });
+  }, [clients, clientProfiles, getTracker, getTeamCadence]);
 
   // Game tick: check conditions, transitions, regen
   useEffect(() => {
@@ -682,161 +832,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     }, TICK_MS);
 
     return () => clearInterval(timer);
-  }, [clients, enterRoom, advanceRoom, getTracker, initBossPhase]);
-
-  const getTeamCadence = useCallback((): number => {
-    let total = 0;
-    for (const t of trackers.current.values()) {
-      total += t.cadence;
-    }
-    return total;
-  }, []);
-
-  const updateDisplay = useCallback(() => {
-    const g = gs.current!;
-    const room = rooms.current[g.currentRoom] ?? rooms.current[rooms.current.length - 1];
-    const p = params.current;
-    const teamCadence = getTeamCadence();
-    const now = Date.now();
-
-    const activeClients = clients.length > 0 ? clients : [...trackers.current.keys()];
-
-    const restClients = activeClients.map((cid) => {
-      const t = getTracker(cid);
-      const profile = clientProfiles[cid];
-      let holdSeconds = 0;
-      if (t.restReady) {
-        holdSeconds = p.restHoldSeconds;
-      } else if (t.restHrBelowSince !== null) {
-        holdSeconds = Math.min(p.restHoldSeconds, (now - t.restHrBelowSince) / 1000);
-      }
-      return {
-        name: profile?.name || cid,
-        ready: t.restReady,
-        hr: t.heartRate,
-        holdSeconds: Math.round(holdSeconds * 10) / 10,
-        holdTarget: p.restHoldSeconds,
-        hrThreshold: p.restHrThreshold,
-        idle: !t.restReady && now - t.lastStepTime > REST_IDLE_TIMEOUT_MS,
-      };
-    });
-
-    const enduranceClients = activeClients.map((cid) => {
-      const t = getTracker(cid);
-      const profile = clientProfiles[cid];
-      let holdSeconds = 0;
-      if (t.enduranceReady) {
-        holdSeconds = p.bossEnduranceSeconds;
-      } else if (t.enduranceHrAboveSince !== null) {
-        holdSeconds = Math.min(p.bossEnduranceSeconds, (now - t.enduranceHrAboveSince) / 1000);
-      }
-      return {
-        name: profile?.name || cid,
-        ready: t.enduranceReady,
-        hr: t.heartRate,
-        holdSeconds: Math.round(holdSeconds * 10) / 10,
-        holdTarget: p.bossEnduranceSeconds,
-        hrThreshold: Math.round(MAX_HR * 0.7),
-      };
-    });
-
-    const clientStats = activeClients.map((cid) => {
-      const t = getTracker(cid);
-      const profile = clientProfiles[cid];
-      return { name: profile?.name || cid, cadence: Math.round(t.cadence), hr: t.heartRate, steps: t.prevSteps };
-    });
-
-    const treasureTimeLeft =
-      g.treasureStartTime !== null
-        ? Math.max(0, g.treasureDuration - (now - g.treasureStartTime))
-        : g.treasureDuration;
-
-    const hasBuff = g.stepReductionBuff || g.hpReductionBuff;
-    const buffParts: string[] = [];
-    if (g.stepReductionBuff) buffParts.push("Step threshold -10%");
-    if (g.hpReductionBuff) buffParts.push("Enemy HP -20%");
-
-    let roomMessage = "";
-    if (g.phase === "room") {
-      switch (room.type) {
-        case "empty":
-          roomMessage = "An empty chamber... moving on.";
-          break;
-        case "enemy":
-          roomMessage = g.enemyHp > 0
-            ? (g.lowCadenceSince !== null ? "Keep moving! The enemy is regenerating!" : "Attack! Every step deals damage!")
-            : "Enemy defeated!";
-          break;
-        case "trap":
-          roomMessage = `Keep cadence between ${g.trapCadenceMin}–${g.trapCadenceMax} spm`;
-          break;
-        case "rest":
-          roomMessage = `Lower HR below ${p.restHrThreshold} bpm for ${p.restHoldSeconds}s — keep walking!`;
-          break;
-        case "treasure":
-          roomMessage = "Sprint! More steps = better rewards!";
-          break;
-        case "boss":
-          if (g.bossPhase === 0) roomMessage = "Phase 1: DAMAGE — Deplete the boss HP!";
-          else if (g.bossPhase === 1) roomMessage = `Phase 2: PRECISION — Cadence ${g.bossTrapCadenceMin}–${g.bossTrapCadenceMax} spm`;
-          else roomMessage = `Phase 3: ENDURANCE — Sustain HR above ${Math.round(MAX_HR * 0.7)} bpm for ${p.bossEnduranceSeconds}s`;
-          break;
-      }
-    } else if (g.phase === "corridor") {
-      roomMessage = `Walking to ${rooms.current[g.currentRoom]?.label ?? "next room"}...`;
-    } else {
-      roomMessage = "Dungeon Complete!";
-    }
-
-    // Determine if cadence is in window for trap/boss precision
-    let trapInWindow = false;
-    if (room.type === "trap") {
-      trapInWindow = teamCadence >= g.trapCadenceMin && teamCadence <= g.trapCadenceMax;
-    }
-    let bossInWindow = false;
-    if (room.type === "boss" && g.bossPhase === 1) {
-      bossInWindow = teamCadence >= g.bossTrapCadenceMin && teamCadence <= g.bossTrapCadenceMax;
-    }
-
-    setDisplay({
-      phase: g.phase,
-      currentRoom: g.currentRoom,
-      rooms: rooms.current,
-      corridorProgress: g.corridorTarget > 0 ? Math.min(1, g.corridorSteps / g.corridorTarget) : 0,
-      teamCadence: Math.round(teamCadence),
-      totalSteps: g.totalPooledSteps,
-      enemyHp: g.enemyHp,
-      enemyMaxHp: g.enemyMaxHp,
-      enemyRegen: g.lowCadenceSince !== null && Date.now() - g.lowCadenceSince > ENEMY_REGEN_DELAY_MS,
-      trapSafeSteps: g.trapSafeSteps,
-      trapSafeTarget: g.trapSafeTarget,
-      trapDamage: g.trapDamage,
-      trapDamageLimit: g.trapDamageLimit,
-      trapCadenceMin: g.trapCadenceMin,
-      trapCadenceMax: g.trapCadenceMax,
-      trapInWindow,
-      restClients,
-      treasureTimeLeft: Math.round(treasureTimeLeft / 1000),
-      treasureSteps: g.treasureSteps,
-      treasureMediumThreshold: g.treasureMediumThreshold,
-      treasureLargeThreshold: g.treasureLargeThreshold,
-      bossPhase: g.bossPhase,
-      bossHp: g.bossHp,
-      bossMaxHp: g.bossMaxHp,
-      bossTrapSafe: g.bossTrapSafe,
-      bossTrapSafeTarget: g.bossTrapSafeTarget,
-      bossTrapDamage: g.bossTrapDamage,
-      bossTrapDamageLimit: g.bossTrapDamageLimit,
-      bossTrapCadenceMin: g.bossTrapCadenceMin,
-      bossTrapCadenceMax: g.bossTrapCadenceMax,
-      bossInWindow,
-      bossEnduranceClients: enduranceClients,
-      clientStats,
-      hasBuff,
-      buffDesc: buffParts.join(" + "),
-      roomMessage,
-    });
-  }, [clients, clientProfiles, getTracker, getTeamCadence]);
+  }, [clients, enterRoom, advanceRoom, getTracker, initBossPhase, getTeamCadence, updateDisplay]);
 
   if (!display) return null;
 

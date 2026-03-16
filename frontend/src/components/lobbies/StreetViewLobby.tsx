@@ -25,33 +25,32 @@ interface Suggestion {
   description: string;
 }
 
-// DEBUG: Only Norwegian locations shown — uncomment the rest to restore full list
 const CURATED_LOCATIONS: StreetViewLocation[] = [
-  // { lat: 48.8584, lng: 2.2945, address: "Eiffel Tower, Paris, France" },
-  // { lat: 40.7580, lng: -73.9855, address: "Times Square, New York, USA" },
-  // { lat: 51.5014, lng: -0.1419, address: "Big Ben, London, UK" },
-  // { lat: 35.6762, lng: 139.6503, address: "Shibuya Crossing, Tokyo, Japan" },
-  // { lat: -33.8568, lng: 151.2153, address: "Sydney Opera House, Australia" },
-  // { lat: 41.8902, lng: 12.4922, address: "Colosseum, Rome, Italy" },
-  // { lat: 37.8199, lng: -122.4783, address: "Golden Gate Bridge, San Francisco, USA" },
-  // { lat: 52.5163, lng: 13.3777, address: "Brandenburg Gate, Berlin, Germany" },
-  // { lat: 55.7558, lng: 37.6173, address: "Red Square, Moscow, Russia" },
-  // { lat: -22.9519, lng: -43.2105, address: "Copacabana Beach, Rio de Janeiro, Brazil" },
-  // { lat: 1.2816, lng: 103.8636, address: "Marina Bay Sands, Singapore" },
+  { lat: 48.8584, lng: 2.2945, address: "Eiffel Tower, Paris, France" },
+  { lat: 40.7580, lng: -73.9855, address: "Times Square, New York, USA" },
+  { lat: 51.5014, lng: -0.1419, address: "Big Ben, London, UK" },
+  { lat: 35.6762, lng: 139.6503, address: "Shibuya Crossing, Tokyo, Japan" },
+  { lat: -33.8568, lng: 151.2153, address: "Sydney Opera House, Australia" },
+  { lat: 41.8902, lng: 12.4922, address: "Colosseum, Rome, Italy" },
+  { lat: 37.8199, lng: -122.4783, address: "Golden Gate Bridge, San Francisco, USA" },
+  { lat: 52.5163, lng: 13.3777, address: "Brandenburg Gate, Berlin, Germany" },
+  { lat: 55.7558, lng: 37.6173, address: "Red Square, Moscow, Russia" },
+  { lat: -22.9519, lng: -43.2105, address: "Copacabana Beach, Rio de Janeiro, Brazil" },
+  { lat: 1.2816, lng: 103.8636, address: "Marina Bay Sands, Singapore" },
   { lat: 59.9139, lng: 10.7522, address: "Karl Johans gate, Oslo, Norway" },
-  // { lat: 64.1466, lng: -21.9426, address: "Hallgrímskirkja, Reykjavik, Iceland" },
-  // { lat: 34.0522, lng: -118.2437, address: "Hollywood Blvd, Los Angeles, USA" },
-  // { lat: 41.0082, lng: 28.9784, address: "Hagia Sophia, Istanbul, Turkey" },
-  // { lat: 48.2082, lng: 16.3738, address: "St. Stephen's Cathedral, Vienna, Austria" },
-  // { lat: -13.1631, lng: -72.5450, address: "Machu Picchu, Peru" },
-  // { lat: 25.1972, lng: 55.2744, address: "Burj Khalifa, Dubai, UAE" },
-  // { lat: 37.9715, lng: 23.7267, address: "Acropolis, Athens, Greece" },
-  // { lat: 43.7230, lng: 10.3966, address: "Leaning Tower of Pisa, Italy" },
-  // { lat: 59.3293, lng: 18.0686, address: "Gamla Stan, Stockholm, Sweden" },
-  // { lat: 50.0755, lng: 14.4378, address: "Charles Bridge, Prague, Czech Republic" },
-  // { lat: 47.4979, lng: 19.0402, address: "Hungarian Parliament, Budapest, Hungary" },
-  // { lat: 35.0116, lng: 135.7681, address: "Fushimi Inari Shrine, Kyoto, Japan" },
-  // { lat: 40.4168, lng: -3.7038, address: "Puerta del Sol, Madrid, Spain" },
+  { lat: 64.1466, lng: -21.9426, address: "Hallgrímskirkja, Reykjavik, Iceland" },
+  { lat: 34.0522, lng: -118.2437, address: "Hollywood Blvd, Los Angeles, USA" },
+  { lat: 41.0082, lng: 28.9784, address: "Hagia Sophia, Istanbul, Turkey" },
+  { lat: 48.2082, lng: 16.3738, address: "St. Stephen's Cathedral, Vienna, Austria" },
+  { lat: -13.1631, lng: -72.5450, address: "Machu Picchu, Peru" },
+  { lat: 25.1972, lng: 55.2744, address: "Burj Khalifa, Dubai, UAE" },
+  { lat: 37.9715, lng: 23.7267, address: "Acropolis, Athens, Greece" },
+  { lat: 43.7230, lng: 10.3966, address: "Leaning Tower of Pisa, Italy" },
+  { lat: 59.3293, lng: 18.0686, address: "Gamla Stan, Stockholm, Sweden" },
+  { lat: 50.0755, lng: 14.4378, address: "Charles Bridge, Prague, Czech Republic" },
+  { lat: 47.4979, lng: 19.0402, address: "Hungarian Parliament, Budapest, Hungary" },
+  { lat: 35.0116, lng: 135.7681, address: "Fushimi Inari Shrine, Kyoto, Japan" },
+  { lat: 40.4168, lng: -3.7038, address: "Puerta del Sol, Madrid, Spain" },
   { lat: 59.4025, lng: 9.4204, address: "Narefjell, Norway" },
   { lat: 58.9864, lng: 6.1904, address: "Preikestolen, Norway" },
   { lat: 60.1242, lng: 6.7400, address: "Trolltunga, Norway" },
@@ -81,7 +80,7 @@ export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, 
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);
   const placesDiv = useRef<HTMLDivElement>(null);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!mapsLoaded) return;
@@ -90,6 +89,12 @@ export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, 
       placesService.current = new google.maps.places.PlacesService(placesDiv.current);
     }
   }, [mapsLoaded]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
 
   const fetchSuggestions = useCallback((input: string) => {
     if (!autocompleteService.current || input.length < 2) {
@@ -182,6 +187,7 @@ export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, 
             />
             {showSuggestions && suggestions.length > 0 && (
               <ul
+                role="listbox"
                 style={{
                   position: "absolute",
                   top: "100%",
@@ -202,6 +208,8 @@ export function StreetViewLobby({ joinCode, clients, clientProfiles, connected, 
                 {suggestions.map((s) => (
                   <li
                     key={s.placeId}
+                    role="option"
+                    aria-selected={false}
                     onMouseDown={() => selectSuggestion(s)}
                     style={{
                       padding: "0.5rem 0.75rem",

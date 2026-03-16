@@ -1,33 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
+import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_BOUNDS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, formatDuration } from "../../utils/wearable";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const STRIDE_FACTOR = 0.415 / 100; // height(cm) → stride(m)
-const IDLE_TIMEOUT_MS = 10_000;
-const CADENCE_WINDOW_MS = 10_000;
-
 const AVATAR_COLORS = ["#FF5C75", "#33DFFF", "#D06ACA", "#22c55e", "#f59e0b", "#818cf8", "#fb923c", "#2dd4bf"];
 
-// HR zone boundaries (% of max HR)
-const ZONE_BOUNDS = [0, 0.57, 0.63, 0.76, 0.89, 1.0];
-const ZONE_COLORS = ["#2dd4bf", "#22c55e", "#f59e0b", "#f87171", "#ef4444"];
-
-function getZoneForHr(hr: number, maxHr: number): number {
-  const pct = hr / maxHr;
-  if (pct < 0.57) return 1;
-  if (pct < 0.63) return 2;
-  if (pct < 0.76) return 3;
-  if (pct < 0.89) return 4;
-  return 5;
-}
-
-function getZoneBpmRange(zone: number, maxHr: number): [number, number] {
-  return [Math.round(ZONE_BOUNDS[zone - 1] * maxHr), Math.round(ZONE_BOUNDS[zone] * maxHr)];
-}
-
-// ── Per-client tracker ───────────────────────────────────────────────────────
+// ── Per-client tracker ────────────────────────────────────────────────────────
 
 interface ClientTracker {
   heartRate: number;
@@ -67,24 +47,34 @@ function newTracker(): ClientTracker {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function getInitials(name: string): string {
   return name.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
 function avatarColor(index: number): string {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
+}
+
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  color: string;
+  distanceMeters: number;
+  distanceKm: number;
+  points: number;
+  heartRate: number;
+  cadence: number;
+  active: boolean;
+  finished: boolean;
+  finishPosition: number | null;
+  finishTime: number | null;
+  eliminated: boolean;
+  eliminatedPosition: number | null;
+  inZone?: boolean;
+  currentZone?: number;
+  kingSeconds?: number;
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -102,7 +92,7 @@ interface Props {
 
 export function CompetitionMode({ clients, clientProfiles, latestData, config, onEnd, onEliminate }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const [, forceRender] = useState(0);
   const rerender = () => forceRender((n) => n + 1);
@@ -119,7 +109,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   // King state
   const [currentKing, setCurrentKing] = useState<string | null>(null);
-  const kingStartRef = useRef<number>(Date.now());
+  const kingStartRef = useRef<number>(0);
   const [kingStint, setKingStint] = useState(0);
   const kingRef = useRef<string | null>(null);
 
@@ -129,11 +119,96 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   const [realmEnded, setRealmEnded] = useState(false);
   const endedRef = useRef(false);
 
+  // Idle detection: track previous active states to avoid spurious re-renders
+  const prevActiveStatesRef = useRef<Record<string, boolean>>({});
+
   // Stable ref for onEnd so handleEnd doesn't change every render
   const onEndRef = useRef(onEnd);
-  onEndRef.current = onEnd;
+  useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
   const isTeam = config.playerFormat === "team";
+
+  // ── Initialize time refs on mount ─────────────────────────────────────────
+
+  useEffect(() => {
+    const now = Date.now();
+    startTimeRef.current = now;
+    kingStartRef.current = now;
+  }, []);
+
+  // ── Helpers (declared before use) ─────────────────────────────────────────
+
+  function getMaxHrForClient(_clientId?: string): number {
+    void _clientId; // placeholder for future per-client max HR (220 - age)
+    return MAX_HR;
+  }
+
+  function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {
+    if (isTeam) {
+      return config.teams
+        .filter((t) => !eliminatedRef.current.has(t.name))
+        .map((t) => t.name);
+    }
+    return clients.filter((cid) => !trackers[cid]?.eliminated);
+  }
+
+  function eliminateLowest(trackers: Record<string, ClientTracker>, entities: string[]) {
+    if (entities.length <= 1) return;
+
+    let lowestEntity: string | null = null;
+    let lowestDist = Infinity;
+    let lowestCadence = Infinity;
+
+    for (const entity of entities) {
+      let dist: number;
+      let cadence: number;
+      if (isTeam) {
+        const team = config.teams.find((t) => t.name === entity)!;
+        dist = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0);
+        cadence = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.cadence ?? 0), 0) / team.clientIds.length;
+      } else {
+        dist = trackers[entity]?.distanceMeters ?? 0;
+        cadence = trackers[entity]?.cadence ?? 0;
+      }
+
+      if (dist < lowestDist || (dist === lowestDist && cadence < lowestCadence)) {
+        lowestDist = dist;
+        lowestCadence = cadence;
+        lowestEntity = entity;
+      } else if (dist === lowestDist && cadence === lowestCadence) {
+        // Exactly tied on both — both survive
+        lowestEntity = null;
+      }
+    }
+
+    if (!lowestEntity) return;
+
+    const position = clients.length - eliminatedRef.current.size;
+
+    if (isTeam) {
+      eliminatedRef.current.add(lowestEntity);
+      const team = config.teams.find((t) => t.name === lowestEntity)!;
+      for (const cid of team.clientIds) {
+        if (trackers[cid]) {
+          trackers[cid].eliminated = true;
+          trackers[cid].eliminatedPosition = position;
+        }
+        onEliminate?.(cid);
+      }
+      const tk = `__team__${lowestEntity}`;
+      if (!trackers[tk]) trackers[tk] = newTracker();
+      trackers[tk].eliminated = true;
+      trackers[tk].eliminatedPosition = position;
+    } else {
+      if (trackers[lowestEntity]) {
+        trackers[lowestEntity].eliminated = true;
+        trackers[lowestEntity].eliminatedPosition = position;
+      }
+      onEliminate?.(lowestEntity);
+    }
+
+    rerender();
+  }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
 
@@ -229,10 +304,16 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
     const id = setInterval(() => {
       const now = Date.now();
       const trackers = trackersRef.current;
+      let changed = false;
       for (const cid of Object.keys(trackers)) {
-        trackers[cid].active = now - trackers[cid].lastDataTime < IDLE_TIMEOUT_MS;
+        const nextActive = now - trackers[cid].lastDataTime < IDLE_TIMEOUT_MS;
+        if (nextActive !== prevActiveStatesRef.current[cid]) {
+          prevActiveStatesRef.current[cid] = nextActive;
+          changed = true;
+        }
+        trackers[cid].active = nextActive;
       }
-      rerender();
+      if (changed) rerender();
     }, 2000);
     return () => clearInterval(id);
   }, []);
@@ -241,12 +322,14 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   useEffect(() => {
     const id = setInterval(() => {
+      if (endedRef.current) return;
+
       const trackers = trackersRef.current;
       const now = Date.now();
       const secs = Math.floor((now - startTimeRef.current) / 1000);
 
       // Check timed modes for end
-      if ((config.subMode === "heartzone" || config.subMode === "king") && secs >= config.durationMinutes * 60 && !realmEnded) {
+      if ((config.subMode === "heartzone" || config.subMode === "king") && secs >= config.durationMinutes * 60) {
         setRealmEnded(true);
         return;
       }
@@ -346,7 +429,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         const activeEntities = getActiveEntities(trackers);
 
         // Last man standing — auto-end
-        if (activeEntities.length <= 1 && !realmEnded && !endedRef.current) {
+        if (activeEntities.length <= 1 && !endedRef.current) {
           if (activeEntities.length === 1) {
             setElimWinner(activeEntities[0]);
           }
@@ -398,8 +481,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           }
         }
 
-        // Auto-end if a winner was determined but realmEnded hasn't been set yet
-        if (raceWinner && !realmEnded && !endedRef.current) {
+        // Auto-end if a winner was determined but realm hasn't ended yet
+        if (raceWinner && !endedRef.current) {
           setRealmEnded(true);
         }
       }
@@ -407,83 +490,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       rerender();
     }, 1000);
     return () => clearInterval(id);
-  }, [clients, config, isTeam, realmEnded, raceWinner]);
-
-  // ── Helpers for elimination ────────────────────────────────────────────────
-
-  function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {
-    if (isTeam) {
-      return config.teams
-        .filter((t) => !eliminatedRef.current.has(t.name))
-        .map((t) => t.name);
-    }
-    return clients.filter((cid) => !trackers[cid]?.eliminated);
-  }
-
-  function eliminateLowest(trackers: Record<string, ClientTracker>, entities: string[]) {
-    if (entities.length <= 1) return;
-
-    let lowestEntity: string | null = null;
-    let lowestDist = Infinity;
-    let lowestCadence = Infinity;
-
-    for (const entity of entities) {
-      let dist: number;
-      let cadence: number;
-      if (isTeam) {
-        const team = config.teams.find((t) => t.name === entity)!;
-        dist = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0);
-        cadence = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.cadence ?? 0), 0) / team.clientIds.length;
-      } else {
-        dist = trackers[entity]?.distanceMeters ?? 0;
-        cadence = trackers[entity]?.cadence ?? 0;
-      }
-
-      if (dist < lowestDist || (dist === lowestDist && cadence < lowestCadence)) {
-        lowestDist = dist;
-        lowestCadence = cadence;
-        lowestEntity = entity;
-      } else if (dist === lowestDist && cadence === lowestCadence) {
-        // Exactly tied on both — both survive
-        lowestEntity = null;
-      }
-    }
-
-    if (!lowestEntity) return;
-
-    const position = clients.length - eliminatedRef.current.size;
-
-    if (isTeam) {
-      eliminatedRef.current.add(lowestEntity);
-      const team = config.teams.find((t) => t.name === lowestEntity)!;
-      for (const cid of team.clientIds) {
-        if (trackers[cid]) {
-          trackers[cid].eliminated = true;
-          trackers[cid].eliminatedPosition = position;
-        }
-        onEliminate?.(cid);
-      }
-      const tk = `__team__${lowestEntity}`;
-      if (!trackers[tk]) trackers[tk] = newTracker();
-      trackers[tk].eliminated = true;
-      trackers[tk].eliminatedPosition = position;
-    } else {
-      if (trackers[lowestEntity]) {
-        trackers[lowestEntity].eliminated = true;
-        trackers[lowestEntity].eliminatedPosition = position;
-      }
-      onEliminate?.(lowestEntity);
-    }
-
-    rerender();
-  }
-
-  // ── Max HR helper ──────────────────────────────────────────────────────────
-
-  function getMaxHrForClient(_clientId: string): number {
-    // If age were stored, use 220 - age. Fall back to 190.
-    return 190;
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- eliminateLowest/getActiveEntities are stable within the same render
+  }, [clients, config, isTeam, raceWinner]);
 
   // ── End handler ────────────────────────────────────────────────────────────
 
@@ -567,7 +575,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       isTeamFormat: isTeam,
       clientSummaries,
     });
-  }, [clients, clientProfiles, isTeam]);
+  }, [clients, clientProfiles, isTeam, config.teams]);
 
   // Auto-end race when winner is determined
   useEffect(() => {
@@ -596,28 +604,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   }, [realmEnded, handleEnd]);
 
   // ── Build leaderboard data ─────────────────────────────────────────────────
-
+  // Trackers are mutated in effects and re-renders are driven by forceRender()
   const trackers = trackersRef.current;
-
-  interface LeaderboardEntry {
-    id: string;
-    name: string;
-    color: string;
-    distanceMeters: number;
-    distanceKm: number;
-    points: number;
-    heartRate: number;
-    cadence: number;
-    active: boolean;
-    finished: boolean;
-    finishPosition: number | null;
-    finishTime: number | null;
-    eliminated: boolean;
-    eliminatedPosition: number | null;
-    inZone?: boolean;
-    currentZone?: number;
-    kingSeconds?: number;
-  }
 
   function buildEntries(): LeaderboardEntry[] {
     if (isTeam) {
@@ -758,7 +746,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 color: elimCountdown <= 10 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
-                {formatCountdown(elimCountdown)}
+                {formatDuration(elimCountdown)}
               </div>
               <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
                 until elimination
@@ -772,7 +760,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 color: remainingSecs <= 60 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
-                {formatCountdown(remainingSecs)}
+                {formatDuration(remainingSecs)}
               </div>
               <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
                 remaining
@@ -800,7 +788,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             Target: Zone {config.targetZone}
           </div>
           <div style={{ fontSize: 13, color: "var(--text)" }}>
-            {getZoneBpmRange(config.targetZone, 190)[0]}–{getZoneBpmRange(config.targetZone, 190)[1]} bpm
+            {getZoneBpmRange(config.targetZone, MAX_HR)[0]}–{getZoneBpmRange(config.targetZone, MAX_HR)[1]} bpm
           </div>
         </div>
       )}

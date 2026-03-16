@@ -34,7 +34,10 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 const timeframes = [15, 30, 45, 60];
 
 export function DungeonLobby({ joinCode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
-  const [difficulty, setDifficulty] = useState<DungeonDifficulty>((defaults?.difficulty as DungeonDifficulty) ?? "normal");
+  const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
+  const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
+    validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
+  );
   const [timeframe, setTimeframe] = useState(defaults?.timeframeMinutes ?? 30);
 
   return (

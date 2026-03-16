@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const MAX_HR = 190;
-const STRIDE_FACTOR = 0.415 / 100; // height(cm) → stride(m)
-const IDLE_TIMEOUT_MS = 10_000;
-const CADENCE_WINDOW_MS = 10_000;
+import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, formatDuration } from "../../utils/wearable";
 
 interface HrZone {
   zone: number;
@@ -72,12 +66,6 @@ function newTracker(): ClientTracker {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function getInitials(name: string): string {
   return name
     .split(/\s+/)
@@ -107,7 +95,7 @@ interface Props {
 export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
   const totalDistRef = useRef(0);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const [, forceRender] = useState(0);
 
@@ -115,6 +103,9 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
   const [syncZone, setSyncZone] = useState<number | null>(null);
   const syncStartRef = useRef<number | null>(null);
   const [syncDuration, setSyncDuration] = useState(0);
+
+  // Initialize start time
+  useEffect(() => { startTimeRef.current = Date.now(); }, []);
 
   // Timer: elapsed seconds
   useEffect(() => {
@@ -239,10 +230,12 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
         setSyncDuration(0);
       }
     }
-  }, [latestData, clients, syncZone, elapsed]);
+  }, [latestData, clients, syncZone]);
 
   // ── Derived values ───────────────────────────────────────────────────────
 
+  /* eslint-disable react-hooks/refs -- intentional: mutable ref read during render for
+     real-time performance. Re-renders are driven by forceRender() state updates. */
   const trackers = trackersRef.current;
 
   let totalSteps = 0;
@@ -526,14 +519,6 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
           {formatDuration(elapsed)}
         </div>
       </div>
-
-      {/* Pulse animation keyframes */}
-      <style>{`
-        @keyframes pulse-dot {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.3); }
-        }
-      `}</style>
 
       {/* Hidden end button — session ends from the lobby/host */}
       <button

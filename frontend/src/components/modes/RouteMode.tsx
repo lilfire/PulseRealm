@@ -105,7 +105,6 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd }:
 
         // Extract detailed path from all steps
         const path = extractDetailedPath(result);
-        console.log("Route loaded:", path.length, "points");
 
         // Draw the full route (remaining portion - visible against dark map)
         new google.maps.Polyline({
@@ -201,8 +200,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd }:
       },
     );
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [route]);
 
   // Progress along route based on speed
   useEffect(() => {
