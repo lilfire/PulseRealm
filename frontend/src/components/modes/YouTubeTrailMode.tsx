@@ -20,6 +20,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
   const containerRef = useRef<HTMLDivElement>(null);
   const speedRef = useRef(0);
   const totalDistanceRef = useRef(0);
+  const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
   const [muted, setMuted] = useState(true);
   const [currentRate, setCurrentRate] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
@@ -38,20 +39,22 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
       const speedMs = speedKmh / 3.6;
       const distanceDelta = speedMs * (INTERVAL_MS / 1000);
       totalDistanceRef.current += distanceDelta;
+      setTotalDistanceDisplay(totalDistanceRef.current);
     }, INTERVAL_MS);
     return () => clearInterval(timer);
   }, []);
 
   // Load YouTube IFrame API
   useEffect(() => {
-    if ((window as any).YT?.Player) {
+    const ytWindow = window as Window & { YT?: typeof YT; onYouTubeIframeAPIReady?: () => void };
+    if (ytWindow.YT?.Player) {
       createPlayer();
       return;
     }
 
     // Set up callback before loading script
-    const prevCallback = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => {
+    const prevCallback = ytWindow.onYouTubeIframeAPIReady;
+    ytWindow.onYouTubeIframeAPIReady = () => {
       prevCallback?.();
       createPlayer();
     };
@@ -96,7 +99,6 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
         playerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.videoId]);
 
   // Adjust playback speed based on walking speed
@@ -238,7 +240,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
             <div>{latestData.heartRate} bpm</div>
             <div>{latestData.steps} steps</div>
-            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceRef.current.toFixed(0)} m</div>
+            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay.toFixed(0)} m</div>
           </>
         ) : (
           <div style={{ color: "#888" }}>No data yet</div>

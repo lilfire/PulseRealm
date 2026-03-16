@@ -70,6 +70,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const accumulatedDistanceRef = useRef(0);
   const movingRef = useRef(false);
   const totalDistanceRef = useRef(0);
+  const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
   const currentPositionRef = useRef<google.maps.LatLng | null>(null);
   const panoSpacingRef = useRef(12);
   const visitedPanosRef = useRef<Set<string>>(new Set());
@@ -486,6 +487,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       const distanceDelta = speedMs * (INTERVAL_MS / 1000);
       accumulatedDistanceRef.current += distanceDelta;
       totalDistanceRef.current += distanceDelta;
+      setTotalDistanceDisplay(totalDistanceRef.current);
 
       const spacing = panoSpacingRef.current;
       if (accumulatedDistanceRef.current >= spacing) {
@@ -570,7 +572,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
             <div>{latestData.heartRate} bpm</div>
             <div>{latestData.steps} steps</div>
-            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceRef.current.toFixed(0)} m</div>
+            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay.toFixed(0)} m</div>
           </>
         ) : (
           <div style={{ color: "#888" }}>No data yet</div>

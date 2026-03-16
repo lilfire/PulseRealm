@@ -107,7 +107,7 @@ interface Props {
 export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
   const totalDistRef = useRef(0);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const [, forceRender] = useState(0);
 
@@ -115,6 +115,9 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
   const [syncZone, setSyncZone] = useState<number | null>(null);
   const syncStartRef = useRef<number | null>(null);
   const [syncDuration, setSyncDuration] = useState(0);
+
+  // Initialize start time
+  useEffect(() => { startTimeRef.current = Date.now(); }, []);
 
   // Timer: elapsed seconds
   useEffect(() => {
@@ -243,6 +246,8 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
 
   // ── Derived values ───────────────────────────────────────────────────────
 
+  /* eslint-disable react-hooks/refs -- intentional: mutable ref read during render for
+     real-time performance. Re-renders are driven by forceRender() state updates. */
   const trackers = trackersRef.current;
 
   let totalSteps = 0;

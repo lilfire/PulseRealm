@@ -279,6 +279,7 @@ export function useServerConnection() {
     } else {
       searchForServer();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: reads initial values from state/localStorage
   }, []);
 
   async function probeUrl(
@@ -394,7 +395,7 @@ export function useServerConnection() {
       localStorage.setItem(STORAGE_KEY, cleanUrl);
     }
     return ok;
-  }, []);
+  }, [setRemoteUrl, setConnectionMode]);
 
   const switchToLocal = useCallback(() => {
     setConnectionMode("local");
@@ -404,7 +405,7 @@ export function useServerConnection() {
     setError(null);
     localStorage.removeItem(STORAGE_KEY);
     searchForServer();
-  }, []);
+  }, [searchForServer, setConnectionMode]);
 
   const disconnect = useCallback(() => {
     setServerUrl("");

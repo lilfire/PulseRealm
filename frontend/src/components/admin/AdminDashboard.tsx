@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CompetitionDefaults } from "./CompetitionDefaults";
 import { DungeonDefaults } from "./DungeonDefaults";
 import { StreetViewEditor, type StreetViewLocationItem } from "./StreetViewEditor";
@@ -33,11 +33,7 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchConfig();
-  }, []);
-
-  async function fetchConfig() {
+  const fetchConfig = useCallback(async () => {
     try {
       const res = await fetch(`${apiUrl}/api/admin/config`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -51,7 +47,11 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
     } catch {
       setError("Failed to load config");
     }
-  }
+  }, [apiUrl, token, onLogout]);
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
 
   async function saveConfig() {
     if (!config) return;

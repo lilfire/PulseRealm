@@ -68,7 +68,9 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
   useEffect(() => {
-    // Reset all state when realm changes (e.g. after ending a realm)
+    // Reset all state when realm changes (e.g. after ending a realm).
+    // These setState calls batch together and only cause one re-render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional state reset on dep change
     setConnected(false);
     setStarted(false);
     setEnded(false);

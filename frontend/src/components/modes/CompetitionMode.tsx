@@ -102,7 +102,7 @@ interface Props {
 
 export function CompetitionMode({ clients, clientProfiles, latestData, config, onEnd, onEliminate }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const [, forceRender] = useState(0);
   const rerender = () => forceRender((n) => n + 1);
@@ -119,7 +119,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   // King state
   const [currentKing, setCurrentKing] = useState<string | null>(null);
-  const kingStartRef = useRef<number>(Date.now());
+  const kingStartRef = useRef<number>(0);
   const [kingStint, setKingStint] = useState(0);
   const kingRef = useRef<string | null>(null);
 
@@ -131,9 +131,91 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   // Stable ref for onEnd so handleEnd doesn't change every render
   const onEndRef = useRef(onEnd);
-  onEndRef.current = onEnd;
+  useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
   const isTeam = config.playerFormat === "team";
+
+  // ── Initialize time refs on mount ─────────────────────────────────────────
+
+  useEffect(() => {
+    const now = Date.now();
+    startTimeRef.current = now;
+    kingStartRef.current = now;
+  }, []);
+
+  // ── Helpers (declared before use) ─────────────────────────────────────────
+
+  function getMaxHrForClient(_clientId?: string): number {
+    void _clientId; // placeholder for future per-client max HR (220 - age)
+    return 190;
+  }
+
+  function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {
+    if (isTeam) {
+      return config.teams
+        .filter((t) => !eliminatedRef.current.has(t.name))
+        .map((t) => t.name);
+    }
+    return clients.filter((cid) => !trackers[cid]?.eliminated);
+  }
+
+  function eliminateLowest(trackers: Record<string, ClientTracker>, entities: string[]) {
+    if (entities.length <= 1) return;
+
+    let lowestEntity: string | null = null;
+    let lowestDist = Infinity;
+    let lowestCadence = Infinity;
+
+    for (const entity of entities) {
+      let dist: number;
+      let cadence: number;
+      if (isTeam) {
+        const team = config.teams.find((t) => t.name === entity)!;
+        dist = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0);
+        cadence = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.cadence ?? 0), 0) / team.clientIds.length;
+      } else {
+        dist = trackers[entity]?.distanceMeters ?? 0;
+        cadence = trackers[entity]?.cadence ?? 0;
+      }
+
+      if (dist < lowestDist || (dist === lowestDist && cadence < lowestCadence)) {
+        lowestDist = dist;
+        lowestCadence = cadence;
+        lowestEntity = entity;
+      } else if (dist === lowestDist && cadence === lowestCadence) {
+        // Exactly tied on both — both survive
+        lowestEntity = null;
+      }
+    }
+
+    if (!lowestEntity) return;
+
+    const position = clients.length - eliminatedRef.current.size;
+
+    if (isTeam) {
+      eliminatedRef.current.add(lowestEntity);
+      const team = config.teams.find((t) => t.name === lowestEntity)!;
+      for (const cid of team.clientIds) {
+        if (trackers[cid]) {
+          trackers[cid].eliminated = true;
+          trackers[cid].eliminatedPosition = position;
+        }
+        onEliminate?.(cid);
+      }
+      const tk = `__team__${lowestEntity}`;
+      if (!trackers[tk]) trackers[tk] = newTracker();
+      trackers[tk].eliminated = true;
+      trackers[tk].eliminatedPosition = position;
+    } else {
+      if (trackers[lowestEntity]) {
+        trackers[lowestEntity].eliminated = true;
+        trackers[lowestEntity].eliminatedPosition = position;
+      }
+      onEliminate?.(lowestEntity);
+    }
+
+    rerender();
+  }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
 
@@ -407,83 +489,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       rerender();
     }, 1000);
     return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- eliminateLowest/getActiveEntities are stable within the same render
   }, [clients, config, isTeam, realmEnded, raceWinner]);
-
-  // ── Helpers for elimination ────────────────────────────────────────────────
-
-  function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {
-    if (isTeam) {
-      return config.teams
-        .filter((t) => !eliminatedRef.current.has(t.name))
-        .map((t) => t.name);
-    }
-    return clients.filter((cid) => !trackers[cid]?.eliminated);
-  }
-
-  function eliminateLowest(trackers: Record<string, ClientTracker>, entities: string[]) {
-    if (entities.length <= 1) return;
-
-    let lowestEntity: string | null = null;
-    let lowestDist = Infinity;
-    let lowestCadence = Infinity;
-
-    for (const entity of entities) {
-      let dist: number;
-      let cadence: number;
-      if (isTeam) {
-        const team = config.teams.find((t) => t.name === entity)!;
-        dist = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0);
-        cadence = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.cadence ?? 0), 0) / team.clientIds.length;
-      } else {
-        dist = trackers[entity]?.distanceMeters ?? 0;
-        cadence = trackers[entity]?.cadence ?? 0;
-      }
-
-      if (dist < lowestDist || (dist === lowestDist && cadence < lowestCadence)) {
-        lowestDist = dist;
-        lowestCadence = cadence;
-        lowestEntity = entity;
-      } else if (dist === lowestDist && cadence === lowestCadence) {
-        // Exactly tied on both — both survive
-        lowestEntity = null;
-      }
-    }
-
-    if (!lowestEntity) return;
-
-    const position = clients.length - eliminatedRef.current.size;
-
-    if (isTeam) {
-      eliminatedRef.current.add(lowestEntity);
-      const team = config.teams.find((t) => t.name === lowestEntity)!;
-      for (const cid of team.clientIds) {
-        if (trackers[cid]) {
-          trackers[cid].eliminated = true;
-          trackers[cid].eliminatedPosition = position;
-        }
-        onEliminate?.(cid);
-      }
-      const tk = `__team__${lowestEntity}`;
-      if (!trackers[tk]) trackers[tk] = newTracker();
-      trackers[tk].eliminated = true;
-      trackers[tk].eliminatedPosition = position;
-    } else {
-      if (trackers[lowestEntity]) {
-        trackers[lowestEntity].eliminated = true;
-        trackers[lowestEntity].eliminatedPosition = position;
-      }
-      onEliminate?.(lowestEntity);
-    }
-
-    rerender();
-  }
-
-  // ── Max HR helper ──────────────────────────────────────────────────────────
-
-  function getMaxHrForClient(_clientId: string): number {
-    // If age were stored, use 220 - age. Fall back to 190.
-    return 190;
-  }
 
   // ── End handler ────────────────────────────────────────────────────────────
 
@@ -567,7 +574,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       isTeamFormat: isTeam,
       clientSummaries,
     });
-  }, [clients, clientProfiles, isTeam]);
+  }, [clients, clientProfiles, isTeam, config.teams]);
 
   // Auto-end race when winner is determined
   useEffect(() => {
@@ -596,7 +603,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   }, [realmEnded, handleEnd]);
 
   // ── Build leaderboard data ─────────────────────────────────────────────────
-
+  // Trackers are mutated in effects and re-renders are driven by forceRender()
   const trackers = trackersRef.current;
 
   interface LeaderboardEntry {
