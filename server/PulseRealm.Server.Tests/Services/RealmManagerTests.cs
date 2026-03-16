@@ -508,6 +508,25 @@ public class RealmManagerTests
         Assert.Equal(0, removed);
     }
 
+    [Fact]
+    public void CleanupEndedRealms_DoesNotRemoveEndedRealmCreatedExactlyAtCutoff()
+    {
+        // The cutoff is DateTime.UtcNow - ttl. The implementation uses strict <
+        // (realm.CreatedAt < cutoff), so a realm created exactly at the cutoff
+        // boundary should NOT be removed.
+        var ttl = TimeSpan.FromMinutes(30);
+        var realm = _manager.CreateRealm(RealmMode.Competition);
+        realm.Status = RealmStatus.Ended;
+        // Set CreatedAt to exactly the cutoff moment (not older).
+        realm.CreatedAt = DateTime.UtcNow - ttl;
+
+        var removed = _manager.CleanupEndedRealms(ttl);
+
+        // Realm is at the boundary (== cutoff), not strictly before it.
+        Assert.Equal(0, removed);
+        Assert.NotNull(_manager.GetById(realm.Id));
+    }
+
     // -------------------------------------------------------------------------
     // Thread safety
     // -------------------------------------------------------------------------

@@ -258,6 +258,51 @@ public class RealmHubTests
         Assert.Contains("Weight", ex.Message);
     }
 
+    [Fact]
+    public async Task JoinRealm_NameExactly50Chars_Succeeds()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        // 50-character name is the maximum allowed — must not throw.
+        var profile = new ClientProfile { Name = new string('A', 50), HeightCm = 170, WeightKg = 60 };
+        var clientId = Guid.NewGuid().ToString();
+
+        var ex = await Record.ExceptionAsync(
+            () => hub.JoinRealm(realm.JoinCode, clientId, profile));
+
+        Assert.Null(ex);
+    }
+
+    [Theory]
+    [InlineData(50)]   // minimum valid height
+    [InlineData(250)]  // maximum valid height
+    public async Task JoinRealm_HeightAtBoundary_Succeeds(double height)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = "Test", HeightCm = height, WeightKg = 70 };
+
+        var ex = await Record.ExceptionAsync(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
+        Assert.Null(ex);
+    }
+
+    [Theory]
+    [InlineData(10)]   // minimum valid weight
+    [InlineData(500)]  // maximum valid weight
+    public async Task JoinRealm_WeightAtBoundary_Succeeds(double weight)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = "Test", HeightCm = 170, WeightKg = weight };
+
+        var ex = await Record.ExceptionAsync(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
+        Assert.Null(ex);
+    }
+
     // -------------------------------------------------------------------------
     // StartRealm
     // -------------------------------------------------------------------------
@@ -424,7 +469,7 @@ public class RealmHubTests
         var second = new WearableData { ClientId = clientId, HeartRate = 145, Steps = 30 };
         await hub.SendWearableData(realm.Id, second);
 
-        Assert.True(second.SpeedKmh >= 0, "SpeedKmh must be non-negative.");
+        Assert.True(second.SpeedKmh > 0, "SpeedKmh must be positive when steps increased over a measurable time window.");
         Assert.True(second.SpeedKmh <= 25, "SpeedKmh must be clamped to 25 km/h.");
     }
 

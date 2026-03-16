@@ -181,10 +181,14 @@ public class AdminControllerTests
     public void Logout_WithAlreadyInvalidToken_DoesNotThrow()
     {
         var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        // Generate a token, immediately logout it so it is no longer valid,
+        // then attempt a second logout of the same (now-invalid) token.
         var token = auth.Login("admin", "secret")!;
+        auth.Logout(token);
         var configService = CreateConfigService();
-        var controller = CreateController(auth, configService, $"Bearer {token}`");
+        var controller = CreateController(auth, configService, $"Bearer {token}");
 
+        // Calling Logout with an already-invalidated token must not throw.
         var exception = Record.Exception(() => controller.Logout());
 
         Assert.Null(exception);

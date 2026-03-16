@@ -23,16 +23,6 @@ public class ConfigControllerTests
         return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
     }
 
-    private static AdminConfigService CreateAdminConfigService(IConfiguration? config = null)
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        config ??= new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
-            .Build();
-        var logger = new Mock<ILogger<AdminConfigService>>().Object;
-        return new AdminConfigService(config, logger);
-    }
-
     private static AdminConfigService CreateAdminConfigServiceWithTempDir()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

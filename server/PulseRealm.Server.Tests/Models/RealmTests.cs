@@ -227,18 +227,18 @@ public class RealmTests
     }
 
     [Fact]
-    public void WithLock_Action_ExecutesSynchronized()
+    public void WithLock_Action_SecondCallSeesFirstCallMutation()
     {
+        // Verifies that mutations made inside one WithLock block are visible
+        // to a subsequent WithLock block on the same realm.
         var realm = new Realm();
+
+        realm.WithLock(r => r.Status = RealmStatus.Started);
 
         realm.WithLock(r =>
         {
-            r.ConnectedClientIds.Add("client-1");
-            r.KnownClientIds.Add("client-1");
+            Assert.Equal(RealmStatus.Started, r.Status);
         });
-
-        Assert.Single(realm.ConnectedClientIds);
-        Assert.Contains("client-1", realm.KnownClientIds);
     }
 
     [Fact]

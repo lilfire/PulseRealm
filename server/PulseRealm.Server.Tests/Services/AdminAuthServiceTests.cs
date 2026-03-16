@@ -188,6 +188,14 @@ public class AdminAuthServiceTests
         Assert.False(service.ValidateToken("not-a-real-token"));
     }
 
+    [Fact]
+    public void ValidateToken_ReturnsFalse_ForWhitespaceOnlyToken()
+    {
+        var service = CreateConfigured();
+
+        Assert.False(service.ValidateToken("   "));
+    }
+
     // -------------------------------------------------------------------------
     // Logout
     // -------------------------------------------------------------------------
