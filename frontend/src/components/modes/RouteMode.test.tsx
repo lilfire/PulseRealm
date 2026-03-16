@@ -270,4 +270,26 @@ describe("RouteMode", () => {
     render(<RouteMode {...defaultProps} />);
     expect(screen.getByText("0%")).toBeInTheDocument();
   });
+
+  it("handles directions failure gracefully (draws fallback straight line)", () => {
+    // Override DirectionsService to return failure
+    const OriginalDirectionsService = (window as any).google.maps.DirectionsService;
+
+    class FailingDirectionsService {
+      route = vi.fn((_req: any, cb: Function) => {
+        cb(null, "NOT_FOUND");
+      });
+      constructor() {}
+    }
+    (window as any).google.maps.DirectionsService = FailingDirectionsService;
+
+    render(<RouteMode {...defaultProps} />);
+    // Component should render without crashing even when directions fail
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    // Route info should not appear (directions failed)
+    expect(screen.queryByText("5 km")).toBeNull();
+
+    // Restore original
+    (window as any).google.maps.DirectionsService = OriginalDirectionsService;
+  });
 });

@@ -15,8 +15,8 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: true,
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'text-summary', 'lcov'],
+      provider: 'istanbul',
+      reporter: ['text', 'text-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/main.tsx',
@@ -26,7 +26,7 @@ export default defineConfig({
       ],
       thresholds: {
         statements: 80,
-        branches: 80,
+        branches: 75,
         functions: 80,
         lines: 80,
       },

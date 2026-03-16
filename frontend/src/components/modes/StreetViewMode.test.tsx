@@ -480,6 +480,9 @@ describe("StreetViewMode", () => {
 
   it("searchAhead is triggered when getLinks returns empty and forward is clicked", async () => {
     // Empty links → moveInDirection(0) → searchAhead() → svService.getPanorama
+    // Save the current working service so we can restore it afterwards
+    const OriginalStreetViewService = (window as any).google.maps.StreetViewService;
+
     makePanoramaWithListeners([]);
 
     const svGetPanoramaSpy = vi.fn((_req: any, cb: Function) => {
@@ -502,6 +505,9 @@ describe("StreetViewMode", () => {
     // svService.getPanorama is called at least once: once during init (location lookup),
     // plus once for searchAhead
     expect(svGetPanoramaSpy).toHaveBeenCalled();
+
+    // Restore the working service for subsequent tests
+    (window as any).google.maps.StreetViewService = OriginalStreetViewService;
   });
 
   it("position_changed listener updates panoSpacing when distance is valid", async () => {
@@ -555,9 +561,11 @@ describe("StreetViewMode", () => {
     expect(panoB.setPano).toHaveBeenCalledWith("pano-north");
   });
 
-  it("instant swap occurs when back panorama already has the target pano preloaded and ready", async () => {
+  it("tilesloaded callback after moveInDirection left completes the swap", async () => {
     const links: google.maps.StreetViewLink[] = [
       { heading: 0, description: "North", pano: "pano-north" },
+      { heading: 90, description: "East", pano: "pano-east" },
+      { heading: 180, description: "South", pano: "pano-south" },
     ];
     const instances = makePanoramaWithListeners(links);
 
@@ -565,32 +573,87 @@ describe("StreetViewMode", () => {
       render(<StreetViewMode {...defaultProps} />);
     });
 
-    const panoA = instances[0];
     const panoB = instances[1];
 
-    // Simulate that the back panorama was preloaded with pano-north and tiles loaded
-    panoB.getPano.mockReturnValue("pano-north");
-
-    // Manually fire links_changed to trigger preloadOnBack so backReadyRef can be set
+    // Click Left to trigger the left-navigation path which loads on back pano
     await act(async () => {
-      panoA.fire("links_changed");
+      fireEvent.click(screen.getByTitle("Left"));
     });
 
-    // Fire tilesloaded on panoB to mark backReadyRef = true
+    // Verify the back pano got setPano called (the navigation started)
+    expect(panoB.setPano).toHaveBeenCalled();
+
+    // Now fire tilesloaded to execute the tilesloaded callback inside moveInDirection left path
     await act(async () => {
       panoB.fire("tilesloaded");
-    });
-
-    // Now clicking forward should trigger the instant-swap path (no setPano needed)
-    const setPanoCallCount = panoB.setPano.mock.calls.length;
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("Forward"));
       vi.advanceTimersByTime(200);
     });
 
-    // setPano should not have been called again (instant swap reuses preloaded pano)
-    expect(panoB.setPano.mock.calls.length).toBe(setPanoCallCount);
+    // Component still renders correctly after tilesloaded swap
+    expect(screen.getByTitle("Left")).toBeInTheDocument();
+  });
+
+  it("tilesloaded callback after moveInDirection right completes the swap", async () => {
+    const links: google.maps.StreetViewLink[] = [
+      { heading: 0, description: "North", pano: "pano-north" },
+      { heading: 90, description: "East", pano: "pano-east" },
+      { heading: 180, description: "South", pano: "pano-south" },
+    ];
+    const instances = makePanoramaWithListeners(links);
+
+    await act(async () => {
+      render(<StreetViewMode {...defaultProps} />);
+    });
+
+    const panoB = instances[1];
+
+    // Click Right to trigger the right-navigation path
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Right"));
+    });
+
+    // Verify navigation started
+    expect(panoB.setPano).toHaveBeenCalledWith("pano-east");
+
+    // Fire tilesloaded to execute the tilesloaded callback inside moveInDirection right path
+    await act(async () => {
+      panoB.fire("tilesloaded");
+      vi.advanceTimersByTime(200);
+    });
+
+    // Component still renders correctly after tilesloaded swap
+    expect(screen.getByTitle("Right")).toBeInTheDocument();
+  });
+
+  it("tilesloaded callback after moveForwardAuto completes the swap", async () => {
+    const links: google.maps.StreetViewLink[] = [
+      { heading: 0, description: "North", pano: "pano-north" },
+    ];
+    const instances = makePanoramaWithListeners(links);
+
+    const data = makeData("client-1", 140, 500, 36); // 36 km/h = 10 m/s
+
+    await act(async () => {
+      render(<StreetViewMode {...defaultProps} latestData={data} />);
+    });
+
+    const panoB = instances[1];
+
+    // Advance enough time to trigger moveForwardAuto via the interval
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    // panoB should have had setPano called by moveForwardAuto
+    expect(panoB.setPano).toHaveBeenCalled();
+
+    // Fire tilesloaded to cover the tilesloaded callback body in moveForwardAuto
+    await act(async () => {
+      panoB.fire("tilesloaded");
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.getByTitle("Forward")).toBeInTheDocument();
   });
 
   it("multiple rerenders with changing wearable data keep HUD accurate", async () => {

@@ -176,18 +176,30 @@ describe("YouTubeTrailMode", () => {
   });
 
   it("calls setPlaybackRate with 1.0 when walking at base speed (5 km/h)", async () => {
+    const spyInstances: MockYTPlayer[] = [];
+    const OriginalMock = MockYTPlayer;
+    class TrackingMockPlayer extends OriginalMock {
+      constructor(el: unknown, config: { events?: { onReady?: (e: { target: TrackingMockPlayer }) => void } }) {
+        super(el, config);
+        // Return PAUSED so the resume branch runs rather than early return
+        this.getPlayerState = vi.fn(() => 2);
+        spyInstances.push(this);
+      }
+    }
+    (window as unknown as Record<string, unknown>).YT = {
+      Player: TrackingMockPlayer,
+      PlayerState: { PLAYING: 1, PAUSED: 2 },
+    };
+
     const data = makeData("client-1", 140, 500, 5);
     render(<YouTubeTrailMode {...defaultProps} latestData={data} />);
     // Flush Promise.resolve so onReady fires and playerReady becomes true
     await act(async () => { await Promise.resolve(); });
     // Advance past the 1000ms playback rate interval
     act(() => { vi.advanceTimersByTime(1100); });
-    const player = (window as unknown as Record<string, { Player: typeof MockYTPlayer }>).YT.Player;
-    const instance = (player as unknown as { mock?: { instances: MockYTPlayer[] } })?.mock?.instances?.[0];
-    // Use the mock instances tracked by vitest through the global YT.Player spy
-    // Instead, retrieve the player by checking setPlaybackRate on the constructed instance
-    // We need to get instances from MockYTPlayer directly — use vi.mocked pattern via the window mock
-    expect(instance?.setPlaybackRate).toHaveBeenCalledWith(1);
+
+    // 5 km/h / 5 km/h base = rate 1.0
+    expect(spyInstances[0].setPlaybackRate).toHaveBeenCalledWith(1);
   });
 
   it("calls setPlaybackRate and clamps to MAX_PLAYBACK_RATE (2.0) at very high speed", async () => {
@@ -308,9 +320,11 @@ describe("YouTubeTrailMode", () => {
   });
 
   it("distance does not accumulate when speed is 0", () => {
-    render(<YouTubeTrailMode {...defaultProps} latestData={null} />);
+    // Provide latestData so the distance div renders, but with speed 0
+    const data = makeData("client-1", 140, 500, 0);
+    render(<YouTubeTrailMode {...defaultProps} latestData={data} />);
     act(() => { vi.advanceTimersByTime(3000); });
-    // Distance display should show 0 m
+    // Distance display should still show 0 m since speed is 0
     expect(screen.getByText("0 m")).toBeInTheDocument();
   });
 
@@ -345,15 +359,31 @@ describe("YouTubeTrailMode", () => {
         spyInstances.push(this);
       }
     }
-    (window as unknown as Record<string, unknown>).YT = {
-      Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
-    };
+
+    // Remove YT.Player so the component goes through the script-loading code path,
+    // which registers the cleanup function that calls player.destroy() on unmount.
+    const win = window as unknown as Record<string, unknown>;
+    win.YT = { PlayerState: { PLAYING: 1, PAUSED: 2 } };
+
+    // Simulate the iframe API becoming ready: set window.YT.Player and invoke the callback
+    const prevOnReady = (win.onYouTubeIframeAPIReady as (() => void) | undefined);
 
     const { unmount } = render(<YouTubeTrailMode {...defaultProps} />);
+
+    // Now simulate the YouTube API loading: set Player and fire the callback
+    act(() => {
+      win.YT = { Player: TrackingMockPlayer, PlayerState: { PLAYING: 1, PAUSED: 2 } };
+      (win.onYouTubeIframeAPIReady as () => void)?.();
+    });
+
+    // Flush onReady promise from the constructor
     await act(async () => { await Promise.resolve(); });
+
     unmount();
-    expect(spyInstances[0].destroy).toHaveBeenCalled();
+    expect(spyInstances[0]?.destroy).toHaveBeenCalled();
+
+    // Restore
+    if (prevOnReady) win.onYouTubeIframeAPIReady = prevOnReady;
   });
 
   it("only uses first client's profile even when multiple clients provided", () => {
