@@ -6,145 +6,225 @@ using PulseRealm.Server.Services;
 
 namespace PulseRealm.Server.Tests.Hubs;
 
-public class RealmHubTests : IDisposable
+/// <summary>
+/// Tests for RealmHub.
+///
+/// The hub owns three static ConcurrentDictionaries keyed by connection ID or
+/// client ID. To prevent cross-test contamination every test uses a fresh
+/// RealmManager and Guid-based client / connection IDs so nothing collides with
+/// state left behind by another test regardless of execution order.
+///
+/// Hub infrastructure (Clients / Groups / Context) is wired by CreateHub().
+/// </summary>
+public class RealmHubTests
 {
-    private readonly RealmManager _realmManager = new();
-    private readonly Mock<IHubCallerClients> _mockClients = new();
-    private readonly Mock<IClientProxy> _mockClientProxy = new();
-    private readonly Mock<IGroupManager> _mockGroups = new();
-    private int _connCounter;
+    // -------------------------------------------------------------------------
+    // Fixture helpers
+    // -------------------------------------------------------------------------
 
-    private RealmHub CreateHub(string? connectionId = null)
+    /// <summary>
+    /// Builds a fully-wired RealmHub together with its supporting mocks and a
+    /// brand-new RealmManager so each test starts from a clean slate.
+    /// </summary>
+    private static (
+        RealmHub Hub,
+        RealmManager Manager,
+        Mock<IHubCallerClients> MockClients,
+        Mock<IClientProxy> MockProxy,
+        Mock<IGroupManager> MockGroups)
+        CreateHub(string? connectionId = null)
     {
-        var hub = new RealmHub(_realmManager);
+        var manager = new RealmManager();
+        var hub = new RealmHub(manager);
+
+        var mockClients = new Mock<IHubCallerClients>();
+        var mockProxy = new Mock<IClientProxy>();
+        var mockGroups = new Mock<IGroupManager>();
         var mockContext = new Mock<HubCallerContext>();
-        connectionId ??= $"conn-{Interlocked.Increment(ref _connCounter)}";
-        mockContext.Setup(c => c.ConnectionId).Returns(connectionId);
-        _mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
-        _mockClients.Setup(c => c.Caller).Returns(_mockClientProxy.Object);
-        hub.Clients = _mockClients.Object;
-        hub.Groups = _mockGroups.Object;
+
+        mockContext.Setup(c => c.ConnectionId).Returns(connectionId ?? Guid.NewGuid().ToString());
+        mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockProxy.Object);
+        mockClients.Setup(c => c.Caller).Returns(mockProxy.Object);
+
         hub.Context = mockContext.Object;
-        return hub;
+        hub.Clients = mockClients.Object;
+        hub.Groups = mockGroups.Object;
+
+        return (hub, manager, mockClients, mockProxy, mockGroups);
     }
 
-    public void Dispose() { }
-
-    // --- JoinRealm ---
+    // -------------------------------------------------------------------------
+    // JoinRealm — guard conditions
+    // -------------------------------------------------------------------------
 
     [Fact]
     public async Task JoinRealm_InvalidJoinCode_ThrowsHubException()
     {
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm("000000", "client-1"));
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm("000000", Guid.NewGuid().ToString()));
+
         Assert.Contains("Invalid join code", ex.Message);
     }
 
     [Fact]
     public async Task JoinRealm_EndedRealm_ThrowsHubException()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        realm.Status = RealmStatus.Ended;
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Ended);
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "client-1"));
-        Assert.Contains("ended", ex.Message);
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString()));
+
+        Assert.Contains("ended", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task JoinRealm_StartedRealmUnknownClient_ThrowsHubException()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        realm.Status = RealmStatus.Started;
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "unknown-client"));
-        Assert.Contains("already started", ex.Message);
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString()));
+
+        Assert.Contains("already started", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task JoinRealm_FullRealm_ThrowsHubException()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.StreetView); // MaxClients = 1
-        _realmManager.AddClient(realm.Id, "existing-client");
+        var (hub, manager, _, _, _) = CreateHub();
+        // StreetView has MaxClients = 1, so adding one client fills it.
+        var realm = manager.CreateRealm(RealmMode.StreetView);
+        manager.AddClient(realm.Id, Guid.NewGuid().ToString());
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "new-client"));
-        Assert.Contains("full", ex.Message);
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString()));
+
+        Assert.Contains("full", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — successful join
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealm_ValidCode_AddsClientAndSendsClientJoined()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, mockGroups) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        await hub.JoinRealm(realm.JoinCode, clientId);
+
+        Assert.Contains(clientId, realm.ConnectedClientIds);
+        mockGroups.Verify(g => g.AddToGroupAsync(connId, realm.Id, default), Times.Once);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientJoined", It.IsAny<object?[]>(), default), Times.Once);
     }
 
     [Fact]
-    public async Task JoinRealm_ValidCode_AddsClientAndSendsJoined()
+    public async Task JoinRealm_WithProfile_StoresProfile()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = 175, WeightKg = 70 };
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile { Name = "Alice", HeightCm = 170, WeightKg = 60 };
 
-        var hub = CreateHub();
-        await hub.JoinRealm(realm.JoinCode, "client-1", profile);
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
 
-        Assert.Contains("client-1", realm.ConnectedClientIds);
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("ClientJoined", It.IsAny<object?[]>(), default),
-            Times.Once);
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.NotNull(stored);
+        Assert.Equal("Alice", stored.Name);
+        Assert.Equal(clientId, stored.ClientId);
     }
 
     [Fact]
     public async Task JoinRealm_NullProfile_Succeeds()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
 
-        var hub = CreateHub();
-        await hub.JoinRealm(realm.JoinCode, "client-1");
+        await hub.JoinRealm(realm.JoinCode, clientId, null);
 
-        Assert.Contains("client-1", realm.ConnectedClientIds);
+        Assert.Contains(clientId, realm.ConnectedClientIds);
     }
 
+    // -------------------------------------------------------------------------
+    // JoinRealm — reconnect to started realm
+    // -------------------------------------------------------------------------
+
     [Fact]
-    public async Task JoinRealm_Reconnect_SendsRealmStarted()
+    public async Task JoinRealm_Reconnect_KnownClientInStartedRealm_SendsRealmStarted()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        _realmManager.AddClient(realm.Id, "client-1");
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        manager.AddClient(realm.Id, clientId);
         realm.WithLock(r =>
         {
             r.Status = RealmStatus.Started;
-            r.RealmConfig = "{\"test\":true}";
+            r.RealmConfig = """{"subMode":"race"}""";
         });
 
-        var hub = CreateHub();
-        await hub.JoinRealm(realm.JoinCode, "client-1");
+        await hub.JoinRealm(realm.JoinCode, clientId);
 
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("RealmStarted", It.IsAny<object?[]>(), default),
-            Times.Once);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmStarted", It.IsAny<object?[]>(), default), Times.Once);
     }
 
-    // --- Profile Validation ---
-
     [Fact]
-    public async Task JoinRealm_EmptyName_ThrowsHubException()
+    public async Task JoinRealm_Reconnect_StillSendsClientJoined()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "", HeightCm = 175, WeightKg = 70 };
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "client-1", profile));
+        manager.AddClient(realm.Id, clientId);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
+
+        await hub.JoinRealm(realm.JoinCode, clientId);
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientJoined", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — profile validation
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task JoinRealm_BlankName_ThrowsHubException(string name)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = name, HeightCm = 170, WeightKg = 60 };
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
         Assert.Contains("Name", ex.Message);
     }
 
     [Fact]
     public async Task JoinRealm_NameTooLong_ThrowsHubException()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = new string('A', 51), HeightCm = 175, WeightKg = 70 };
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = new string('X', 51), HeightCm = 170, WeightKg = 60 };
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "client-1", profile));
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
         Assert.Contains("Name", ex.Message);
     }
 
@@ -153,12 +233,13 @@ public class RealmHubTests : IDisposable
     [InlineData(251)]
     public async Task JoinRealm_HeightOutOfRange_ThrowsHubException(double height)
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
         var profile = new ClientProfile { Name = "Test", HeightCm = height, WeightKg = 70 };
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "client-1", profile));
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
         Assert.Contains("Height", ex.Message);
     }
 
@@ -167,200 +248,436 @@ public class RealmHubTests : IDisposable
     [InlineData(501)]
     public async Task JoinRealm_WeightOutOfRange_ThrowsHubException(double weight)
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = 175, WeightKg = weight };
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = "Test", HeightCm = 170, WeightKg = weight };
 
-        var hub = CreateHub();
-        var ex = await Assert.ThrowsAsync<HubException>(() =>
-            hub.JoinRealm(realm.JoinCode, "client-1", profile));
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
         Assert.Contains("Weight", ex.Message);
     }
 
-    // --- StartRealm ---
+    // -------------------------------------------------------------------------
+    // StartRealm
+    // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task StartRealm_InvalidRealm_SendsError()
+    public async Task StartRealm_InvalidRealm_SendsErrorToCaller()
     {
-        var hub = CreateHub();
-        await hub.StartRealm("nonexistent");
+        var (hub, _, _, mockProxy, _) = CreateHub();
 
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("Error", It.IsAny<object?[]>(), default),
-            Times.Once);
+        await hub.StartRealm(Guid.NewGuid().ToString());
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "Error",
+            It.Is<object?[]>(a => a.Length > 0 && a[0]!.ToString()!.Contains("not found")),
+            default), Times.Once);
     }
 
     [Fact]
-    public async Task StartRealm_Valid_SetsStatusAndBroadcasts()
+    public async Task StartRealm_ValidRealm_SetsStatusToStarted()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
 
-        var hub = CreateHub();
-        await hub.StartRealm(realm.Id, "{\"mode\":\"race\"}");
+        await hub.StartRealm(realm.Id, """{"mode":"race"}""");
 
         Assert.Equal(RealmStatus.Started, realm.Status);
-        Assert.Equal("{\"mode\":\"race\"}", realm.RealmConfig);
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("RealmStarted", It.IsAny<object?[]>(), default),
-            Times.Once);
     }
 
-    // --- SendWearableData ---
+    [Fact]
+    public async Task StartRealm_ValidRealm_StoresConfig()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        const string config = """{"mode":"race"}""";
+
+        await hub.StartRealm(realm.Id, config);
+
+        Assert.Equal(config, realm.RealmConfig);
+    }
 
     [Fact]
-    public async Task SendWearableData_ForwardsToGroup()
+    public async Task StartRealm_ValidRealm_SendsRealmStartedToGroup()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var data = new WearableData { ClientId = $"wd-client-{Guid.NewGuid()}", HeartRate = 120, Steps = 100 };
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
 
-        var hub = CreateHub();
+        await hub.StartRealm(realm.Id, """{"mode":"race"}""");
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmStarted", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartRealm_NullConfig_SetsStatusAndSendsEvent()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Social);
+
+        await hub.StartRealm(realm.Id, null);
+
+        Assert.Equal(RealmStatus.Started, realm.Status);
+        Assert.Null(realm.RealmConfig);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmStarted", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // SendWearableData
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendWearableData_ForwardsWearableDataReceivedToGroup()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var data = new WearableData
+        {
+            ClientId = Guid.NewGuid().ToString(),
+            HeartRate = 120,
+            Steps = 0
+        };
+
         await hub.SendWearableData(realm.Id, data);
 
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("WearableDataReceived", It.IsAny<object?[]>(), default),
-            Times.Once);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "WearableDataReceived", It.IsAny<object?[]>(), default), Times.Once);
     }
 
     [Fact]
-    public async Task SendWearableData_StepOffsetApplied_WhenStepsDecrease()
+    public async Task SendWearableData_FirstPacket_SpeedIsZero()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var clientId = $"offset-client-{Guid.NewGuid()}";
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var data = new WearableData
+        {
+            ClientId = Guid.NewGuid().ToString(),
+            HeartRate = 100,
+            Steps = 50
+        };
 
-        var hub = CreateHub();
+        await hub.SendWearableData(realm.Id, data);
 
-        // First send: 100 steps
-        var data1 = new WearableData { ClientId = clientId, HeartRate = 120, Steps = 100 };
-        await hub.SendWearableData(realm.Id, data1);
-
-        // Second send: steps reset to 10 (device restart)
-        var data2 = new WearableData { ClientId = clientId, HeartRate = 125, Steps = 10 };
-        await hub.SendWearableData(realm.Id, data2);
-
-        // Steps should include offset: 10 + 100 = 110
-        Assert.Equal(110, data2.Steps);
-    }
-
-    // --- EndRealm ---
-
-    [Fact]
-    public async Task EndRealm_InvalidRealm_SendsError()
-    {
-        var hub = CreateHub();
-        await hub.EndRealm("nonexistent", new RealmSummary());
-
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("Error", It.IsAny<object?[]>(), default),
-            Times.Once);
+        Assert.Equal(0, data.SpeedKmh);
     }
 
     [Fact]
-    public async Task EndRealm_Valid_SetsEndedAndBroadcasts()
+    public async Task SendWearableData_StepDecrease_AppliesOffsetToSteps()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        realm.Status = RealmStatus.Started;
-        var summary = new RealmSummary { TotalSteps = 500 };
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        // Use a guaranteed-unique client ID so static state from any other test
+        // cannot influence the offset accumulated here.
+        var clientId = Guid.NewGuid().ToString();
 
-        var hub = CreateHub();
-        await hub.EndRealm(realm.Id, summary);
+        var first = new WearableData { ClientId = clientId, HeartRate = 120, Steps = 100 };
+        await hub.SendWearableData(realm.Id, first);
 
-        Assert.Equal(RealmStatus.Ended, realm.Status);
-        Assert.True(summary.DurationSeconds > 0);
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("RealmEnded", It.IsAny<object?[]>(), default),
-            Times.Once);
-    }
+        // Steps dropped from 100 to 10 — device counter reset.
+        var second = new WearableData { ClientId = clientId, HeartRate = 125, Steps = 10 };
+        await hub.SendWearableData(realm.Id, second);
 
-    // --- NotifyEliminated ---
-
-    [Fact]
-    public async Task NotifyEliminated_BroadcastsToGroup()
-    {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-
-        var hub = CreateHub();
-        await hub.NotifyEliminated(realm.Id, "client-1");
-
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("ClientEliminated", It.IsAny<object?[]>(), default),
-            Times.Once);
-    }
-
-    // --- JoinRealmAsDashboard ---
-
-    [Fact]
-    public async Task JoinRealmAsDashboard_ValidRealm_SendsState()
-    {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        _realmManager.AddClient(realm.Id, "client-1", new ClientProfile { Name = "Test", HeightCm = 175, WeightKg = 70 });
-
-        var hub = CreateHub();
-        await hub.JoinRealmAsDashboard(realm.Id);
-
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("JoinedRealm", It.IsAny<object?[]>(), default),
-            Times.Once);
+        // After the reset the offset is 100, so cumulative = 10 + 100 = 110.
+        Assert.Equal(110, second.Steps);
     }
 
     [Fact]
-    public async Task JoinRealmAsDashboard_NullRealm_SendsDefaultState()
+    public async Task SendWearableData_StepIncrease_NoOffsetApplied()
     {
-        var hub = CreateHub();
-        await hub.JoinRealmAsDashboard("nonexistent");
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
 
-        _mockClientProxy.Verify(
-            c => c.SendCoreAsync("JoinedRealm", It.IsAny<object?[]>(), default),
-            Times.Once);
+        var first = new WearableData { ClientId = clientId, HeartRate = 80, Steps = 0 };
+        await hub.SendWearableData(realm.Id, first);
+
+        await Task.Delay(150);
+
+        var second = new WearableData { ClientId = clientId, HeartRate = 85, Steps = 50 };
+        await hub.SendWearableData(realm.Id, second);
+
+        // No reset occurred, so steps must not be inflated.
+        Assert.Equal(50, second.Steps);
     }
 
-    // --- OnDisconnectedAsync ---
+    [Fact]
+    public async Task SendWearableData_SubsequentPacketWithStepGain_SpeedIsPositive()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        manager.AddClient(realm.Id, clientId, new ClientProfile
+        {
+            Name = "Runner",
+            HeightCm = 180,
+            WeightKg = 75
+        });
+
+        var first = new WearableData { ClientId = clientId, HeartRate = 140, Steps = 0 };
+        await hub.SendWearableData(realm.Id, first);
+
+        await Task.Delay(200);
+
+        var second = new WearableData { ClientId = clientId, HeartRate = 145, Steps = 30 };
+        await hub.SendWearableData(realm.Id, second);
+
+        Assert.True(second.SpeedKmh >= 0, "SpeedKmh must be non-negative.");
+        Assert.True(second.SpeedKmh <= 25, "SpeedKmh must be clamped to 25 km/h.");
+    }
+
+    // -------------------------------------------------------------------------
+    // NotifyEliminated
+    // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task OnDisconnectedAsync_StartedRealm_KeepsProfile()
+    public async Task NotifyEliminated_BroadcastsClientEliminatedToGroup()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = 175, WeightKg = 70 };
-        var connId = $"conn-disconnect-{Guid.NewGuid()}";
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
 
-        // Join first
-        var hub1 = CreateHub(connId);
-        await hub1.JoinRealm(realm.JoinCode, "dc-client-1", profile);
+        await hub.NotifyEliminated(realm.Id, clientId);
 
-        // Start realm
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientEliminated",
+            It.Is<object?[]>(a => a.Length > 0 && (string)a[0]! == clientId),
+            default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // EndRealm
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task EndRealm_InvalidRealm_SendsErrorToCaller()
+    {
+        var (hub, _, _, mockProxy, _) = CreateHub();
+
+        await hub.EndRealm(Guid.NewGuid().ToString(), new RealmSummary());
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "Error",
+            It.Is<object?[]>(a => a.Length > 0 && a[0]!.ToString()!.Contains("not found")),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task EndRealm_ValidRealm_SetsStatusToEnded()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
         realm.WithLock(r => r.Status = RealmStatus.Started);
 
-        // Disconnect
-        var hub2 = CreateHub(connId);
-        await hub2.OnDisconnectedAsync(null);
+        await hub.EndRealm(realm.Id, new RealmSummary());
 
-        // Profile should still be there (for reconnect)
-        var p = _realmManager.GetClientProfile(realm.Id, "dc-client-1");
-        Assert.NotNull(p);
+        Assert.Equal(RealmStatus.Ended, realm.Status);
     }
 
     [Fact]
-    public async Task OnDisconnectedAsync_LobbyRealm_RemovesClient()
+    public async Task EndRealm_ValidRealm_SendsRealmEndedToGroup()
     {
-        var realm = _realmManager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = 175, WeightKg = 70 };
-        var connId = $"conn-lobby-dc-{Guid.NewGuid()}";
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
 
-        // Join
-        var hub1 = CreateHub(connId);
-        await hub1.JoinRealm(realm.JoinCode, "lobby-dc-client", profile);
+        await hub.EndRealm(realm.Id, new RealmSummary { TotalSteps = 500 });
 
-        // Disconnect (realm still in Lobby)
-        var hub2 = CreateHub(connId);
-        await hub2.OnDisconnectedAsync(null);
-
-        // Profile should be removed
-        var p = _realmManager.GetClientProfile(realm.Id, "lobby-dc-client");
-        Assert.Null(p);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmEnded", It.IsAny<object?[]>(), default), Times.Once);
     }
 
     [Fact]
-    public async Task OnDisconnectedAsync_NoMapping_DoesNotThrow()
+    public async Task EndRealm_ValidRealm_PopulatesDurationSeconds()
     {
-        var hub = CreateHub("unmapped-conn");
-        await hub.OnDisconnectedAsync(null); // Should not throw
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        // Back-date so the duration is measurably > 0.
+        realm.CreatedAt = DateTime.UtcNow.AddMinutes(-5);
+        var summary = new RealmSummary();
+
+        await hub.EndRealm(realm.Id, summary);
+
+        Assert.True(summary.DurationSeconds > 0,
+            $"Expected DurationSeconds > 0, got {summary.DurationSeconds}");
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealmAsDashboard
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealmAsDashboard_ValidRealm_AddsToGroupAndSendsJoinedRealm()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, mockGroups) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Dungeon);
+        manager.AddClient(realm.Id, Guid.NewGuid().ToString(),
+            new ClientProfile { Name = "Player1", HeightCm = 175, WeightKg = 70 });
+
+        await hub.JoinRealmAsDashboard(realm.Id);
+
+        mockGroups.Verify(g => g.AddToGroupAsync(connId, realm.Id, default), Times.Once);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "JoinedRealm", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinRealmAsDashboard_ValidRealm_StateContainsConnectedClientIds()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Dungeon);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        object?[]? capturedArgs = null;
+        mockProxy
+            .Setup(p => p.SendCoreAsync("JoinedRealm", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) => capturedArgs = args)
+            .Returns(Task.CompletedTask);
+
+        await hub.JoinRealmAsDashboard(realm.Id);
+
+        Assert.NotNull(capturedArgs);
+        var json = System.Text.Json.JsonSerializer.Serialize(capturedArgs[0]);
+        Assert.Contains(clientId, json);
+    }
+
+    [Fact]
+    public async Task JoinRealmAsDashboard_ValidRealm_StateContainsClientProfiles()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Dungeon);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId,
+            new ClientProfile { Name = "ProfiledPlayer", HeightCm = 180, WeightKg = 75 });
+
+        object?[]? capturedArgs = null;
+        mockProxy
+            .Setup(p => p.SendCoreAsync("JoinedRealm", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) => capturedArgs = args)
+            .Returns(Task.CompletedTask);
+
+        await hub.JoinRealmAsDashboard(realm.Id);
+
+        Assert.NotNull(capturedArgs);
+        var json = System.Text.Json.JsonSerializer.Serialize(capturedArgs[0]);
+        Assert.Contains("ProfiledPlayer", json);
+    }
+
+    [Fact]
+    public async Task JoinRealmAsDashboard_NullRealm_SendsDefaultLobbyState()
+    {
+        var (hub, _, _, mockProxy, _) = CreateHub();
+
+        object?[]? capturedArgs = null;
+        mockProxy
+            .Setup(p => p.SendCoreAsync("JoinedRealm", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) => capturedArgs = args)
+            .Returns(Task.CompletedTask);
+
+        await hub.JoinRealmAsDashboard(Guid.NewGuid().ToString());
+
+        Assert.NotNull(capturedArgs);
+        var json = System.Text.Json.JsonSerializer.Serialize(capturedArgs[0]);
+        Assert.Contains("Lobby", json);
+    }
+
+    [Fact]
+    public async Task JoinRealmAsDashboard_NullRealm_StateHasEmptyClientLists()
+    {
+        var (hub, _, _, mockProxy, _) = CreateHub();
+
+        object?[]? capturedArgs = null;
+        mockProxy
+            .Setup(p => p.SendCoreAsync("JoinedRealm", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) => capturedArgs = args)
+            .Returns(Task.CompletedTask);
+
+        await hub.JoinRealmAsDashboard(Guid.NewGuid().ToString());
+
+        Assert.NotNull(capturedArgs);
+        var json = System.Text.Json.JsonSerializer.Serialize(capturedArgs[0]);
+        // ConnectedClientIds and ClientProfiles should be empty collections.
+        Assert.Contains("[]", json);
+    }
+
+    // -------------------------------------------------------------------------
+    // OnDisconnectedAsync
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task OnDisconnectedAsync_LobbyRealm_FullyRemovesClientAndProfile()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        // The JoinRealm call seeds _connectionMap[connId] inside the hub's static state.
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Bob", HeightCm = 175, WeightKg = 70 });
+
+        // Realm stays in Lobby — disconnect must fully clean up.
+        await hub.OnDisconnectedAsync(null);
+
+        Assert.DoesNotContain(clientId, realm.ConnectedClientIds);
+        Assert.Null(manager.GetClientProfile(realm.Id, clientId));
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_StartedRealm_OnlyRemovesFromConnectedList()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        // Join while still in Lobby to register the connection mapping.
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Alice", HeightCm = 170, WeightKg = 60 });
+
+        // Transition to Started before disconnecting.
+        realm.WithLock(r => r.Status = RealmStatus.Started);
+
+        await hub.OnDisconnectedAsync(null);
+
+        // ConnectedClientIds entry must be gone …
+        Assert.DoesNotContain(clientId, realm.ConnectedClientIds);
+        // … but the profile must survive for potential reconnect.
+        Assert.NotNull(manager.GetClientProfile(realm.Id, clientId));
+        // KnownClientIds must also still hold the client.
+        Assert.Contains(clientId, realm.KnownClientIds);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_LobbyRealm_SendsClientLeftToGroup()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Charlie", HeightCm = 180, WeightKg = 80 });
+
+        await hub.OnDisconnectedAsync(null);
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientLeft",
+            It.Is<object?[]>(a => a.Length > 0 && (string)a[0]! == clientId),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_UnknownConnection_DoesNotThrow()
+    {
+        var (hub, _, _, _, _) = CreateHub(Guid.NewGuid().ToString());
+
+        // No prior JoinRealm — the connection map has no entry for this ID.
+        var ex = await Record.ExceptionAsync(() => hub.OnDisconnectedAsync(null));
+
+        Assert.Null(ex);
     }
 }
