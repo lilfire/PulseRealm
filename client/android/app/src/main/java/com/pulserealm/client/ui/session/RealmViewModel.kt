@@ -23,7 +23,7 @@ class RealmViewModel @Inject constructor(
 
     val realmId: String = savedStateHandle["realmId"] ?: ""
     val clientId: String = savedStateHandle["clientId"] ?: ""
-    val serverUrl: String = savedStateHandle["serverUrl"] ?: ""
+    val serverUrl: String = java.net.URLDecoder.decode(savedStateHandle["serverUrl"] ?: "", "UTF-8")
 
     val heartRate: StateFlow<Int> = sensorDataCollector.heartRate
     val steps: StateFlow<Int> = sensorDataCollector.steps

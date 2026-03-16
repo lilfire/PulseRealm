@@ -52,6 +52,7 @@ import androidx.wear.compose.material.VignettePosition
 import androidx.wear.input.RemoteInputIntentHelper
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.DiscoveredServer
+import com.pulserealm.client.ui.theme.PulseColors
 import kotlinx.coroutines.delay
 
 @Composable
@@ -62,14 +63,15 @@ fun JoinScreen(
     val uiState by viewModel.uiState.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
 
-    // Navigate when joined
-    if (uiState.isJoined && uiState.realmInfo != null) {
-        onJoined(
-            uiState.realmInfo!!.id,
-            uiState.clientId,
-            uiState.serverUrl
-        )
-        return
+    // Navigate when joined — use LaunchedEffect to avoid side effects during composition
+    LaunchedEffect(uiState.isJoined, uiState.realmInfo) {
+        if (uiState.isJoined && uiState.realmInfo != null) {
+            onJoined(
+                uiState.realmInfo!!.id,
+                uiState.clientId,
+                uiState.serverUrl
+            )
+        }
     }
 
     if (uiState.isVerifyingServer) {
@@ -101,11 +103,11 @@ private fun ConnectingScreen() {
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
-                    indicatorColor = Color(0xFF38BDF8)
+                    indicatorColor = PulseColors.Cyan
                 )
                 Text(
                     text = "Connecting...",
-                    color = Color(0xFF94A3B8),
+                    color = PulseColors.MutedText,
                     style = MaterialTheme.typography.caption3,
                     textAlign = TextAlign.Center
                 )
@@ -153,7 +155,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 Text(
                     text = "Server",
                     style = MaterialTheme.typography.title2,
-                    color = Color(0xFF38BDF8),
+                    color = PulseColors.Cyan,
                     textAlign = TextAlign.Center
                 )
             }
@@ -168,12 +170,12 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         onClick = { viewModel.setConnectionMode(ConnectionMode.LOCAL) },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (uiState.connectionMode == ConnectionMode.LOCAL) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                            backgroundColor = if (uiState.connectionMode == ConnectionMode.LOCAL) PulseColors.Cyan else PulseColors.DarkSurface
                         )
                     ) {
                         Text(
                             text = "Local",
-                            color = if (uiState.connectionMode == ConnectionMode.LOCAL) Color.Black else Color(0xFF94A3B8),
+                            color = if (uiState.connectionMode == ConnectionMode.LOCAL) Color.Black else PulseColors.MutedText,
                             fontSize = 11.sp
                         )
                     }
@@ -181,12 +183,12 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         onClick = { viewModel.setConnectionMode(ConnectionMode.REMOTE) },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (uiState.connectionMode == ConnectionMode.REMOTE) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                            backgroundColor = if (uiState.connectionMode == ConnectionMode.REMOTE) PulseColors.Cyan else PulseColors.DarkSurface
                         )
                     ) {
                         Text(
                             text = "Remote",
-                            color = if (uiState.connectionMode == ConnectionMode.REMOTE) Color.Black else Color(0xFF94A3B8),
+                            color = if (uiState.connectionMode == ConnectionMode.REMOTE) Color.Black else PulseColors.MutedText,
                             fontSize = 11.sp
                         )
                     }
@@ -223,7 +225,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         onClick = { viewModel.confirmServer() },
                         modifier = Modifier.fillMaxWidth(0.7f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF38BDF8)
+                            backgroundColor = PulseColors.Cyan
                         ),
                         enabled = uiState.remoteUrl.isNotBlank() && !uiState.isLoading
                     ) {
@@ -242,13 +244,13 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 item {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
-                        indicatorColor = Color(0xFF38BDF8)
+                        indicatorColor = PulseColors.Cyan
                     )
                 }
                 item {
                     Text(
                         text = "Searching for server...",
-                        color = Color(0xFF94A3B8),
+                        color = PulseColors.MutedText,
                         style = MaterialTheme.typography.caption3,
                         textAlign = TextAlign.Center
                     )
@@ -257,7 +259,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                     item {
                         Text(
                             text = "Attempt $scanAttempt",
-                            color = Color(0xFF64748B),
+                            color = PulseColors.DimText,
                             style = MaterialTheme.typography.caption3,
                             textAlign = TextAlign.Center
                         )
@@ -268,7 +270,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 item {
                     Text(
                         text = "No server found",
-                        color = Color(0xFFF87171),
+                        color = PulseColors.Red,
                         style = MaterialTheme.typography.caption3,
                         textAlign = TextAlign.Center
                     )
@@ -278,7 +280,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         onClick = { viewModel.scanForServers() },
                         modifier = Modifier.fillMaxWidth(0.8f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF38BDF8)
+                            backgroundColor = PulseColors.Cyan
                         )
                     ) {
                         Text(
@@ -294,12 +296,12 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         onClick = { viewModel.toggleManualEntry() },
                         modifier = Modifier.fillMaxWidth(0.8f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF1E293B)
+                            backgroundColor = PulseColors.DarkSurface
                         )
                     ) {
                         Text(
                             text = if (uiState.showManualEntry) "Hide Manual Entry" else "Enter Manually",
-                            color = Color(0xFF94A3B8),
+                            color = PulseColors.MutedText,
                             fontSize = 11.sp
                         )
                     }
@@ -336,7 +338,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                             onClick = { viewModel.confirmServer() },
                             modifier = Modifier.fillMaxWidth(0.7f),
                             colors = ButtonDefaults.buttonColors(
-                                backgroundColor = Color(0xFF38BDF8)
+                                backgroundColor = PulseColors.Cyan
                             ),
                             enabled = uiState.serverUrl.isNotBlank()
                         ) {
@@ -351,7 +353,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                         onClick = { viewModel.scanForServers() },
                         modifier = Modifier.fillMaxWidth(0.8f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF1E293B)
+                            backgroundColor = PulseColors.DarkSurface
                         )
                     ) {
                         Text(
@@ -389,7 +391,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
                 modifier = Modifier
                     .padding(horizontal = 12.dp)
                     .background(
-                        color = Color(0xDD7F1D1D),
+                        color = PulseColors.ErrorBg,
                         shape = RoundedCornerShape(16.dp)
                     )
                     .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -397,7 +399,7 @@ private fun ServerConfigScreen(viewModel: JoinViewModel) {
             ) {
                 Text(
                     text = errorText,
-                    color = Color(0xFFFECACA),
+                    color = PulseColors.ErrorText,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
@@ -418,7 +420,7 @@ private fun DiscoveredServerItem(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(0.85f),
         colors = ButtonDefaults.buttonColors(
-            backgroundColor = Color(0xFF166534)
+            backgroundColor = PulseColors.DarkGreen
         )
     ) {
         Text(
@@ -431,7 +433,6 @@ private fun DiscoveredServerItem(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun JoinCodeScreen(
     uiState: JoinUiState,
@@ -538,7 +539,7 @@ private fun JoinPage(
                 if (uiState.isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(buttonSize),
-                        indicatorColor = Color(0xFF38BDF8)
+                        indicatorColor = PulseColors.Cyan
                     )
                 } else {
                     NumberPad(
@@ -578,7 +579,7 @@ private fun JoinPage(
                 modifier = Modifier
                     .padding(horizontal = 12.dp)
                     .background(
-                        color = Color(0xDD7F1D1D),
+                        color = PulseColors.ErrorBg,
                         shape = RoundedCornerShape(16.dp)
                     )
                     .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -586,7 +587,7 @@ private fun JoinPage(
             ) {
                 Text(
                     text = errorText,
-                    color = Color(0xFFFECACA),
+                    color = PulseColors.ErrorText,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
@@ -614,7 +615,7 @@ private fun SettingsPage(
             Text(
                 text = "Settings",
                 style = MaterialTheme.typography.title3,
-                color = Color(0xFF38BDF8),
+                color = PulseColors.Cyan,
                 textAlign = TextAlign.Center
             )
         }
@@ -623,6 +624,7 @@ private fun SettingsPage(
         item {
             ProfileField(
                 label = "Name",
+                inputKey = "player_name",
                 value = uiState.playerName,
                 onValueChange = { viewModel.updatePlayerName(it) }
             )
@@ -630,6 +632,7 @@ private fun SettingsPage(
         item {
             ProfileField(
                 label = "Height (cm)",
+                inputKey = "height_cm",
                 value = uiState.heightCm,
                 onValueChange = { viewModel.updateHeightCm(it) }
             )
@@ -637,6 +640,7 @@ private fun SettingsPage(
         item {
             ProfileField(
                 label = "Weight (kg)",
+                inputKey = "weight_kg",
                 value = uiState.weightKg,
                 onValueChange = { viewModel.updateWeightKg(it) }
             )
@@ -646,7 +650,7 @@ private fun SettingsPage(
         item {
             Text(
                 text = uiState.serverUrl.removePrefix("http://"),
-                color = Color(0xFF64748B),
+                color = PulseColors.DimText,
                 fontSize = 10.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -658,12 +662,12 @@ private fun SettingsPage(
                 onClick = { viewModel.changeServer() },
                 modifier = Modifier.fillMaxWidth(0.85f),
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(0xFF1E293B)
+                    backgroundColor = PulseColors.DarkSurface
                 )
             ) {
                 Text(
                     text = "Change Server",
-                    color = Color(0xFF94A3B8),
+                    color = PulseColors.MutedText,
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center
                 )
@@ -674,7 +678,7 @@ private fun SettingsPage(
         item {
             Text(
                 text = "v${com.pulserealm.client.BuildConfig.VERSION_NAME}",
-                color = Color(0xFF475569),
+                color = PulseColors.DarkestText,
                 style = MaterialTheme.typography.caption3,
                 textAlign = TextAlign.Center
             )
@@ -685,16 +689,16 @@ private fun SettingsPage(
 @Composable
 private fun ProfileField(
     label: String,
+    inputKey: String,
     value: String,
     onValueChange: (String) -> Unit
 ) {
-    val key = label.lowercase().replace(" ", "_")
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val data = result.data ?: return@rememberLauncherForActivityResult
         val results = RemoteInput.getResultsFromIntent(data)
-        val newValue = results.getCharSequence(key)?.toString() ?: return@rememberLauncherForActivityResult
+        val newValue = results.getCharSequence(inputKey)?.toString() ?: return@rememberLauncherForActivityResult
         onValueChange(newValue)
     }
 
@@ -705,7 +709,7 @@ private fun ProfileField(
         modifier = Modifier.fillMaxWidth(0.85f),
         onClick = {
             val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
-            val remoteInput = RemoteInput.Builder(key)
+            val remoteInput = RemoteInput.Builder(inputKey)
                 .setLabel(label)
                 .build()
             RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
@@ -729,7 +733,7 @@ private fun WearTextInputButton(
     ) {
         Text(
             text = label,
-            color = Color(0xFF94A3B8),
+            color = PulseColors.MutedText,
             style = MaterialTheme.typography.caption3,
             textAlign = TextAlign.Center
         )
@@ -739,12 +743,12 @@ private fun WearTextInputButton(
                 .fillMaxWidth()
                 .height(36.dp),
             colors = ButtonDefaults.buttonColors(
-                backgroundColor = Color(0xFF1E293B)
+                backgroundColor = PulseColors.DarkSurface
             )
         ) {
             Text(
                 text = value.ifEmpty { placeholder },
-                color = if (value.isEmpty()) Color(0xFF475569) else Color.White,
+                color = if (value.isEmpty()) PulseColors.DarkestText else Color.White,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.Center,
@@ -791,9 +795,9 @@ private fun NumberPad(
                         modifier = Modifier.size(buttonSize),
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = when (key) {
-                                "\u232B" -> Color(0xFF475569)
-                                "\u2713" -> if (canJoin) Color(0xFF38BDF8) else Color(0xFF475569)
-                                else -> Color(0xFF1E293B)
+                                "\u232B" -> PulseColors.DarkestText
+                                "\u2713" -> if (canJoin) PulseColors.Cyan else PulseColors.DarkestText
+                                else -> PulseColors.DarkSurface
                             }
                         )
                     ) {

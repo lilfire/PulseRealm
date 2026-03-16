@@ -8,6 +8,7 @@ import com.pulserealm.client.data.network.DiscoveredServer
 import com.pulserealm.client.data.network.ServerDiscoveryClient
 import com.pulserealm.client.data.network.SignalRClient
 import com.pulserealm.client.data.model.RealmInfo
+import com.pulserealm.client.data.network.RealmApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import com.pulserealm.client.data.network.RealmApi
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
@@ -45,7 +45,8 @@ data class JoinUiState(
 @HiltViewModel
 class JoinViewModel @Inject constructor(
     private val signalRClient: SignalRClient,
-    private val prefs: SharedPreferences
+    private val prefs: SharedPreferences,
+    private val discoveryClient: ServerDiscoveryClient
 ) : ViewModel() {
 
     companion object {
@@ -63,12 +64,15 @@ class JoinViewModel @Inject constructor(
 
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
 
-    private val discoveryClient = ServerDiscoveryClient()
     val discoveredServers: StateFlow<List<DiscoveredServer>> = discoveryClient.discoveredServers
     val isScanning: StateFlow<Boolean> = discoveryClient.isScanning
 
     private var _scanAttempt = MutableStateFlow(0)
     val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
+
+    // Cached Retrofit instance, rebuilt only when base URL changes
+    private var cachedRetrofit: Retrofit? = null
+    private var cachedRetrofitBaseUrl: String? = null
 
     init {
         // Load or generate a stable client ID
@@ -175,7 +179,7 @@ class JoinViewModel @Inject constructor(
         return if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true))
             trimmed
         else
-            "https://$trimmed"
+            "http://$trimmed"
     }
 
     fun confirmServer() {
@@ -300,6 +304,18 @@ class JoinViewModel @Inject constructor(
         prefs.edit().putString(PREF_SERVER_URL, url).apply()
     }
 
+    private fun getRealmApi(baseUrl: String): RealmApi {
+        val normalizedBase = baseUrl.trimEnd('/') + "/"
+        if (cachedRetrofit == null || cachedRetrofitBaseUrl != normalizedBase) {
+            cachedRetrofit = Retrofit.Builder()
+                .baseUrl(normalizedBase)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+            cachedRetrofitBaseUrl = normalizedBase
+        }
+        return cachedRetrofit!!.create(RealmApi::class.java)
+    }
+
     fun join() {
         val state = _uiState.value
         if (state.joinCode.isBlank()) {
@@ -324,7 +340,10 @@ class JoinViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 2. Join realm via SignalR with profile data
+                // 2. Clear stale errors before joining
+                signalRClient.clearError()
+
+                // 3. Join realm via SignalR with profile data
                 signalRClient.joinRealm(
                     state.joinCode,
                     state.clientId,
@@ -341,13 +360,8 @@ class JoinViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 3. Fetch realm info via REST to get the realmId
-                val retrofit = Retrofit.Builder()
-                    .baseUrl(state.serverUrl.trimEnd('/') + "/")
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build()
-
-                val api = retrofit.create(RealmApi::class.java)
+                // 4. Fetch realm info via REST to get the realmId
+                val api = getRealmApi(state.serverUrl)
                 val realmInfo = api.getRealm(state.joinCode)
 
                 // Cache the server URL on successful join

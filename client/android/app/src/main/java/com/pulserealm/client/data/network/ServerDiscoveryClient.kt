@@ -9,6 +9,7 @@ import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
 
 data class DiscoveredServer(
     val name: String,
@@ -48,9 +49,10 @@ class ServerDiscoveryClient {
         val found = mutableMapOf<String, DiscoveredServer>()
 
         try {
+            // Use ephemeral port to avoid conflicts with concurrent scans or the server
             val socket = DatagramSocket(null)
             socket.reuseAddress = true
-            socket.bind(java.net.InetSocketAddress(DISCOVERY_PORT))
+            socket.bind(InetSocketAddress(0))
             socket.broadcast = true
             socket.soTimeout = SOCKET_TIMEOUT_MS
 
@@ -90,7 +92,9 @@ class ServerDiscoveryClient {
             }
 
             socket.close()
-        } catch (e: Exception) {
+        } catch (_: java.net.BindException) {
+            // Port already in use — scan silently fails, user can retry
+        } catch (_: Exception) {
             // Discovery failed silently — user can still enter manually
         }
 

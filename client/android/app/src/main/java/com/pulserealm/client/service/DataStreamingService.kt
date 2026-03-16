@@ -17,11 +17,13 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneOffset
@@ -34,7 +36,7 @@ class DataStreamingService : Service() {
     @Inject lateinit var signalRClient: SignalRClient
     @Inject lateinit var sensorDataCollector: SensorDataCollector
 
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var streamingJob: Job? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var wakeLock: PowerManager.WakeLock? = null
@@ -81,14 +83,18 @@ class DataStreamingService : Service() {
         streamingJob?.cancel()
         streamingJob = scope.launch {
             while (true) {
-                val data = WearableData(
-                    clientId = clientId,
-                    heartRate = sensorDataCollector.heartRate.value,
-                    steps = sensorDataCollector.steps.value,
-                    timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now().atOffset(ZoneOffset.UTC))
-                )
-                signalRClient.sendWearableData(realmId, data)
-                _sendCount.value = _sendCount.value + 1
+                try {
+                    val data = WearableData(
+                        clientId = clientId,
+                        heartRate = sensorDataCollector.heartRate.value,
+                        steps = sensorDataCollector.steps.value,
+                        timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now().atOffset(ZoneOffset.UTC))
+                    )
+                    signalRClient.sendWearableData(realmId, data)
+                    _sendCount.update { it + 1 }
+                } catch (_: Exception) {
+                    // Transient send failure — continue on next cycle
+                }
                 delay(intervalMs)
             }
         }
@@ -96,6 +102,8 @@ class DataStreamingService : Service() {
 
     @Suppress("DEPRECATION")
     private fun acquireWifiLock() {
+        // WIFI_MODE_FULL_HIGH_PERF is deprecated on API 29+ and operates as WIFI_MODE_FULL automatically.
+        // Kept for backward compatibility with API < 29 devices.
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "PulseRealm:Streaming")
         wifiLock?.setReferenceCounted(false)

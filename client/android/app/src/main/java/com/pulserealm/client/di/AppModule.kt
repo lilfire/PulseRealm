@@ -3,6 +3,7 @@ package com.pulserealm.client.di
 import android.content.Context
 import android.content.SharedPreferences
 import android.hardware.SensorManager
+import com.pulserealm.client.data.network.ServerDiscoveryClient
 import com.pulserealm.client.data.network.SignalRClient
 import com.pulserealm.client.data.sensor.SensorDataCollector
 import dagger.Module
@@ -38,5 +39,11 @@ object AppModule {
     @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
         return context.getSharedPreferences("pulserealm_prefs", Context.MODE_PRIVATE)
+    }
+
+    @Provides
+    @Singleton
+    fun provideServerDiscoveryClient(): ServerDiscoveryClient {
+        return ServerDiscoveryClient()
     }
 }
