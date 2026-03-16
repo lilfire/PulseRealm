@@ -302,8 +302,7 @@ class JoinViewModelTest {
             id = "realm-abc",
             joinCode = "123456",
             mode = "competition",
-            createdAt = "2026-01-01T12:00:00Z",
-            connectedClientIds = listOf("wear-test1234")
+            status = "Lobby"
         )
         viewModel.realmApiFactory = { mockApi }
 

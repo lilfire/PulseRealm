@@ -89,66 +89,62 @@ class RealmInfoTest {
             id = "realm-abc",
             joinCode = "123456",
             mode = "competition",
-            createdAt = "2026-01-01T12:00:00Z",
-            connectedClientIds = listOf("c1", "c2", "c3")
+            status = "Lobby"
         )
 
         assertEquals("realm-abc", info.id)
         assertEquals("123456", info.joinCode)
         assertEquals("competition", info.mode)
-        assertEquals("2026-01-01T12:00:00Z", info.createdAt)
-        assertEquals(3, info.connectedClientIds.size)
-        assertTrue(info.connectedClientIds.contains("c1"))
+        assertEquals("Lobby", info.status)
     }
 
     @Test
     fun `equality works correctly`() {
-        val a = RealmInfo("r1", "123456", "social", "ts", listOf("c1"))
-        val b = RealmInfo("r1", "123456", "social", "ts", listOf("c1"))
+        val a = RealmInfo("r1", "123456", "social", "Lobby")
+        val b = RealmInfo("r1", "123456", "social", "Lobby")
         assertEquals(a, b)
     }
 
     @Test
     fun `inequality on different ids`() {
-        val a = RealmInfo("r1", "123456", "social", "ts", listOf("c1"))
-        val b = RealmInfo("r2", "123456", "social", "ts", listOf("c1"))
+        val a = RealmInfo("r1", "123456", "social", "Lobby")
+        val b = RealmInfo("r2", "123456", "social", "Lobby")
         assertNotEquals(a, b)
     }
 
     @Test
     fun `copy modifies specified fields`() {
-        val original = RealmInfo("r1", "123456", "social", "ts", listOf("c1"))
-        val modified = original.copy(mode = "dungeon", connectedClientIds = listOf("c1", "c2"))
+        val original = RealmInfo("r1", "123456", "social", "Lobby")
+        val modified = original.copy(mode = "dungeon", status = "Started")
 
         assertEquals("r1", modified.id)
         assertEquals("123456", modified.joinCode)
         assertEquals("dungeon", modified.mode)
-        assertEquals(2, modified.connectedClientIds.size)
+        assertEquals("Started", modified.status)
     }
 
     @Test
-    fun `empty connected clients list`() {
-        val info = RealmInfo("r1", "123456", "social", "ts", emptyList())
-        assertTrue(info.connectedClientIds.isEmpty())
+    fun `status defaults to null`() {
+        val info = RealmInfo("r1", "123456", "social")
+        assertNull(info.status)
     }
 
     @Test
     fun `all realm modes are valid strings`() {
         val modes = listOf("competition", "streetview", "youtubetrail", "route", "dungeon", "social")
         for (mode in modes) {
-            val info = RealmInfo("r1", "123456", mode, "ts", emptyList())
+            val info = RealmInfo("r1", "123456", mode)
             assertEquals(mode, info.mode)
         }
     }
 
     @Test
     fun `destructuring works`() {
-        val info = RealmInfo("r1", "123456", "social", "ts", listOf("c1"))
-        val (id, joinCode, mode, createdAt, clients) = info
+        val info = RealmInfo("r1", "123456", "social", "Lobby")
+        val (id, joinCode, mode, status) = info
         assertEquals("r1", id)
         assertEquals("123456", joinCode)
         assertEquals("social", mode)
-        assertEquals("ts", createdAt)
-        assertEquals(1, clients.size)
+        assertEquals("Lobby", status)
     }
 }

@@ -346,7 +346,7 @@ class JoinViewModel @Inject constructor(
                 // 2. Clear stale errors before joining
                 signalRClient.clearError()
 
-                // 3. Join realm via SignalR with profile data
+                // 3. Join realm via SignalR with profile data (throws on server error)
                 signalRClient.joinRealm(
                     state.joinCode,
                     state.clientId,
@@ -354,14 +354,6 @@ class JoinViewModel @Inject constructor(
                     state.heightCm.toDoubleOrNull() ?: 0.0,
                     state.weightKg.toDoubleOrNull() ?: 0.0
                 )
-
-                // Check for errors from the hub
-                val hubError = signalRClient.error.value
-                if (hubError != null) {
-                    signalRClient.disconnect()
-                    _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = hubError)
-                    return@launch
-                }
 
                 // 4. Fetch realm info via REST to get the realmId
                 val api = realmApiFactory(state.serverUrl)

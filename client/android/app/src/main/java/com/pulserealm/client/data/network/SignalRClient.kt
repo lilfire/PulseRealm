@@ -191,19 +191,25 @@ class SignalRClient(
         currentHeightCm = heightCm
         currentWeightKg = weightKg
 
+        val hasProfile = name.isNotBlank() && heightCm > 0.0 && weightKg > 0.0
+        val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
+            "clientId" to clientId,
+            "name" to name,
+            "heightCm" to heightCm,
+            "weightKg" to weightKg
+        ) else null
+
         try {
-            val profile = hashMapOf<String, Any>(
-                "clientId" to clientId,
-                "name" to name,
-                "heightCm" to heightCm,
-                "weightKg" to weightKg
-            )
             hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
         } catch (e: Exception) {
-            // HubException messages from the server get wrapped by RxJava;
-            // walk the cause chain to find the original server message.
-            val root = generateSequence<Throwable>(e) { it.cause }.last()
-            _error.value = root.message ?: "Join failed"
+            // HubException messages get wrapped by RxJava — search the cause chain
+            // for the most useful server message.
+            val serverMessage = generateSequence<Throwable>(e) { it.cause }
+                .mapNotNull { it.message }
+                .firstOrNull { it.isNotBlank() }
+                ?: "Join failed"
+            _error.value = serverMessage
+            throw Exception(serverMessage, e)
         }
     }
 
@@ -269,12 +275,13 @@ class SignalRClient(
                     _connectionState.value = ConnectionState.CONNECTED
 
                     // Re-join the realm
-                    val profile = hashMapOf<String, Any>(
+                    val hasProfile = currentName.isNotBlank() && currentHeightCm > 0.0 && currentWeightKg > 0.0
+                    val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
                         "clientId" to clientId,
                         "name" to currentName,
                         "heightCm" to currentHeightCm,
                         "weightKg" to currentWeightKg
-                    )
+                    ) else null
                     hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
                     return@launch
                 } catch (_: Exception) {

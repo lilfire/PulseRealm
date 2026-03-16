@@ -33,11 +33,11 @@ public class RealmHub : Hub
     {
         if (profile is not null)
         {
-            if (string.IsNullOrWhiteSpace(profile.Name) || profile.Name.Length > 50)
-                throw new HubException("Name must be between 1 and 50 characters.");
-            if (profile.HeightCm is < 50 or > 250)
+            if (!string.IsNullOrWhiteSpace(profile.Name) && profile.Name.Length > 50)
+                throw new HubException("Name is too long (max 50 characters).");
+            if (profile.HeightCm > 0 && profile.HeightCm is < 50 or > 250)
                 throw new HubException("Height must be between 50 and 250 cm.");
-            if (profile.WeightKg is < 10 or > 500)
+            if (profile.WeightKg > 0 && profile.WeightKg is < 10 or > 500)
                 throw new HubException("Weight must be between 10 and 500 kg.");
         }
 
