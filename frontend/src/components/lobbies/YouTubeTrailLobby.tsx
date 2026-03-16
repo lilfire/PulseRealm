@@ -158,10 +158,12 @@ export function YouTubeTrailLobby({ joinCode, clients, clientProfiles, connected
 
         <div style={{ marginTop: "1rem", textAlign: "left", maxWidth: "420px", display: "inline-block", width: "100%" }}>
           <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>Or pick a suggestion:</p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul role="listbox" style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {randomVideos.map((v) => (
               <li
                 key={v.videoId}
+                role="option"
+                aria-selected={video?.videoId === v.videoId}
                 onClick={() => selectVideo(v)}
                 style={{
                   padding: "0.5rem 0.75rem",

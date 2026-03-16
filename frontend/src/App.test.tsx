@@ -554,6 +554,35 @@ describe("creating realms via mode cards", () => {
     // Resolve so cleanup doesn't leave unresolved promises
     resolveCreate({ ok: true, json: async () => ({ id: "r", joinCode: "111111", mode: "competition" }) });
   });
+
+  it("shows error when createRealm fetch fails", async () => {
+    mockConfigFetch();
+    await renderApp();
+
+    (globalThis.fetch as Mock).mockRejectedValueOnce(new Error("Network down"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Network down")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error when createRealm returns non-ok response", async () => {
+    mockConfigFetch();
+    await renderApp();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server returned 500")).toBeInTheDocument();
+    });
+  });
 });
 
 // ─── 5. Admin pages ───────────────────────────────────────────────────────────

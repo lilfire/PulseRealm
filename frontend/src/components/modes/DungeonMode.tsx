@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
+import { CADENCE_WINDOW_MS } from "../../utils/wearable";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -250,7 +251,6 @@ interface Props {
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const STEPS_PER_TILE = 10;
-const CADENCE_WINDOW_MS = 10_000;
 const TICK_MS = 500;
 const ENEMY_REGEN_CADENCE_THRESHOLD = 60;
 const REST_IDLE_TIMEOUT_MS = 5000;

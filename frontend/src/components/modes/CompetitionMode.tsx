@@ -1,34 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
+import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_BOUNDS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, formatDuration } from "../../utils/wearable";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const MAX_HR = 190;
-const STRIDE_FACTOR = 0.415 / 100; // height(cm) → stride(m)
-const IDLE_TIMEOUT_MS = 10_000;
-const CADENCE_WINDOW_MS = 10_000;
-
 const AVATAR_COLORS = ["#FF5C75", "#33DFFF", "#D06ACA", "#22c55e", "#f59e0b", "#818cf8", "#fb923c", "#2dd4bf"];
 
-// HR zone boundaries (% of max HR)
-const ZONE_BOUNDS = [0, 0.57, 0.63, 0.76, 0.89, 1.0];
-const ZONE_COLORS = ["#2dd4bf", "#22c55e", "#f59e0b", "#f87171", "#ef4444"];
-
-function getZoneForHr(hr: number, maxHr: number): number {
-  const pct = hr / maxHr;
-  if (pct < 0.57) return 1;
-  if (pct < 0.63) return 2;
-  if (pct < 0.76) return 3;
-  if (pct < 0.89) return 4;
-  return 5;
-}
-
-function getZoneBpmRange(zone: number, maxHr: number): [number, number] {
-  return [Math.round(ZONE_BOUNDS[zone - 1] * maxHr), Math.round(ZONE_BOUNDS[zone] * maxHr)];
-}
-
-// ── Per-client tracker ───────────────────────────────────────────────────────
+// ── Per-client tracker ────────────────────────────────────────────────────────
 
 interface ClientTracker {
   heartRate: number;
@@ -67,12 +46,6 @@ function newTracker(): ClientTracker {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);

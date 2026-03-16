@@ -5,6 +5,7 @@ import {
   LogLevel,
 } from "@microsoft/signalr";
 import type { ClientProfile, WearableData } from "../types/session";
+import { MAX_HR } from "../utils/wearable";
 
 export interface ClientSummary {
   clientId: string;
@@ -35,9 +36,6 @@ export interface RealmSummary {
 }
 
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
-
-/** Named constant for the maximum heart rate used in zone calculations. */
-const MAX_HR = 190;
 
 export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const connectionRef = useRef<HubConnection | null>(null);

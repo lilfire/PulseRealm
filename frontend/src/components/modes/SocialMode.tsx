@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const MAX_HR = 190;
-const STRIDE_FACTOR = 0.415 / 100; // height(cm) → stride(m)
-const IDLE_TIMEOUT_MS = 10_000;
-const CADENCE_WINDOW_MS = 10_000;
+import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, formatDuration } from "../../utils/wearable";
 
 interface HrZone {
   zone: number;
@@ -71,12 +65,6 @@ function newTracker(): ClientTracker {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 function getInitials(name: string): string {
   return name
