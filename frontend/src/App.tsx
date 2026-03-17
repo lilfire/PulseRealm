@@ -122,6 +122,13 @@ function App() {
     setJoinError("");
   }, []);
 
+  // If realm ended from lobby (never started), skip summary and reset
+  useEffect(() => {
+    if (ended && !started) {
+      resetRealm();
+    }
+  }, [ended, started, resetRealm]);
+
   // Issue #8 — noOpEnd is a stable no-op for view-only mode
   const noOpEnd = useCallback(() => {}, []);
 
@@ -486,8 +493,8 @@ function App() {
     );
   }
 
-  // Show summary screen when realm has ended
-  if (ended && realmSummary) {
+  // Show summary screen only when a started realm has ended
+  if (ended && realmSummary && started) {
     return (
       <RealmSummaryScreen
         summary={realmSummary}
@@ -496,6 +503,7 @@ function App() {
       />
     );
   }
+
 
   // Show lobby until the realm is started
   if (!started) {
