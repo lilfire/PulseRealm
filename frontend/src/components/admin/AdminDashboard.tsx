@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ActiveRealms } from "./ActiveRealms";
 import { CompetitionDefaults } from "./CompetitionDefaults";
 import { DungeonDefaults } from "./DungeonDefaults";
 import { StreetViewEditor, type StreetViewLocationItem } from "./StreetViewEditor";
@@ -18,17 +19,24 @@ interface AdminConfig {
   youTubeVideos: YouTubeVideoItem[];
 }
 
+interface RealmJoinData {
+  id: string;
+  joinCode: string;
+  mode: string | number;
+}
+
 interface Props {
   apiUrl: string;
   token: string;
   onLogout: () => void;
+  onJoinRealm?: (realm: RealmJoinData) => void;
 }
 
-type Tab = "competition" | "dungeon" | "streetview" | "youtube";
+type Tab = "realms" | "competition" | "dungeon" | "streetview" | "youtube";
 
-export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
+export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) {
   const [config, setConfig] = useState<AdminConfig | null>(null);
-  const [tab, setTab] = useState<Tab>("competition");
+  const [tab, setTab] = useState<Tab>("realms");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
@@ -130,6 +138,7 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
 
       <div className="admin-tabs">
         {([
+          ["realms", "Active Realms"],
           ["competition", "Competition"],
           ["dungeon", "Dungeon"],
           ["streetview", "Street View Places"],
@@ -146,6 +155,10 @@ export function AdminDashboard({ apiUrl, token, onLogout }: Props) {
       </div>
 
       <div className="admin-content">
+        {tab === "realms" && (
+          <ActiveRealms apiUrl={apiUrl} token={token} onLogout={onLogout} onJoinRealm={onJoinRealm} />
+        )}
+
         {tab === "competition" && (
           <CompetitionDefaults
             subMode={config.competitionSubMode}

@@ -63,13 +63,13 @@ describe("DefaultLobby", () => {
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it("does not show Start Realm button in viewOnly mode", () => {
-    render(<DefaultLobby {...baseProps} viewOnly={true} />);
+  it("does not show Start Realm button when role is guest", () => {
+    render(<DefaultLobby {...baseProps} role="guest" />);
     expect(screen.queryByRole("button", { name: "Start Realm" })).not.toBeInTheDocument();
   });
 
-  it("shows Waiting for players when connected and not viewOnly", () => {
-    render(<DefaultLobby {...baseProps} connected={true} viewOnly={false} />);
+  it("shows Waiting for players when connected and role is host", () => {
+    render(<DefaultLobby {...baseProps} connected={true} role="host" />);
     expect(screen.getByText(/Waiting for players\.\.\./)).toBeInTheDocument();
   });
 

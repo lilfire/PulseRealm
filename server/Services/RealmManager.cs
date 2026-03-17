@@ -13,7 +13,8 @@ public class RealmManager
         var realm = new Realm
         {
             Mode = mode,
-            JoinCode = GenerateJoinCode()
+            JoinCode = GenerateJoinCode(),
+            HostSecret = GenerateHostSecret()
         };
 
         _realms[realm.Id] = realm;
@@ -87,6 +88,14 @@ public class RealmManager
         return new();
     }
 
+    public List<Realm> GetActiveRealms()
+    {
+        return _realms.Values
+            .Where(r => r.Status != RealmStatus.Ended)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+    }
+
     /// <summary>Removes realms that have been in Ended status for longer than the given TTL.</summary>
     public int CleanupEndedRealms(TimeSpan ttl)
     {
@@ -114,5 +123,11 @@ public class RealmManager
         const string chars = "0123456789";
         var code = new string(Enumerable.Range(0, 6).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
         return code;
+    }
+
+    private static string GenerateHostSecret()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        return new string(Enumerable.Range(0, 8).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
     }
 }

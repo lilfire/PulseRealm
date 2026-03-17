@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ClientProfile, RealmMode } from "../../types/session";
+import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { LobbyShell } from "./LobbyShell";
 
@@ -22,7 +22,9 @@ interface Props {
   connected: boolean;
   onStart: (route: RouteConfig) => void;
   onLeave: () => void;
-  viewOnly?: boolean;
+  onEnd?: () => void;
+  role?: RealmRole;
+  hostSecret?: string;
 }
 
 interface Suggestion {
@@ -183,7 +185,7 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
+export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
@@ -198,7 +200,9 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
       canStart={connected && clients.length > 0 && from !== null && to !== null}
       onStart={() => from && to && onStart({ from, to })}
       onLeave={onLeave}
-      viewOnly={viewOnly}
+      onEnd={onEnd}
+      role={role}
+      hostSecret={hostSecret}
     >
       <div style={{ margin: "1.5rem 0", maxWidth: "420px", width: "100%", textAlign: "left" }}>
         <h3>Plan Your Route</h3>

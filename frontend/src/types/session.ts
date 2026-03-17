@@ -1,5 +1,7 @@
 export type RealmMode = "competition" | "streetview" | "youtubetrail" | "route" | "dungeon" | "social";
 
+export type RealmRole = "host" | "guest" | "admin";
+
 export type CompetitionSubMode = "race" | "elimination" | "heartzone" | "king";
 
 /** @deprecated Use CompetitionSubMode instead */

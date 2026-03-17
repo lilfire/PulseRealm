@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import type { ClientProfile, WearableData } from "../../types/session";
+import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   latestData: WearableData | null;
   startLocation: StreetViewLocation;
   onEnd: (totalDistanceMeters: number) => void;
+  role?: RealmRole;
 }
 
 /**
@@ -54,7 +55,7 @@ const arrowBtnStyle: React.CSSProperties = {
 
 const PRELOAD_COUNT = 3;
 
-export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd }: Props) {
+export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd, role = "host" }: Props) {
   // Two containers — one visible, one hidden preloading the next pano
   const containerARef = useRef<HTMLDivElement>(null);
   const containerBRef = useRef<HTMLDivElement>(null);
@@ -551,24 +552,26 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       />
 
       {/* End realm button */}
-      <button
-        onClick={() => onEnd(totalDistanceRef.current)}
-        style={{
-          position: "absolute",
-          top: "1rem",
-          left: "1rem",
-          zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
-          border: "1px solid rgba(255,61,90,0.5)",
-          borderRadius: "8px",
-          padding: "0.5rem 1rem",
-          fontSize: "0.9rem",
-          cursor: "pointer",
-        }}
-      >
-        End Realm
-      </button>
+      {role !== "guest" && (
+        <button
+          onClick={() => onEnd(totalDistanceRef.current)}
+          style={{
+            position: "absolute",
+            top: "1rem",
+            left: "1rem",
+            zIndex: 10,
+            background: "rgba(0,0,0,0.75)",
+            color: "#fff",
+            border: "1px solid rgba(255,61,90,0.5)",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+          }}
+        >
+          End Realm
+        </button>
+      )}
 
       {/* HUD overlay */}
       <div

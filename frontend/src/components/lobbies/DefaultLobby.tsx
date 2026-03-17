@@ -1,4 +1,4 @@
-import type { ClientProfile, RealmMode } from "../../types/session";
+import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
 interface Props {
@@ -9,10 +9,12 @@ interface Props {
   connected: boolean;
   onStart: () => void;
   onLeave: () => void;
-  viewOnly?: boolean;
+  onEnd?: () => void;
+  role?: RealmRole;
+  hostSecret?: string;
 }
 
-export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly }: Props) {
+export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret }: Props) {
   return (
     <LobbyShell
       joinCode={joinCode}
@@ -23,7 +25,9 @@ export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connecte
       canStart={connected && clients.length > 0}
       onStart={onStart}
       onLeave={onLeave}
-      viewOnly={viewOnly}
+      onEnd={onEnd}
+      role={role}
+      hostSecret={hostSecret}
     />
   );
 }

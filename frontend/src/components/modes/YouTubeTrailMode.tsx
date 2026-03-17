@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ClientProfile, WearableData } from "../../types/session";
+import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { YouTubeVideo } from "../lobbies/YouTubeTrailLobby";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   latestData: WearableData | null;
   video: YouTubeVideo;
   onEnd: (totalDistanceMeters: number) => void;
+  role?: RealmRole;
 }
 
 // Average walking speed ~5 km/h → playback rate 1.0
@@ -15,7 +16,7 @@ const BASE_WALKING_SPEED_KMH = 5;
 const MIN_PLAYBACK_RATE = 0.25;
 const MAX_PLAYBACK_RATE = 2.0;
 
-export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, onEnd }: Props) {
+export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, onEnd, role = "host" }: Props) {
   const playerRef = useRef<YT.Player | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevYTCallbackRef = useRef<(() => void) | undefined>(undefined);
@@ -186,24 +187,26 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
       />
 
       {/* End realm button */}
-      <button
-        onClick={() => onEnd(totalDistanceRef.current)}
-        style={{
-          position: "absolute",
-          top: "1rem",
-          left: "1rem",
-          zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
-          border: "1px solid rgba(255,61,90,0.5)",
-          borderRadius: "8px",
-          padding: "0.5rem 1rem",
-          fontSize: "0.9rem",
-          cursor: "pointer",
-        }}
-      >
-        End Realm
-      </button>
+      {role !== "guest" && (
+        <button
+          onClick={() => onEnd(totalDistanceRef.current)}
+          style={{
+            position: "absolute",
+            top: "1rem",
+            left: "1rem",
+            zIndex: 10,
+            background: "rgba(0,0,0,0.75)",
+            color: "#fff",
+            border: "1px solid rgba(255,61,90,0.5)",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+          }}
+        >
+          End Realm
+        </button>
+      )}
 
       {/* Mute toggle */}
       <button

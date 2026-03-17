@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ClientProfile, CompetitionConfig, WearableData } from "../../types/session";
+import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
 import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, formatDuration } from "../../utils/wearable";
 
@@ -86,11 +86,12 @@ interface Props {
   config: CompetitionConfig;
   onEnd: (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
   onEliminate?: (clientId: string) => void;
+  role?: RealmRole;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function CompetitionMode({ clients, clientProfiles, latestData, config, onEnd, onEliminate }: Props) {
+export function CompetitionMode({ clients, clientProfiles, latestData, config, onEnd, onEliminate, role = "host" }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
   const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
@@ -1049,19 +1050,21 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       </div>
 
       {/* End button */}
-      <button
-        onClick={handleEnd}
-        style={{
-          position: "fixed", top: 12, right: 12,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid var(--border)",
-          borderRadius: 8, padding: "8px 16px",
-          color: "var(--text)", fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        End session
-      </button>
+      {role !== "guest" && (
+        <button
+          onClick={handleEnd}
+          style={{
+            position: "fixed", top: 12, right: 12,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid var(--border)",
+            borderRadius: 8, padding: "8px 16px",
+            color: "var(--text)", fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          End Realm
+        </button>
+      )}
     </div>
   );
 }

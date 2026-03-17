@@ -201,14 +201,14 @@ describe("DungeonLobby", () => {
     });
   });
 
-  describe("viewOnly mode", () => {
-    it("does not show Start Realm button in viewOnly mode", () => {
-      render(<DungeonLobby {...baseProps} viewOnly={true} />);
+  describe("guest role", () => {
+    it("does not show Start Realm button when role is guest", () => {
+      render(<DungeonLobby {...baseProps} role="guest" />);
       expect(screen.queryByRole("button", { name: "Start Realm" })).not.toBeInTheDocument();
     });
 
-    it("shows Watching status in viewOnly mode", () => {
-      render(<DungeonLobby {...baseProps} viewOnly={true} />);
+    it("shows Watching status when role is guest", () => {
+      render(<DungeonLobby {...baseProps} role="guest" />);
       expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
     });
   });

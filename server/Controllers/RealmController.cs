@@ -19,7 +19,7 @@ public class RealmController : ControllerBase
     public IActionResult Create([FromBody] CreateRealmRequest request)
     {
         var realm = _realmManager.CreateRealm(request.Mode);
-        return Ok(new { realm.Id, realm.JoinCode, realm.Mode });
+        return Ok(new { realm.Id, realm.JoinCode, realm.Mode, realm.HostSecret });
     }
 
     [HttpGet("{joinCode}")]
@@ -29,6 +29,22 @@ public class RealmController : ControllerBase
         if (realm is null) return NotFound();
         return Ok(new { realm.Id, realm.JoinCode, realm.Mode, Status = realm.Status.ToString() });
     }
+
+    [HttpPost("{joinCode}/claim-host")]
+    public IActionResult ClaimHost(string joinCode, [FromBody] ClaimHostRequest request)
+    {
+        var realm = _realmManager.GetByJoinCode(joinCode);
+        if (realm is null) return NotFound();
+
+        if (realm.Status == RealmStatus.Ended)
+            return BadRequest(new { error = "Realm has ended." });
+
+        if (!string.Equals(realm.HostSecret, request.HostSecret, StringComparison.OrdinalIgnoreCase))
+            return Unauthorized(new { error = "Invalid host key." });
+
+        return Ok(new { realm.Id, realm.JoinCode, realm.Mode, Status = realm.Status.ToString() });
+    }
 }
 
 public record CreateRealmRequest(RealmMode Mode);
+public record ClaimHostRequest(string HostSecret);

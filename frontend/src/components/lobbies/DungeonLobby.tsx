@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ClientProfile, RealmMode } from "../../types/session";
+import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
 export type DungeonDifficulty = "easy" | "normal" | "hard";
@@ -22,7 +22,9 @@ interface Props {
   connected: boolean;
   onStart: (config: DungeonConfig) => void;
   onLeave: () => void;
-  viewOnly?: boolean;
+  onEnd?: () => void;
+  role?: RealmRole;
+  hostSecret?: string;
   defaults?: DungeonDefaults | null;
 }
 
@@ -34,7 +36,7 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
+export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, defaults }: Props) {
   const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
     validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
@@ -51,7 +53,9 @@ export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connecte
       canStart={connected && clients.length > 0}
       onStart={() => onStart({ difficulty, timeframe })}
       onLeave={onLeave}
-      viewOnly={viewOnly}
+      onEnd={onEnd}
+      role={role}
+      hostSecret={hostSecret}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Difficulty</h3>

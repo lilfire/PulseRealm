@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ClientProfile, WearableData } from "../../types/session";
+import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
 import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, formatDuration } from "../../utils/wearable";
 
@@ -88,11 +88,12 @@ interface Props {
   clientProfiles: Record<string, ClientProfile>;
   latestData: WearableData | null;
   onEnd: (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
+  role?: RealmRole;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props) {
+export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = "host" }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
   const totalDistRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -520,20 +521,22 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd }: Props
         </div>
       </div>
 
-      {/* Hidden end button — session ends from the lobby/host */}
-      <button
-        onClick={handleEnd}
-        style={{
-          position: "fixed", top: 12, right: 12,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid var(--border)",
-          borderRadius: 8, padding: "8px 16px",
-          color: "var(--text)", fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        End session
-      </button>
+      {/* End button — only visible to host/admin */}
+      {role !== "guest" && (
+        <button
+          onClick={handleEnd}
+          style={{
+            position: "fixed", top: 12, right: 12,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid var(--border)",
+            borderRadius: 8, padding: "8px 16px",
+            color: "var(--text)", fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          End Realm
+        </button>
+      )}
     </div>
   );
 }

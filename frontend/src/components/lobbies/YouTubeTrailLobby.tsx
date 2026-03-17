@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { ClientProfile, RealmMode } from "../../types/session";
+import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
 export interface YouTubeVideo {
@@ -16,7 +16,9 @@ interface Props {
   connected: boolean;
   onStart: (video: YouTubeVideo) => void;
   onLeave: () => void;
-  viewOnly?: boolean;
+  onEnd?: () => void;
+  role?: RealmRole;
+  hostSecret?: string;
   curatedVideos?: YouTubeVideo[] | null;
 }
 
@@ -61,7 +63,7 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedVideos }: Props) {
+export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, curatedVideos }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -105,7 +107,9 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
       canStart={connected && clients.length > 0 && video !== null}
       onStart={() => video && onStart(video)}
       onLeave={onLeave}
-      viewOnly={viewOnly}
+      onEnd={onEnd}
+      role={role}
+      hostSecret={hostSecret}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>YouTube Video</h3>

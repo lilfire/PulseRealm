@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using PulseRealm.Server.Filters;
+using PulseRealm.Server.Hubs;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
 
@@ -11,11 +13,15 @@ public class AdminController : ControllerBase
 {
     private readonly AdminAuthService _auth;
     private readonly AdminConfigService _configService;
+    private readonly RealmManager _realmManager;
+    private readonly IHubContext<RealmHub> _hubContext;
 
-    public AdminController(AdminAuthService auth, AdminConfigService configService)
+    public AdminController(AdminAuthService auth, AdminConfigService configService, RealmManager realmManager, IHubContext<RealmHub> hubContext)
     {
         _auth = auth;
         _configService = configService;
+        _realmManager = realmManager;
+        _hubContext = hubContext;
     }
 
     [HttpPost("login")]
@@ -54,6 +60,47 @@ public class AdminController : ControllerBase
     {
         _configService.UpdateConfig(config);
         return Ok(_configService.GetConfig());
+    }
+
+    [HttpGet("realms")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public IActionResult GetActiveRealms()
+    {
+        var realms = _realmManager.GetActiveRealms().Select(r => new
+        {
+            r.Id,
+            r.JoinCode,
+            r.HostSecret,
+            Mode = r.Mode.ToString(),
+            Status = r.Status.ToString(),
+            r.CreatedAt,
+            ConnectedClients = r.WithLock(realm => realm.ConnectedClientIds.Count),
+            MaxClients = r.MaxClients,
+        });
+        return Ok(realms);
+    }
+
+    [HttpPost("realms/{realmId}/end")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> EndRealm(string realmId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            return NotFound(new { error = "Realm not found" });
+
+        if (realm.Status == RealmStatus.Ended)
+            return Ok(new { message = "Realm already ended" });
+
+        realm.WithLock(r => r.Status = RealmStatus.Ended);
+
+        var summary = new RealmSummary
+        {
+            DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds,
+        };
+
+        await _hubContext.Clients.Group(realmId).SendAsync("RealmEnded", summary);
+
+        return Ok(new { message = "Realm ended" });
     }
 }
 

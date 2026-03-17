@@ -31,13 +31,13 @@ describe("LobbyShell", () => {
       expect(screen.getByText(/Connecting\.\.\./)).toBeInTheDocument();
     });
 
-    it("shows Waiting for players... when connected and not viewOnly", () => {
-      render(<LobbyShell {...baseProps} connected={true} viewOnly={false} />);
+    it("shows Waiting for players... when connected and role is host", () => {
+      render(<LobbyShell {...baseProps} connected={true} role="host" />);
       expect(screen.getByText(/Waiting for players\.\.\./)).toBeInTheDocument();
     });
 
-    it("shows Watching... when connected and viewOnly", () => {
-      render(<LobbyShell {...baseProps} connected={true} viewOnly={true} />);
+    it("shows Watching... when connected and role is guest", () => {
+      render(<LobbyShell {...baseProps} connected={true} role="guest" />);
       expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
     });
   });
@@ -84,18 +84,18 @@ describe("LobbyShell", () => {
   });
 
   describe("children rendering", () => {
-    it("renders children when not viewOnly", () => {
+    it("renders children when role is host", () => {
       render(
-        <LobbyShell {...baseProps} viewOnly={false}>
+        <LobbyShell {...baseProps} role="host">
           <div data-testid="child-content">Child</div>
         </LobbyShell>
       );
       expect(screen.getByTestId("child-content")).toBeInTheDocument();
     });
 
-    it("hides children when viewOnly", () => {
+    it("hides children when role is guest", () => {
       render(
-        <LobbyShell {...baseProps} viewOnly={true}>
+        <LobbyShell {...baseProps} role="guest">
           <div data-testid="child-content">Child</div>
         </LobbyShell>
       );
@@ -104,29 +104,29 @@ describe("LobbyShell", () => {
   });
 
   describe("Start Realm button", () => {
-    it("shows Start Realm button when not viewOnly", () => {
-      render(<LobbyShell {...baseProps} viewOnly={false} />);
+    it("shows Start Realm button when role is host", () => {
+      render(<LobbyShell {...baseProps} role="host" />);
       expect(screen.getByRole("button", { name: "Start Realm" })).toBeInTheDocument();
     });
 
-    it("hides Start Realm button when viewOnly", () => {
-      render(<LobbyShell {...baseProps} viewOnly={true} />);
+    it("hides Start Realm button when role is guest", () => {
+      render(<LobbyShell {...baseProps} role="guest" />);
       expect(screen.queryByRole("button", { name: "Start Realm" })).not.toBeInTheDocument();
     });
 
     it("disables start button when canStart is false", () => {
-      render(<LobbyShell {...baseProps} canStart={false} viewOnly={false} />);
+      render(<LobbyShell {...baseProps} canStart={false} role="host" />);
       expect(screen.getByRole("button", { name: "Start Realm" })).toBeDisabled();
     });
 
     it("enables start button when canStart is true", () => {
-      render(<LobbyShell {...baseProps} canStart={true} viewOnly={false} />);
+      render(<LobbyShell {...baseProps} canStart={true} role="host" />);
       expect(screen.getByRole("button", { name: "Start Realm" })).toBeEnabled();
     });
 
     it("calls onStart when start button is clicked", () => {
       const onStart = vi.fn();
-      render(<LobbyShell {...baseProps} canStart={true} onStart={onStart} viewOnly={false} />);
+      render(<LobbyShell {...baseProps} canStart={true} onStart={onStart} role="host" />);
       fireEvent.click(screen.getByRole("button", { name: "Start Realm" }));
       expect(onStart).toHaveBeenCalledTimes(1);
     });
@@ -135,43 +135,43 @@ describe("LobbyShell", () => {
   describe("leave button", () => {
     it("calls onLeave when leave button is clicked", () => {
       const onLeave = vi.fn();
-      render(<LobbyShell {...baseProps} onLeave={onLeave} viewOnly={false} />);
+      render(<LobbyShell {...baseProps} onLeave={onLeave} role="host" />);
       fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
-    it("shows Leave text when viewOnly", () => {
-      render(<LobbyShell {...baseProps} viewOnly={true} />);
+    it("shows Leave text when role is guest", () => {
+      render(<LobbyShell {...baseProps} role="guest" />);
       expect(screen.getByRole("button", { name: "Leave" })).toBeInTheDocument();
     });
 
-    it("shows Leave Realm text when not viewOnly", () => {
-      render(<LobbyShell {...baseProps} viewOnly={false} />);
+    it("shows Leave Realm text when role is host", () => {
+      render(<LobbyShell {...baseProps} role="host" />);
       expect(screen.getByRole("button", { name: "Leave Realm" })).toBeInTheDocument();
     });
 
-    it("calls onLeave when leave button is clicked in viewOnly mode", () => {
+    it("calls onLeave when leave button is clicked as guest", () => {
       const onLeave = vi.fn();
-      render(<LobbyShell {...baseProps} onLeave={onLeave} viewOnly={true} />);
+      render(<LobbyShell {...baseProps} onLeave={onLeave} role="guest" />);
       fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe("VIEW ONLY badge", () => {
-    it("shows VIEW ONLY badge when viewOnly", () => {
-      render(<LobbyShell {...baseProps} viewOnly={true} />);
-      expect(screen.getByText("VIEW ONLY")).toBeInTheDocument();
+  describe("HOST/GUEST badge", () => {
+    it("shows GUEST badge when role is guest", () => {
+      render(<LobbyShell {...baseProps} role="guest" />);
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
     });
 
-    it("hides VIEW ONLY badge when not viewOnly", () => {
-      render(<LobbyShell {...baseProps} viewOnly={false} />);
-      expect(screen.queryByText("VIEW ONLY")).not.toBeInTheDocument();
+    it("shows HOST badge when role is host", () => {
+      render(<LobbyShell {...baseProps} role="host" />);
+      expect(screen.getByText("HOST")).toBeInTheDocument();
     });
 
-    it("hides VIEW ONLY badge when viewOnly is undefined", () => {
+    it("shows HOST badge when role is undefined", () => {
       render(<LobbyShell {...baseProps} />);
-      expect(screen.queryByText("VIEW ONLY")).not.toBeInTheDocument();
+      expect(screen.getByText("HOST")).toBeInTheDocument();
     });
   });
 

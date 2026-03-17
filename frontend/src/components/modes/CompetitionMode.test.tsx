@@ -107,14 +107,14 @@ describe("CompetitionMode — Race", () => {
     expect(screen.getAllByText(/km to go/).length).toBeGreaterThan(0);
   });
 
-  it("shows 'End session' button", () => {
+  it("shows 'End Realm' button", () => {
     render(<CompetitionMode {...defaultProps} />);
-    expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End Realm" })).toBeInTheDocument();
   });
 
-  it("clicking 'End session' calls onEnd with summary", () => {
+  it("clicking 'End Realm' calls onEnd with summary", () => {
     render(<CompetitionMode {...defaultProps} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Realm" }));
     expect(defaultProps.onEnd).toHaveBeenCalledTimes(1);
     const [totalDist, overrides] = defaultProps.onEnd.mock.calls[0];
     expect(typeof totalDist).toBe("number");

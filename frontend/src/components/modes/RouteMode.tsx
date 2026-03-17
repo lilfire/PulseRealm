@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ClientProfile, WearableData } from "../../types/session";
+import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { RouteConfig } from "../lobbies/RouteLobby";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   latestData: WearableData | null;
   route: RouteConfig;
   onEnd: (totalDistanceMeters: number) => void;
+  role?: RealmRole;
 }
 
 /** Extract a detailed path from all legs/steps of a directions result. */
@@ -28,7 +29,7 @@ function extractDetailedPath(result: google.maps.DirectionsResult): google.maps.
   return path;
 }
 
-export function RouteMode({ clients, clientProfiles, latestData, route, onEnd }: Props) {
+export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, role = "host" }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
@@ -292,24 +293,26 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd }:
       <div ref={mapContainerRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
 
       {/* End realm button */}
-      <button
-        onClick={() => onEnd(totalDistanceRef.current)}
-        style={{
-          position: "absolute",
-          top: "1rem",
-          left: "1rem",
-          zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
-          border: "1px solid rgba(255,61,90,0.5)",
-          borderRadius: "8px",
-          padding: "0.5rem 1rem",
-          fontSize: "0.9rem",
-          cursor: "pointer",
-        }}
-      >
-        End Realm
-      </button>
+      {role !== "guest" && (
+        <button
+          onClick={() => onEnd(totalDistanceRef.current)}
+          style={{
+            position: "absolute",
+            top: "1rem",
+            left: "1rem",
+            zIndex: 10,
+            background: "rgba(0,0,0,0.75)",
+            color: "#fff",
+            border: "1px solid rgba(255,61,90,0.5)",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+          }}
+        >
+          End Realm
+        </button>
+      )}
 
       {/* Route info badge */}
       {routeInfo && (

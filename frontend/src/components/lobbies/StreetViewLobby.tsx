@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ClientProfile, RealmMode } from "../../types/session";
+import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { LobbyShell } from "./LobbyShell";
 
@@ -17,7 +17,9 @@ interface Props {
   connected: boolean;
   onStart: (location: StreetViewLocation) => void;
   onLeave: () => void;
-  viewOnly?: boolean;
+  onEnd?: () => void;
+  role?: RealmRole;
+  hostSecret?: string;
   curatedLocations?: StreetViewLocation[] | null;
 }
 
@@ -69,7 +71,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, curatedLocations }: Props) {
+export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, curatedLocations }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
   const [query, setQuery] = useState("");
@@ -159,7 +161,9 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
       canStart={connected && clients.length > 0 && location !== null}
       onStart={() => location && onStart(location)}
       onLeave={onLeave}
-      viewOnly={viewOnly}
+      onEnd={onEnd}
+      role={role}
+      hostSecret={hostSecret}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Starting Location</h3>

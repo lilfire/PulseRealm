@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ClientProfile, CompetitionConfig, CompetitionSubMode, PlayerFormat, RealmMode, TeamAssignment } from "../../types/session";
+import type { ClientProfile, CompetitionConfig, CompetitionSubMode, PlayerFormat, RealmMode, RealmRole, TeamAssignment } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
 export interface CompetitionDefaults {
@@ -19,7 +19,9 @@ interface Props {
   connected: boolean;
   onStart: (config: CompetitionConfig) => void;
   onLeave: () => void;
-  viewOnly?: boolean;
+  onEnd?: () => void;
+  role?: RealmRole;
+  hostSecret?: string;
   defaults?: CompetitionDefaults | null;
 }
 
@@ -44,7 +46,7 @@ const btnStyle = (selected: boolean) => ({
   fontWeight: selected ? 600 : 400,
 });
 
-export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, viewOnly, defaults }: Props) {
+export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, defaults }: Props) {
   const validSubModes: CompetitionSubMode[] = ["race", "elimination", "heartzone", "king"];
   const validFormats: PlayerFormat[] = ["individual", "team"];
   const [subMode, setSubMode] = useState<CompetitionSubMode>(
@@ -108,7 +110,9 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       canStart={connected && clients.length > 0 && allAssigned && (subMode !== "elimination" || clients.length >= 3)}
       onStart={() => onStart({ subMode, playerFormat, teams, targetDistanceKm, intervalMinutes, targetZone, durationMinutes })}
       onLeave={onLeave}
-      viewOnly={viewOnly}
+      onEnd={onEnd}
+      role={role}
+      hostSecret={hostSecret}
       minPlayers={subMode === "elimination" ? 3 : undefined}
     >
       {/* Sub-mode selector */}

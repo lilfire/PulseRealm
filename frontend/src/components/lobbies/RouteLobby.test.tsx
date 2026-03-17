@@ -380,25 +380,25 @@ describe("RouteLobby (maps loaded)", () => {
     });
   });
 
-  describe("viewOnly mode", () => {
-    it("does not show Start Realm button in viewOnly mode", () => {
-      render(<RouteLobby {...baseProps} viewOnly={true} />);
+  describe("guest role", () => {
+    it("does not show Start Realm button when role is guest", () => {
+      render(<RouteLobby {...baseProps} role="guest" />);
       expect(screen.queryByRole("button", { name: "Start Realm" })).not.toBeInTheDocument();
     });
 
-    it("shows Leave button (not Leave Realm) in viewOnly mode", () => {
-      render(<RouteLobby {...baseProps} viewOnly={true} />);
+    it("shows Leave button (not Leave Realm) when role is guest", () => {
+      render(<RouteLobby {...baseProps} role="guest" />);
       expect(screen.getByRole("button", { name: "Leave" })).toBeInTheDocument();
     });
 
-    it("shows VIEW ONLY badge in viewOnly mode", () => {
-      render(<RouteLobby {...baseProps} viewOnly={true} />);
-      expect(screen.getByText("VIEW ONLY")).toBeInTheDocument();
+    it("shows GUEST badge when role is guest", () => {
+      render(<RouteLobby {...baseProps} role="guest" />);
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
     });
   });
 
   describe("status text", () => {
-    it("shows Waiting for players when connected and not viewOnly", () => {
+    it("shows Waiting for players when connected and role is host", () => {
       render(<RouteLobby {...baseProps} connected={true} />);
       expect(screen.getByText(/Waiting for players\.\.\./)).toBeInTheDocument();
     });
@@ -408,8 +408,8 @@ describe("RouteLobby (maps loaded)", () => {
       expect(screen.getByText(/Connecting\.\.\./)).toBeInTheDocument();
     });
 
-    it("shows Watching when connected and viewOnly", () => {
-      render(<RouteLobby {...baseProps} viewOnly={true} connected={true} />);
+    it("shows Watching when connected and role is guest", () => {
+      render(<RouteLobby {...baseProps} role="guest" connected={true} />);
       expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
     });
   });

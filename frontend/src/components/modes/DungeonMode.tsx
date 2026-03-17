@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ClientProfile, WearableData } from "../../types/session";
+import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import { CADENCE_WINDOW_MS } from "../../utils/wearable";
 
@@ -246,6 +246,7 @@ interface Props {
   latestData: WearableData | null;
   config: DungeonConfig;
   onEnd: (totalDistanceMeters: number) => void;
+  role?: RealmRole;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -260,7 +261,7 @@ const MAX_HR = 190;
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd }: Props) {
+export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd, role = "host" }: Props) {
   const params = useRef(getDifficultyParams(config.difficulty, config.timeframe));
   const rooms = useRef<Room[]>([]);
   const gs = useRef<GameState | null>(null);
@@ -864,15 +865,17 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
               {display.buffDesc}
             </span>
           )}
-          <button
-            onClick={() => onEnd(0)}
-            style={{
-              background: "rgba(255,61,90,0.15)", color: "#ff3d5a", border: "1px solid rgba(255,61,90,0.3)",
-              borderRadius: "6px", padding: "0.4rem 0.8rem", fontSize: "0.85rem", cursor: "pointer",
-            }}
-          >
-            End Realm
-          </button>
+          {role !== "guest" && (
+            <button
+              onClick={() => onEnd(0)}
+              style={{
+                background: "rgba(255,61,90,0.15)", color: "#ff3d5a", border: "1px solid rgba(255,61,90,0.3)",
+                borderRadius: "6px", padding: "0.4rem 0.8rem", fontSize: "0.85rem", cursor: "pointer",
+              }}
+            >
+              End Realm
+            </button>
+          )}
         </div>
       </div>
 
@@ -900,7 +903,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
 
       {/* Main content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1rem", overflow: "auto" }}>
-        {display.phase === "complete" && <CompleteView display={display} onEnd={onEnd} />}
+        {display.phase === "complete" && <CompleteView display={display} onEnd={onEnd} role={role} />}
         {display.phase === "corridor" && <CorridorView display={display} />}
         {display.phase === "room" && currentRoomObj && (
           <RoomView display={display} roomType={currentRoomObj.type} roomLabel={currentRoomObj.label} />
@@ -967,7 +970,7 @@ function CorridorView({ display }: { display: Display }) {
   );
 }
 
-function CompleteView({ display, onEnd }: { display: Display; onEnd: (d: number) => void }) {
+function CompleteView({ display, onEnd, role = "host" }: { display: Display; onEnd: (d: number) => void; role?: RealmRole }) {
   return (
     <div style={{ textAlign: "center" }}>
       <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>&#127942;</div>
@@ -977,15 +980,17 @@ function CompleteView({ display, onEnd }: { display: Display; onEnd: (d: number)
       <div style={{ color: "#888", fontSize: "1rem", marginBottom: "1.5rem" }}>
         {display.totalSteps} total steps pooled
       </div>
-      <button
-        onClick={() => onEnd(0)}
-        style={{
-          padding: "0.8rem 2rem", fontSize: "1.1rem", borderRadius: "8px", cursor: "pointer",
-          background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid #22c55e",
-        }}
-      >
-        Finish
-      </button>
+      {role !== "guest" && (
+        <button
+          onClick={() => onEnd(0)}
+          style={{
+            padding: "0.8rem 2rem", fontSize: "1.1rem", borderRadius: "8px", cursor: "pointer",
+            background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid #22c55e",
+          }}
+        >
+          Finish
+        </button>
+      )}
     </div>
   );
 }

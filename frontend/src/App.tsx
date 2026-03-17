@@ -17,7 +17,7 @@ import { SocialMode } from "./components/modes/SocialMode";
 import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
 import { AdminLogin } from "./components/admin/AdminLogin";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
-import type { CompetitionConfig, Realm, RealmMode } from "./types/session";
+import type { CompetitionConfig, Realm, RealmMode, RealmRole } from "./types/session";
 import "./App.css";
 
 const APP_VERSION = __APP_VERSION__;
@@ -56,7 +56,8 @@ interface LobbyDefaults {
 function App() {
   const server = useServerConnection();
   const [realm, setRealm] = useState<Realm | null>(null);
-  const [viewOnly, setViewOnly] = useState(false);
+  const [role, setRole] = useState<RealmRole>("host");
+  const [hostSecret, setHostSecret] = useState<string | null>(null);
   const [creatingMode, setCreatingMode] = useState<RealmMode | null>(null);
   const [streetViewLocation, setStreetViewLocation] = useState<StreetViewLocation | null>(null);
   const [competitionConfig, setCompetitionConfig] = useState<CompetitionConfig | null>(null);
@@ -76,6 +77,7 @@ function App() {
   // Join realm UI state
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [hostKeyInput, setHostKeyInput] = useState("");
   const [joinError, setJoinError] = useState("");
   const [joining, setJoining] = useState(false);
 
@@ -107,7 +109,8 @@ function App() {
   // Issue #7 — resetRealm wrapped in useCallback so identity is stable across renders
   const resetRealm = useCallback(() => {
     setRealm(null);
-    setViewOnly(false);
+    setRole("host");
+    setHostSecret(null);
     setStreetViewLocation(null);
     setYoutubeVideo(null);
     setRouteConfig(null);
@@ -115,34 +118,37 @@ function App() {
     setCompetitionConfig(null);
     setShowJoinInput(false);
     setJoinCodeInput("");
+    setHostKeyInput("");
     setJoinError("");
   }, []);
 
   // Issue #8 — noOpEnd is a stable no-op for view-only mode
   const noOpEnd = useCallback(() => {}, []);
 
+  const isGuest = role === "guest";
+
   // Issue #8 — stable onEnd handlers for each mode; they delegate to noOpEnd or endRealm
   const onEndSimple = useCallback(
     (totalDistance: number) => {
-      if (viewOnly) return;
+      if (isGuest) return;
       endRealm(totalDistance);
     },
-    [viewOnly, endRealm]
+    [isGuest, endRealm]
   );
   const onEndWithOverrides = useCallback(
     (totalDistance: number, overrides?: Partial<RealmSummary>) => {
-      if (viewOnly) return;
+      if (isGuest) return;
       endRealm(totalDistance, overrides);
     },
-    [viewOnly, endRealm]
+    [isGuest, endRealm]
   );
-  // Stable eliminate handler — noOpEnd reused here for the view-only branch
+  // Stable eliminate handler
   const onEliminate = useCallback(
     (clientId: string) => {
-      if (viewOnly) return;
+      if (isGuest) return;
       notifyEliminated(clientId);
     },
-    [viewOnly, notifyEliminated]
+    [isGuest, notifyEliminated]
   );
 
   // Issue #16 — lightweight runtime type guards before casting realmConfig
@@ -178,6 +184,14 @@ function App() {
         apiUrl={apiUrl}
         token={adminToken}
         onLogout={() => { setAdminToken(null); setPage("home"); }}
+        onJoinRealm={(realmData) => {
+          const mode = typeof realmData.mode === "number"
+            ? MODE_FROM_NUMBER[realmData.mode]
+            : MODE_FROM_NUMBER[{ Competition: 0, StreetView: 1, YouTubeTrail: 2, Route: 3, Dungeon: 4, Social: 5 }[realmData.mode as string] ?? 0];
+          setRealm({ id: realmData.id, joinCode: realmData.joinCode, mode });
+          setRole("admin");
+          setPage("home");
+        }}
       />
     );
   }
@@ -227,6 +241,7 @@ function App() {
         joinCode: data.joinCode,
         mode,
       });
+      setHostSecret(data.hostSecret ?? null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create realm.";
       setCreateError(message);
@@ -240,9 +255,39 @@ function App() {
   async function joinRealm() {
     const code = joinCodeInput.trim();
     if (!code) return;
+    const hostKey = hostKeyInput.trim();
     setJoinError("");
     setJoining(true);
     try {
+      // If host key provided, try to claim host
+      if (hostKey) {
+        const claimRes = await fetch(`${apiUrl}/api/realm/${encodeURIComponent(code)}/claim-host`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hostSecret: hostKey }),
+        });
+        if (claimRes.status === 401) {
+          setJoinError("Invalid host key.");
+          return;
+        }
+        if (claimRes.status === 404) {
+          setJoinError("Realm not found. Check the code and try again.");
+          return;
+        }
+        if (!claimRes.ok) {
+          const err = await claimRes.json().catch(() => null);
+          setJoinError(err?.error ?? "Failed to claim host.");
+          return;
+        }
+        const data = await claimRes.json();
+        const mode = typeof data.mode === "number" ? MODE_FROM_NUMBER[data.mode] : (data.mode as RealmMode);
+        if (!mode) { setJoinError("Unknown realm mode."); return; }
+        setRealm({ id: data.id, joinCode: data.joinCode, mode });
+        setRole("host");
+        return;
+      }
+
+      // Normal guest join
       const res = await fetch(`${apiUrl}/api/realm/${encodeURIComponent(code)}`);
       if (!res.ok) {
         setJoinError(res.status === 404 ? "Realm not found. Check the code and try again." : "Failed to join realm.");
@@ -259,7 +304,7 @@ function App() {
         return;
       }
       setRealm({ id: data.id, joinCode: data.joinCode, mode });
-      setViewOnly(true);
+      setRole("guest");
     } catch {
       setJoinError("Could not connect to server.");
     } finally {
@@ -380,13 +425,35 @@ function App() {
                     disabled={joinCodeInput.length < 6 || joining}
                     className="btn-join-go"
                   >
-                    {joining ? "Joining..." : "Watch"}
+                    {joining ? "Joining..." : hostKeyInput.trim() ? "Join as Host" : "Watch"}
                   </button>
                 </div>
+                <input
+                  type="text"
+                  value={hostKeyInput}
+                  onChange={(e) => {
+                    setHostKeyInput(e.target.value.toUpperCase().slice(0, 8));
+                    setJoinError("");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && joinRealm()}
+                  placeholder="Host key (optional)"
+                  maxLength={8}
+                  style={{
+                    width: "100%",
+                    padding: "0.4rem 0.6rem",
+                    fontSize: "0.85rem",
+                    borderRadius: "6px",
+                    border: "1px solid var(--border, #2e303a)",
+                    background: "var(--bg, #16171d)",
+                    color: "var(--text-h, #f3f4f6)",
+                    marginTop: "0.5rem",
+                    boxSizing: "border-box",
+                  }}
+                />
                 {joinError && <p className="error-message">{joinError}</p>}
                 <button
                   className="btn-join-cancel"
-                  onClick={() => { setShowJoinInput(false); setJoinCodeInput(""); setJoinError(""); }}
+                  onClick={() => { setShowJoinInput(false); setJoinCodeInput(""); setHostKeyInput(""); setJoinError(""); }}
                 >
                   Cancel
                 </button>
@@ -438,8 +505,10 @@ function App() {
       clients,
       clientProfiles,
       connected,
-      viewOnly,
+      role,
+      hostSecret: hostSecret ?? undefined,
       onLeave: resetRealm,
+      onEnd: () => { endRealm(0); },
     };
 
     if (realm.mode === "competition") {
@@ -530,7 +599,8 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         video={effectiveYoutubeVideo}
-        onEnd={viewOnly ? noOpEnd : onEndSimple}
+        onEnd={isGuest ? noOpEnd : onEndSimple}
+        role={role}
       />
     );
   }
@@ -542,7 +612,8 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         startLocation={effectiveStreetViewLocation}
-        onEnd={viewOnly ? noOpEnd : onEndSimple}
+        onEnd={isGuest ? noOpEnd : onEndSimple}
+        role={role}
       />
     );
   }
@@ -554,7 +625,8 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         route={effectiveRouteConfig}
-        onEnd={viewOnly ? noOpEnd : onEndSimple}
+        onEnd={isGuest ? noOpEnd : onEndSimple}
+        role={role}
       />
     );
   }
@@ -566,7 +638,8 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         config={effectiveDungeonConfig}
-        onEnd={viewOnly ? noOpEnd : onEndSimple}
+        onEnd={isGuest ? noOpEnd : onEndSimple}
+        role={role}
       />
     );
   }
@@ -577,7 +650,8 @@ function App() {
         clients={clients}
         clientProfiles={clientProfiles}
         latestData={latestData}
-        onEnd={viewOnly ? noOpEnd : onEndWithOverrides}
+        onEnd={isGuest ? noOpEnd : onEndWithOverrides}
+        role={role}
       />
     );
   }
@@ -589,8 +663,9 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         config={effectiveCompetitionConfig}
-        onEnd={viewOnly ? noOpEnd : onEndWithOverrides}
+        onEnd={isGuest ? noOpEnd : onEndWithOverrides}
         onEliminate={onEliminate}
+        role={role}
       />
     );
   }
@@ -600,21 +675,19 @@ function App() {
       <div className="brand-header">
         <img src="/logo.png" alt="PulseRealm" className="logo" />
       </div>
-      {viewOnly && (
-        <div style={{
-          display: "inline-block",
-          padding: "0.3rem 1rem",
-          borderRadius: "6px",
-          background: "rgba(51, 223, 255, 0.12)",
-          border: "1px solid rgba(51, 223, 255, 0.3)",
-          color: "#33DFFF",
-          fontSize: "0.85rem",
-          fontWeight: 600,
-          marginBottom: "0.5rem",
-        }}>
-          VIEW ONLY
-        </div>
-      )}
+      <div style={{
+        display: "inline-block",
+        padding: "0.3rem 1rem",
+        borderRadius: "6px",
+        background: role === "guest" ? "rgba(51, 223, 255, 0.12)" : role === "admin" ? "rgba(250, 204, 21, 0.12)" : "rgba(255, 92, 117, 0.12)",
+        border: `1px solid ${role === "guest" ? "rgba(51, 223, 255, 0.3)" : role === "admin" ? "rgba(250, 204, 21, 0.3)" : "rgba(255, 92, 117, 0.3)"}`,
+        color: role === "guest" ? "#33DFFF" : role === "admin" ? "#FACC15" : "#FF5C75",
+        fontSize: "0.85rem",
+        fontWeight: 600,
+        marginBottom: "0.5rem",
+      }}>
+        {role.toUpperCase()}
+      </div>
       <p>
         Join Code: <strong>{realm.joinCode}</strong>
       </p>

@@ -85,20 +85,20 @@ describe("SocialMode", () => {
     expect(screen.getByText("1:05")).toBeInTheDocument();
   });
 
-  it("shows 'End session' button", () => {
+  it("shows 'End Realm' button", () => {
     render(<SocialMode {...defaultProps} />);
-    expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End Realm" })).toBeInTheDocument();
   });
 
-  it("clicking 'End session' calls onEnd", () => {
+  it("clicking 'End Realm' calls onEnd", () => {
     render(<SocialMode {...defaultProps} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Realm" }));
     expect(defaultProps.onEnd).toHaveBeenCalledTimes(1);
   });
 
-  it("clicking 'End session' calls onEnd with numeric totalDistance and summary object", () => {
+  it("clicking 'End Realm' calls onEnd with numeric totalDistance and summary object", () => {
     render(<SocialMode {...defaultProps} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Realm" }));
     const [totalDist, overrides] = defaultProps.onEnd.mock.calls[0];
     expect(typeof totalDist).toBe("number");
     expect(overrides).toMatchObject({
@@ -210,7 +210,7 @@ describe("SocialMode", () => {
 
   it("clientSummaries in onEnd has all clients", () => {
     render(<SocialMode {...defaultProps} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Realm" }));
     const [, overrides] = defaultProps.onEnd.mock.calls[0];
     expect(overrides.clientSummaries).toHaveLength(2);
     const names = overrides.clientSummaries.map((cs: { name: string }) => cs.name);
