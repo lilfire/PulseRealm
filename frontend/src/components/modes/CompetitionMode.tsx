@@ -851,7 +851,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         flex: 1, overflow: "auto",
         padding: "20px 32px",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 700, margin: "0 auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 1100, margin: "0 auto" }}>
           {sorted.map((entry, idx) => {
             const isElimZone = config.subMode === "elimination"
               && !entry.eliminated
@@ -862,14 +862,14 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
               <div
                 key={entry.id}
                 style={{
-                  display: "flex", alignItems: "center", gap: 14,
+                  display: "flex", alignItems: "center", gap: 20,
                   background: entry.eliminated
                     ? "rgba(255,255,255,0.02)"
                     : isElimZone
                       ? "rgba(239, 68, 68, 0.08)"
                       : "var(--code-bg)",
                   borderRadius: 10,
-                  padding: "14px 18px",
+                  padding: "16px 24px",
                   border: entry.eliminated
                     ? "1px solid rgba(255,255,255,0.04)"
                     : isElimZone
@@ -956,7 +956,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
                 {/* Race: progress bar */}
                 {config.subMode === "race" && (
-                  <div style={{ width: 200, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ width: 320, display: "flex", flexDirection: "column", gap: 4 }}>
                     <div style={{
                       height: 8, borderRadius: 4,
                       background: "rgba(255,255,255,0.08)",
