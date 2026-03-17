@@ -36,8 +36,13 @@ class RealmViewModel @Inject constructor(
     val sendCount: StateFlow<Int> = DataStreamingService.sendCount
     val realmEnded: StateFlow<RealmSummaryData?> = signalRClient.realmEnded
     val eliminated: StateFlow<Boolean> = signalRClient.eliminated
+    val realmStarted: StateFlow<Boolean> = signalRClient.realmStarted
 
     private var isStreaming = false
+
+    fun resetSteps() {
+        sensorDataCollector.resetSteps()
+    }
 
     fun startStreaming() {
         if (isStreaming) return

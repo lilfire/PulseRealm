@@ -34,6 +34,7 @@ class SensorDataCollector(
     private var useDetectorForSteps = false
     private val isRunning = AtomicBoolean(false)
     private var simulationScope: CoroutineScope? = null
+    private var simSteps = 0
 
     fun start() {
         if (!isRunning.compareAndSet(false, true)) return
@@ -70,7 +71,16 @@ class SensorDataCollector(
         simulationScope = null
         stepBaseline = null
         detectorSteps = 0
+        simSteps = 0
         useDetectorForSteps = false
+        _steps.value = 0
+    }
+
+    fun resetSteps() {
+        _steps.value = 0
+        stepBaseline = null
+        detectorSteps = 0
+        simSteps = 0
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -106,7 +116,7 @@ class SensorDataCollector(
     }
 
     private fun startSimulation() {
-        var simSteps = 0
+        simSteps = 0
         simulationScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         simulationScope?.launch {
             while (isRunning.get()) {
