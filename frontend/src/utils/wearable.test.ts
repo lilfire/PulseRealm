@@ -1,4 +1,4 @@
-import { getZoneForHr, getZoneBpmRange, formatDuration, MAX_HR, ZONE_BOUNDS } from "./wearable";
+import { getZoneForHr, getZoneBpmRange, formatDuration, getMaxHrForAge, MAX_HR, ZONE_BOUNDS } from "./wearable";
 
 describe("getZoneForHr", () => {
   it("returns zone 1 for low HR", () => {
@@ -27,6 +27,26 @@ describe("getZoneBpmRange", () => {
     const [low, high] = getZoneBpmRange(3, MAX_HR);
     expect(low).toBe(Math.round(ZONE_BOUNDS[2] * MAX_HR)); // 120
     expect(high).toBe(Math.round(ZONE_BOUNDS[3] * MAX_HR)); // 144
+  });
+});
+
+describe("getMaxHrForAge", () => {
+  it("returns 220 - age for valid ages", () => {
+    expect(getMaxHrForAge(30)).toBe(190);
+    expect(getMaxHrForAge(20)).toBe(200);
+    expect(getMaxHrForAge(50)).toBe(170);
+  });
+
+  it("returns MAX_HR for boundary ages", () => {
+    expect(getMaxHrForAge(5)).toBe(215);
+    expect(getMaxHrForAge(120)).toBe(100);
+  });
+
+  it("returns MAX_HR fallback for undefined or out-of-range", () => {
+    expect(getMaxHrForAge(undefined)).toBe(MAX_HR);
+    expect(getMaxHrForAge(0)).toBe(MAX_HR);
+    expect(getMaxHrForAge(121)).toBe(MAX_HR);
+    expect(getMaxHrForAge(-1)).toBe(MAX_HR);
   });
 });
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, STRIDE_FACTOR, getZoneForHr } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, STRIDE_FACTOR, getZoneForHr, getMaxHrForAge } from "../../utils/wearable";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -268,7 +268,11 @@ const ENEMY_REGEN_CADENCE_THRESHOLD = 60;
 const REST_IDLE_TIMEOUT_MS = 5000;
 const ENEMY_REGEN_DELAY_MS = 5000;
 const ENEMY_REGEN_PER_TICK = 5; // 10 HP/sec at 500ms ticks
-const MAX_HR = 190;
+/** Returns the lowest max HR across all clients in the dungeon (conservative for group challenges). */
+function getDungeonMaxHr(clients: string[], clientProfiles: Record<string, import("../../types/session").ClientProfile>): number {
+  const maxHrs = clients.map((cid) => getMaxHrForAge(clientProfiles[cid]?.age));
+  return maxHrs.length > 0 ? Math.min(...maxHrs) : getMaxHrForAge(undefined);
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -615,7 +619,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         hr: t.heartRate,
         holdSeconds: Math.round(holdSeconds * 10) / 10,
         holdTarget: p.bossEnduranceSeconds,
-        hrThreshold: Math.round(MAX_HR * 0.7),
+        hrThreshold: Math.round(getDungeonMaxHr(clients, clientProfiles) * 0.7),
       };
     });
 
@@ -658,7 +662,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         case "boss":
           if (g.bossPhase === 0) roomMessage = g.bossHp > 0 ? "Strike! Every step damages the boss!" : "Boss staggered!";
           else if (g.bossPhase === 1) roomMessage = `Keep cadence ${g.bossTrapCadenceMin}–${g.bossTrapCadenceMax} spm`;
-          else roomMessage = `Raise HR above ${Math.round(MAX_HR * 0.7)} bpm!`;
+          else roomMessage = `Raise HR above ${Math.round(getDungeonMaxHr(clients, clientProfiles) * 0.7)} bpm!`;
           break;
       }
     } else if (g.phase === "corridor") {
@@ -849,7 +853,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
               for (const cid of activeClients) {
                 const t = getTracker(cid);
                 if (t.enduranceReady) continue;
-                const hrThreshold = MAX_HR * 0.7;
+                const hrThreshold = getDungeonMaxHr(clients, clientProfiles) * 0.7;
                 if (t.heartRate >= hrThreshold) {
                   if (t.enduranceHrAboveSince === null) {
                     t.enduranceHrAboveSince = now;

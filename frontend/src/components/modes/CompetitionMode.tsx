@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, formatDuration } from "../../utils/wearable";
+import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration } from "../../utils/wearable";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -139,9 +139,9 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   // ── Helpers (declared before use) ─────────────────────────────────────────
 
-  function getMaxHrForClient(_clientId?: string): number {
-    void _clientId; // placeholder for future per-client max HR (220 - age)
-    return MAX_HR;
+  function getMaxHrForClient(clientId?: string): number {
+    const age = clientId ? clientProfiles[clientId]?.age : undefined;
+    return getMaxHrForAge(age);
   }
 
   function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {

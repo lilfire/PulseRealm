@@ -3,8 +3,14 @@
  * Used by CompetitionMode, SocialMode, DungeonMode, and useSessionHub.
  */
 
-/** Maximum heart rate used for zone calculations. */
+/** Default maximum heart rate used when age is unknown. */
 export const MAX_HR = 190;
+
+/** Returns age-based max HR using the standard formula (220 − age). Falls back to MAX_HR. */
+export function getMaxHrForAge(age: number | undefined): number {
+  if (age != null && age >= 5 && age <= 120) return 220 - age;
+  return MAX_HR;
+}
 
 /** Multiply height(cm) by this to get stride length in meters. */
 export const STRIDE_FACTOR = 0.415 / 100;
