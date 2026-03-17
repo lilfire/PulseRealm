@@ -79,7 +79,9 @@ public class RealmSummary
     public int AverageHeartRate { get; set; }
     public int MaxHeartRate { get; set; }
     public double AverageSpeedKmh { get; set; }
+    public double PeakSpeedKmh { get; set; }
     public double AvgCadenceSpm { get; set; }
+    public double CaloriesBurned { get; set; }
     public Dictionary<string, int> TimeInZone { get; set; } = new();
     public double ActivePeriodSeconds { get; set; }
     public int ParticipantCount { get; set; }
@@ -96,6 +98,9 @@ public class ClientSummaryDto
     public int AverageHeartRate { get; set; }
     public int MaxHeartRate { get; set; }
     public double AvgCadenceSpm { get; set; }
+    public double CaloriesBurned { get; set; }
+    public double AverageSpeedKmh { get; set; }
+    public double PeakSpeedKmh { get; set; }
     public Dictionary<string, int> TimeInZone { get; set; } = new();
     public string? TeamName { get; set; }
     public string? TeamColor { get; set; }
