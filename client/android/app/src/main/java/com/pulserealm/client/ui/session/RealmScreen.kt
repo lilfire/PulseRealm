@@ -14,17 +14,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +51,7 @@ import com.pulserealm.client.data.network.ClientSummaryData
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.RealmSummaryData
 import com.pulserealm.client.ui.theme.PulseColors
+import kotlinx.coroutines.delay
 
 @Composable
 fun RealmScreen(
@@ -81,6 +90,8 @@ fun RealmScreen(
         RealmEndedPager(
             summary = summary,
             clientId = viewModel.clientId,
+            heightCm = viewModel.heightCm,
+            onCalibrate = viewModel::saveStrideFactor,
             onDismiss = {
                 viewModel.disconnect()
                 onDisconnected()
@@ -227,6 +238,8 @@ private fun LivePage(
 private fun RealmEndedPager(
     summary: RealmSummaryData,
     clientId: String,
+    heightCm: Double,
+    onCalibrate: (Double) -> Unit,
     onDismiss: () -> Unit
 ) {
     // Find personal stats: match by clientId, or fall back to top-level
@@ -253,7 +266,7 @@ private fun RealmEndedPager(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             when {
-                page == 0 -> PersonalSummaryPage(summary, personal, onDismiss)
+                page == 0 -> PersonalSummaryPage(summary, personal, heightCm, onCalibrate, onDismiss)
                 page == 1 && summary.isTeamFormat -> TeamSummaryPage(myTeamName, teamMembers)
                 else -> RealmSummaryPage(summary)
             }
@@ -265,6 +278,8 @@ private fun RealmEndedPager(
 private fun PersonalSummaryPage(
     summary: RealmSummaryData,
     personal: ClientSummaryData?,
+    heightCm: Double,
+    onCalibrate: (Double) -> Unit,
     onDismiss: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
@@ -276,6 +291,22 @@ private fun PersonalSummaryPage(
     val peakHr = personal?.maxHeartRate ?: summary.maxHeartRate
     val avgCadence = personal?.avgCadenceSpm ?: summary.avgCadenceSpm
     val timeInZone = personal?.timeInZone ?: summary.timeInZone
+
+    // Calibration state
+    var showCalibration by remember { mutableStateOf(false) }
+    var distanceInput by remember { mutableStateOf("") }
+    var calibrationError by remember { mutableStateOf<String?>(null) }
+    var calibrationSaved by remember { mutableStateOf(false) }
+
+    // Auto-hide "Saved!" after 2 seconds
+    LaunchedEffect(calibrationSaved) {
+        if (calibrationSaved) {
+            delay(2000)
+            calibrationSaved = false
+        }
+    }
+
+    val canCalibrate = heightCm > 0 && steps > 0
 
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -356,6 +387,109 @@ private fun PersonalSummaryPage(
                             fontSize = 14.sp,
                             fontFamily = FontFamily.Monospace
                         )
+                    }
+                }
+            }
+        }
+
+        // Calibration
+        if (canCalibrate) {
+            item {
+                if (calibrationSaved) {
+                    Text(
+                        text = "Saved!",
+                        color = PulseColors.Green,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                } else if (!showCalibration) {
+                    Button(
+                        onClick = {
+                            showCalibration = true
+                            calibrationError = null
+                            distanceInput = ""
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth(0.7f)
+                            .padding(vertical = 4.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = PulseColors.Purple
+                        )
+                    ) {
+                        Text(text = "CALIBRATE", color = Color.White, fontSize = 12.sp)
+                    }
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Actual Distance (m)",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        BasicTextField(
+                            value = distanceInput,
+                            onValueChange = { distanceInput = it.filter { c -> c.isDigit() || c == '.' } },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            ),
+                            cursorBrush = SolidColor(PulseColors.Cyan),
+                            modifier = Modifier
+                                .fillMaxWidth(0.6f)
+                                .padding(vertical = 2.dp)
+                        )
+                        if (calibrationError != null) {
+                            Text(
+                                text = calibrationError!!,
+                                color = PulseColors.BrightRed,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val actualDist = distanceInput.toDoubleOrNull()
+                                    if (actualDist == null || actualDist <= 0) {
+                                        calibrationError = "Enter a valid distance"
+                                        return@Button
+                                    }
+                                    val factor = actualDist * 100.0 / (steps * heightCm)
+                                    if (factor < 0.2 || factor > 0.8) {
+                                        calibrationError = "Factor ${"%.3f".format(factor)} out of range (0.2-0.8)"
+                                        return@Button
+                                    }
+                                    onCalibrate(factor)
+                                    showCalibration = false
+                                    calibrationSaved = true
+                                },
+                                modifier = Modifier.size(width = 60.dp, height = 32.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = PulseColors.Green
+                                )
+                            ) {
+                                Text(text = "SAVE", color = Color.White, fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = { showCalibration = false },
+                                modifier = Modifier.size(width = 60.dp, height = 32.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = Color.DarkGray
+                                )
+                            ) {
+                                Text(text = "CANCEL", color = Color.White, fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }

@@ -63,6 +63,7 @@ class SignalRClient(
     @Volatile private var currentAge: Int = 0
     @Volatile private var currentHeightCm: Double = 0.0
     @Volatile private var currentWeightKg: Double = 0.0
+    @Volatile private var currentStrideFactor: Double = 0.0
     private val intentionalDisconnect = AtomicBoolean(false)
     private var reconnectJob: Job? = null
 
@@ -177,6 +178,12 @@ class SignalRClient(
                 )
             }, Any::class.java)
 
+            on("YouWereKicked", {
+                _error.value = "You were kicked from the realm"
+                _connectionState.value = ConnectionState.DISCONNECTED
+                connection.stop()
+            })
+
             on("Error", { message ->
                 _error.value = message
             }, String::class.java)
@@ -192,13 +199,14 @@ class SignalRClient(
         }
     }
 
-    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0) = withContext(Dispatchers.IO) {
+    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0, strideFactor: Double = 0.0) = withContext(Dispatchers.IO) {
         currentJoinCode = joinCode
         currentClientId = clientId
         currentName = name
         currentAge = age
         currentHeightCm = heightCm
         currentWeightKg = weightKg
+        currentStrideFactor = strideFactor
 
         val hasProfile = name.isNotBlank() && age > 0 && heightCm > 0.0 && weightKg > 0.0
         val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
@@ -206,7 +214,8 @@ class SignalRClient(
             "name" to name,
             "age" to age,
             "heightCm" to heightCm,
-            "weightKg" to weightKg
+            "weightKg" to weightKg,
+            "strideFactor" to strideFactor
         ) else null
 
         try {
@@ -324,7 +333,8 @@ class SignalRClient(
                         "name" to currentName,
                         "age" to currentAge,
                         "heightCm" to currentHeightCm,
-                        "weightKg" to currentWeightKg
+                        "weightKg" to currentWeightKg,
+                        "strideFactor" to currentStrideFactor
                     ) else null
                     hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
                     return@launch

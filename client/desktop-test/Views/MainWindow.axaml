@@ -73,6 +73,9 @@
           <TextBlock Text="W(kg):" FontSize="13" Foreground="#94a3b8" VerticalAlignment="Center" Margin="0,0,4,0" />
           <TextBox Text="{Binding WeightKg}" Width="55" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"
                    IsEnabled="{Binding !IsConnected}" />
+          <TextBlock Text="Stride:" FontSize="13" Foreground="#94a3b8" VerticalAlignment="Center" Margin="0,0,4,0" />
+          <TextBox Text="{Binding StrideFactor}" Width="55" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"
+                   IsEnabled="{Binding !IsConnected}" />
           <Button Content="Join" Command="{Binding JoinRealmCommand}" IsVisible="{Binding !IsConnected}" Margin="0,0,4,0" />
           <Button Content="Leave" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}"
                   Background="#ef4444" Foreground="White" />

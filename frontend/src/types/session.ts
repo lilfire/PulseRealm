@@ -53,6 +53,7 @@ export interface ClientProfile {
   age: number;
   heightCm: number;
   weightKg: number;
+  strideFactor?: number;
 }
 
 export interface WearableData {

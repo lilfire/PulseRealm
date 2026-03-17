@@ -46,12 +46,15 @@ class JoinViewModel @Inject constructor(
         private const val PREF_WEIGHT_KG = "weight_kg"
         private const val PREF_CLIENT_ID = "client_id"
         private const val PREF_SERVER_URL = "cached_server_url"
+        private const val PREF_STRIDE_FACTOR = "stride_factor"
     }
 
     private val _uiState = MutableStateFlow(JoinUiState())
     val uiState: StateFlow<JoinUiState> = _uiState.asStateFlow()
 
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
+
+    private val strideFactor: Double = prefs.getFloat(PREF_STRIDE_FACTOR, 0f).toDouble()
 
     // Cached Retrofit instance, rebuilt only when base URL changes
     private var cachedRetrofit: Retrofit? = null
@@ -169,7 +172,8 @@ class JoinViewModel @Inject constructor(
                     state.playerName,
                     state.age.toIntOrNull() ?: 0,
                     state.heightCm.toDoubleOrNull() ?: 0.0,
-                    state.weightKg.toDoubleOrNull() ?: 0.0
+                    state.weightKg.toDoubleOrNull() ?: 0.0,
+                    strideFactor
                 )
 
                 // 4. Fetch realm info via REST to get the realmId

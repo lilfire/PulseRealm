@@ -7,4 +7,5 @@ public class ClientProfile
     public int Age { get; set; }
     public double HeightCm { get; set; }
     public double WeightKg { get; set; }
+    public double StrideFactor { get; set; }
 }

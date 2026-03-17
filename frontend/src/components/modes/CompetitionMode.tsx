@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { MAX_HR, STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor } from "../../utils/wearable";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -250,7 +250,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
     if (t.prevSteps > 0 && steps > t.prevSteps) {
       const delta = steps - t.prevSteps;
       const height = clientProfiles[clientId]?.heightCm ?? 170;
-      const dist = delta * height * STRIDE_FACTOR;
+      const dist = delta * height * getStrideFactor(clientProfiles[clientId]);
       t.distanceMeters += dist;
     }
     if (steps > 0) t.prevSteps = steps;
@@ -789,7 +789,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             Target: Zone {config.targetZone}
           </div>
           <div style={{ fontSize: 13, color: "var(--text)" }}>
-            {getZoneBpmRange(config.targetZone, MAX_HR)[0]}–{getZoneBpmRange(config.targetZone, MAX_HR)[1]} bpm
+            {getZoneBpmRange(config.targetZone, getMaxHrForClient())[0]}–{getZoneBpmRange(config.targetZone, getMaxHrForClient())[1]} bpm
           </div>
         </div>
       )}

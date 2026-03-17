@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, STRIDE_FACTOR, getZoneForHr, getMaxHrForAge } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor } from "../../utils/wearable";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -515,7 +515,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     t.steps += stepDelta;
     if (stepDelta > 0) {
       const height = clientProfiles[latestData.clientId]?.heightCm ?? 170;
-      t.distanceMeters += stepDelta * height * STRIDE_FACTOR;
+      t.distanceMeters += stepDelta * height * getStrideFactor(clientProfiles[latestData.clientId]);
     }
     if (t.cadence > 0) {
       t.cadenceSum += t.cadence;

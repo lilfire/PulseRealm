@@ -18,7 +18,7 @@ public class SignalRService : IAsyncDisposable
     public string? RealmId => _realmId;
 
     public async Task<bool> ConnectAsync(string serverUrl, string joinCode, string clientId,
-        string playerName = "", int age = 0, double heightCm = 0, double weightKg = 0)
+        string playerName = "", int age = 0, double heightCm = 0, double weightKg = 0, double strideFactor = 0)
     {
         try
         {
@@ -51,6 +51,12 @@ public class SignalRService : IAsyncDisposable
             _connection.On<JsonElement>("RealmStarted", _ =>
             {
                 RealmStarted?.Invoke();
+            });
+
+            _connection.On("YouWereKicked", async () =>
+            {
+                LogReceived?.Invoke("You were kicked from the realm.", "error");
+                await DisconnectAsync();
             });
 
             _connection.On<string>("Error", msg =>
@@ -90,6 +96,7 @@ public class SignalRService : IAsyncDisposable
                 age,
                 heightCm,
                 weightKg,
+                strideFactor,
             };
             await _connection.InvokeAsync("JoinRealm", joinCode, clientId, profile);
 

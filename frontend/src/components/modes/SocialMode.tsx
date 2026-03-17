@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { STRIDE_FACTOR, CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor } from "../../utils/wearable";
 
 interface HrZone {
   zone: number;
@@ -141,7 +141,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     if (t.prevSteps > 0 && steps > t.prevSteps) {
       const delta = steps - t.prevSteps;
       const height = clientProfiles[clientId]?.heightCm ?? 170;
-      const dist = delta * height * STRIDE_FACTOR;
+      const dist = delta * height * getStrideFactor(clientProfiles[clientId]);
       totalDistRef.current += dist;
       t.distanceMeters += dist;
     }

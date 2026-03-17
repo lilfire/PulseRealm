@@ -15,6 +15,15 @@ export function getMaxHrForAge(age: number | undefined): number {
 /** Multiply height(cm) by this to get stride length in meters. */
 export const STRIDE_FACTOR = 0.415 / 100;
 
+import type { ClientProfile } from "../types/session";
+
+/** Returns the stride factor for a client, using their calibrated value if available. */
+export function getStrideFactor(profile?: ClientProfile): number {
+  return profile?.strideFactor && profile.strideFactor > 0
+    ? profile.strideFactor / 100
+    : STRIDE_FACTOR;
+}
+
 /** Window (ms) over which cadence is averaged. */
 export const CADENCE_WINDOW_MS = 10_000;
 

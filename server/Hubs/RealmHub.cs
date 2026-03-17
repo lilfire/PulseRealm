@@ -46,6 +46,8 @@ public class RealmHub : Hub
                 throw new HubException("Height must be between 50 and 250 cm.");
             if (profile.WeightKg is < 10 or > 500)
                 throw new HubException("Weight must be between 10 and 500 kg.");
+            if (profile.StrideFactor is < 0.3 or > 0.6)
+                profile.StrideFactor = StrideFactor;
         }
 
         var realm = _realmManager.GetByJoinCode(joinCode);
@@ -55,12 +57,18 @@ public class RealmHub : Hub
         }
 
         // Read realm state under lock for thread-safe checks
-        var (status, isKnown, connectedCount, maxClients) = realm.WithLock(r => (
+        var (status, isKnown, isKicked, connectedCount, maxClients) = realm.WithLock(r => (
             r.Status,
             r.KnownClientIds.Contains(clientId),
+            r.KickedClientIds.Contains(clientId),
             r.ConnectedClientIds.Count,
             r.MaxClients
         ));
+
+        if (isKicked)
+        {
+            throw new HubException("You have been kicked from this realm.");
+        }
 
         if (status == RealmStatus.Ended)
         {
@@ -197,7 +205,8 @@ public class RealmHub : Hub
         var profile = _realmManager.GetClientProfile(realmId, clientId);
         var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0; // fallback to average
 
-        var strideLengthM = heightCm * StrideFactor / 100.0;
+        var factor = profile?.StrideFactor > 0 ? profile.StrideFactor : StrideFactor;
+        var strideLengthM = heightCm * factor / 100.0;
         var distanceM = stepDelta * strideLengthM;
         var speedKmh = distanceM / timeDelta * 3.6;
 
@@ -238,6 +247,7 @@ public class RealmHub : Hub
         }
 
         // Full removal including KnownClientIds so the client cannot reconnect
+        realm.WithLock(r => r.KickedClientIds.Add(clientId));
         _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
         _lastData.TryRemove(clientId, out _);
         _stepOffsets.TryRemove(clientId, out _);
@@ -249,14 +259,13 @@ public class RealmHub : Hub
             await Groups.RemoveFromGroupAsync(kickedConnectionId, realmId);
         }
 
-        // Notify the kicked client directly, then notify the rest of the group
+        // Notify the rest of the group that this client was removed
         await Clients.Group(realmId).SendAsync("ClientKicked", clientId);
+        // Tell the kicked client directly so they can disconnect
         if (kickedConnectionId != null)
         {
-            await Clients.Client(kickedConnectionId).SendAsync("ClientKicked", clientId);
+            await Clients.Client(kickedConnectionId).SendAsync("YouWereKicked");
         }
-
-        await TryAutoEndRealm(realmId);
     }
 
     /// <summary>
@@ -394,7 +403,7 @@ public class RealmHub : Hub
 
         var shouldEnd = realm.WithLock(r =>
         {
-            if (r.Status == RealmStatus.Ended)
+            if (r.Status != RealmStatus.Started)
                 return false;
             return r.ConnectedClientIds.Count == 0;
         });

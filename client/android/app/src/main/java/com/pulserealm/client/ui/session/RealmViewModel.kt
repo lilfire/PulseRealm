@@ -3,6 +3,7 @@ package com.pulserealm.client.ui.session
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -22,12 +23,14 @@ class RealmViewModel @Inject constructor(
     private val application: Application,
     private val signalRClient: SignalRClient,
     private val sensorDataCollector: SensorDataCollector,
+    private val prefs: SharedPreferences,
     savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
     val realmId: String = savedStateHandle["realmId"] ?: ""
     val clientId: String = savedStateHandle["clientId"] ?: ""
     val serverUrl: String = java.net.URLDecoder.decode(savedStateHandle["serverUrl"] ?: "", "UTF-8")
+    val heightCm: Double = (prefs.getString("height_cm", null)?.toDoubleOrNull() ?: 0.0)
 
     val heartRate: StateFlow<Int> = sensorDataCollector.heartRate
     val steps: StateFlow<Int> = sensorDataCollector.steps
@@ -39,6 +42,10 @@ class RealmViewModel @Inject constructor(
     val realmStarted: StateFlow<Boolean> = signalRClient.realmStarted
 
     private var isStreaming = false
+
+    fun saveStrideFactor(factor: Double) {
+        prefs.edit().putFloat("stride_factor", factor.toFloat()).apply()
+    }
 
     fun resetSteps() {
         sensorDataCollector.resetSteps()
