@@ -7,9 +7,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +26,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
@@ -152,16 +155,40 @@ fun NumericStepperField(
     minValue: Int,
     maxValue: Int,
     step: Int = 1,
+    largeStep: Int = 0,
     defaultValue: Int = minValue,
     unit: String = "",
     modifier: Modifier = Modifier.fillMaxWidth(0.85f)
 ) {
     val currentValue = value.toIntOrNull() ?: defaultValue
+    val hasLargeStep = largeStep > 0
 
-    fun stepMultiplier(holdTicks: Int): Int = when {
+    fun stepMultiplier(holdTicks: Int): Int = if (hasLargeStep) 1 else when {
         holdTicks > 20 -> 10
         holdTicks > 10 -> 5
         else -> 1
+    }
+
+    @Composable
+    fun StepButton(text: String, stepAmount: Int, size: Dp = 32.dp) {
+        RepeatingButton(
+            onClick = { holdTicks ->
+                val effectiveStep = stepAmount * (if (hasLargeStep) 1 else stepMultiplier(holdTicks))
+                val newValue = (currentValue + effectiveStep).coerceIn(minValue, maxValue)
+                onValueChange(newValue.toString())
+            },
+            modifier = Modifier.size(size),
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = PulseColors.DarkSurface
+            )
+        ) {
+            Text(
+                text = text,
+                color = PulseColors.Cyan,
+                fontSize = if (hasLargeStep) 12.sp else 16.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 
     Column(
@@ -180,24 +207,11 @@ fun NumericStepperField(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RepeatingButton(
-                onClick = { holdTicks ->
-                    val effectiveStep = step * stepMultiplier(holdTicks)
-                    val newValue = (currentValue - effectiveStep).coerceIn(minValue, maxValue)
-                    onValueChange(newValue.toString())
-                },
-                modifier = Modifier.size(32.dp),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = PulseColors.DarkSurface
-                )
-            ) {
-                Text(
-                    text = "−",
-                    color = PulseColors.Cyan,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center
-                )
+            if (hasLargeStep) {
+                StepButton(text = "−$largeStep", stepAmount = -largeStep, size = 36.dp)
+                Spacer(modifier = Modifier.width(2.dp))
             }
+            StepButton(text = "−", stepAmount = -step)
             Text(
                 text = if (value.isNotEmpty()) "$currentValue$unit" else "---",
                 color = if (value.isEmpty()) PulseColors.DarkestText else Color.White,
@@ -206,23 +220,10 @@ fun NumericStepperField(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
-            RepeatingButton(
-                onClick = { holdTicks ->
-                    val effectiveStep = step * stepMultiplier(holdTicks)
-                    val newValue = (currentValue + effectiveStep).coerceIn(minValue, maxValue)
-                    onValueChange(newValue.toString())
-                },
-                modifier = Modifier.size(32.dp),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = PulseColors.DarkSurface
-                )
-            ) {
-                Text(
-                    text = "+",
-                    color = PulseColors.Cyan,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center
-                )
+            StepButton(text = "+", stepAmount = step)
+            if (hasLargeStep) {
+                Spacer(modifier = Modifier.width(2.dp))
+                StepButton(text = "+$largeStep", stepAmount = largeStep, size = 36.dp)
             }
         }
     }

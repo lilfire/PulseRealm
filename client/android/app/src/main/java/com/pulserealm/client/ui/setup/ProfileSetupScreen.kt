@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,9 +39,10 @@ fun ProfileSetupScreen(
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberScalingLazyListState()
 
-    // Auto-skip if profile is already complete (returning user)
-    LaunchedEffect(uiState.isComplete) {
-        if (uiState.isComplete) {
+    // Auto-skip only if profile was already complete on first load (returning user)
+    val wasCompleteOnLoad = remember { uiState.isComplete }
+    LaunchedEffect(wasCompleteOnLoad) {
+        if (wasCompleteOnLoad) {
             onComplete()
         }
     }

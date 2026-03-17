@@ -428,7 +428,8 @@ private fun PersonalSummaryPage(
                             onValueChange = { distanceInput = it.toIntOrNull() ?: distanceInput },
                             minValue = 10,
                             maxValue = 50000,
-                            step = 10,
+                            step = 1,
+                            largeStep = 10,
                             defaultValue = distance.roundToInt(),
                             unit = " m",
                             modifier = Modifier.fillMaxWidth(0.9f)
