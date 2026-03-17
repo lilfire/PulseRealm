@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
@@ -173,6 +173,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                 role="option"
                 aria-selected={video?.videoId === v.videoId}
                 onClick={() => selectVideo(v)}
+                className="fg-row"
                 style={{
                   padding: "0.5rem 0.75rem",
                   cursor: "pointer",
@@ -184,8 +185,8 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                   transition: "background 0.15s, border-color 0.15s",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.75rem",
-                }}
+                  "--fg": "0.75rem",
+                } as React.CSSProperties}
                 onMouseEnter={(e) => {
                   if (video?.videoId !== v.videoId) e.currentTarget.style.background = "#2a2a2a";
                 }}

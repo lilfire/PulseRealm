@@ -670,3 +670,15 @@ button:disabled {
     font-size: 1.1rem !important;
   }
 }
+
+/*
+ * Flex gap polyfill for Chrome < 84.
+ * Chrome 74 supports gap on grid but NOT on flex.
+ * These classes replicate flex gap via margins on sibling children.
+ * Usage: add className="fg-row" (or fg-col / fg-wrap) and set --fg in inline style.
+ *   e.g. className="fg-row" style={{ display:"flex", "--fg":"16px" }}
+ */
+.fg-row > * + * { margin-left: var(--fg); }
+.fg-col > * + * { margin-top: var(--fg); }
+.fg-wrap { margin-left: calc(var(--fg) * -1); margin-top: calc(var(--fg) * -1); }
+.fg-wrap > * { margin-left: var(--fg); margin-top: var(--fg); }

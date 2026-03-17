@@ -1,3 +1,5 @@
+import React from "react";
+
 interface Props {
   maxWearableMessagesPerSecond: number;
   maxConcurrentRealms: number;
@@ -18,10 +20,10 @@ const btnStyle = (selected: boolean) => ({
 
 export function ProtectionDefaults({ maxWearableMessagesPerSecond, maxConcurrentRealms, onChange }: Props) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "1.5rem" } as React.CSSProperties}>
       <div>
         <label className="admin-label">Wearable Data Rate Limit (msg/sec)</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {[1, 2, 5, 10].map((v) => (
             <button key={v} onClick={() => onChange("maxWearableMessagesPerSecond", v)} style={btnStyle(maxWearableMessagesPerSecond === v)}>
               {v}
@@ -35,7 +37,7 @@ export function ProtectionDefaults({ maxWearableMessagesPerSecond, maxConcurrent
 
       <div>
         <label className="admin-label">Max Concurrent Realms</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {[5, 10, 20, 50].map((v) => (
             <button key={v} onClick={() => onChange("maxConcurrentRealms", v)} style={btnStyle(maxConcurrentRealms === v)}>
               {v}

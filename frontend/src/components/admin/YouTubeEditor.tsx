@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 
 export interface YouTubeVideoItem {
   videoId: string;
@@ -74,19 +74,20 @@ export function YouTubeEditor({ videos, onChange }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.5rem" } as React.CSSProperties}>
         {videos.map((v, i) => (
           <div
             key={v.videoId || i}
+            className="fg-row"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.75rem",
+              "--fg": "0.75rem",
               padding: "0.5rem 0.75rem",
               background: editIdx === i ? "rgba(51, 223, 255, 0.08)" : "var(--code-bg, #1f2028)",
               borderRadius: "6px",
               border: editIdx === i ? "1px solid var(--accent2, #33DFFF)" : "1px solid var(--border, #2e303a)",
-            }}
+            } as React.CSSProperties}
           >
             <img
               src={`https://img.youtube.com/vi/${v.videoId}/default.jpg`}
@@ -116,7 +117,7 @@ export function YouTubeEditor({ videos, onChange }: Props) {
 
       {isEditing && (
         <div style={{ marginTop: "1rem", padding: "1rem", background: "var(--code-bg, #1f2028)", borderRadius: "8px", border: "1px solid var(--accent2, #33DFFF)" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.75rem" } as React.CSSProperties}>
             <div>
               <label className="admin-label">Title</label>
               <input className="admin-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="e.g. Walking Tour - Tokyo, Japan" />
@@ -130,7 +131,7 @@ export function YouTubeEditor({ videos, onChange }: Props) {
                 Video ID: <span style={{ color: "var(--accent2, #33DFFF)" }}>{draft.videoId}</span>
               </p>
             )}
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
               <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
                 {adding ? "Add" : "Update"}
               </button>

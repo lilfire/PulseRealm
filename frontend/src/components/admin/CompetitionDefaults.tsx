@@ -1,3 +1,5 @@
+import React from "react";
+
 interface Props {
   subMode: string;
   playerFormat: string;
@@ -22,10 +24,10 @@ const btnStyle = (selected: boolean) => ({
 
 export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, intervalMinutes, targetZone, durationMinutes, onChange }: Props) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "1.5rem" } as React.CSSProperties}>
       <div>
         <label className="admin-label">Default Sub-Mode</label>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div className="fg-wrap" style={{ display: "flex", flexWrap: "wrap", "--fg": "0.5rem" } as React.CSSProperties}>
           {["race", "elimination", "heartzone", "king"].map((m) => (
             <button key={m} onClick={() => onChange("competitionSubMode", m)} style={btnStyle(subMode === m)}>
               {m.charAt(0).toUpperCase() + m.slice(1)}
@@ -36,7 +38,7 @@ export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, i
 
       <div>
         <label className="admin-label">Default Player Format</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {["individual", "team"].map((f) => (
             <button key={f} onClick={() => onChange("competitionPlayerFormat", f)} style={btnStyle(playerFormat === f)}>
               {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -47,7 +49,7 @@ export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, i
 
       <div>
         <label className="admin-label">Default Target Distance (Race)</label>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "1rem" } as React.CSSProperties}>
           <input
             type="range"
             min={0.1}
@@ -65,7 +67,7 @@ export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, i
 
       <div>
         <label className="admin-label">Default Elimination Interval</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {[1, 2, 3, 5, 10].map((v) => (
             <button key={v} onClick={() => onChange("competitionIntervalMinutes", v)} style={btnStyle(intervalMinutes === v)}>
               {v} min
@@ -76,7 +78,7 @@ export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, i
 
       <div>
         <label className="admin-label">Default Heart Zone Target</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {[1, 2, 3, 4, 5].map((z) => (
             <button key={z} onClick={() => onChange("competitionTargetZone", z)} style={btnStyle(targetZone === z)}>
               Zone {z}
@@ -87,7 +89,7 @@ export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, i
 
       <div>
         <label className="admin-label">Default Duration (Heart Zone / King)</label>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "1rem" } as React.CSSProperties}>
           <input
             type="range"
             min={5}

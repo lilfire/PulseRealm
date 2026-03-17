@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { maxClientsForMode } from "../../types/session";
 import type { ReactNode } from "react";
@@ -76,7 +76,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
               {clients.map((id) => {
                 const profile = clientProfiles[id];
                 return (
-                  <li key={id} style={{ padding: "0.4rem 0", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <li key={id} className="fg-row" style={{ padding: "0.4rem 0", display: "flex", alignItems: "center", "--fg": "0.5rem" } as React.CSSProperties}>
                     <span>
                       {profile?.name || id}
                       {profile?.heightCm ? ` — ${profile.heightCm} cm` : ""}

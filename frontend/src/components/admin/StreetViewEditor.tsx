@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 
 export interface StreetViewLocationItem {
   lat: number;
@@ -55,19 +55,20 @@ export function StreetViewEditor({ locations, onChange }: Props) {
 
   return (
     <div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.5rem" } as React.CSSProperties}>
         {locations.map((loc, i) => (
           <div
             key={loc.address || i}
+            className="fg-row"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.75rem",
+              "--fg": "0.75rem",
               padding: "0.5rem 0.75rem",
               background: editIdx === i ? "rgba(51, 223, 255, 0.08)" : "var(--code-bg, #1f2028)",
               borderRadius: "6px",
               border: editIdx === i ? "1px solid var(--accent2, #33DFFF)" : "1px solid var(--border, #2e303a)",
-            }}
+            } as React.CSSProperties}
           >
             <a
               href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${loc.lat},${loc.lng}`}
@@ -94,12 +95,12 @@ export function StreetViewEditor({ locations, onChange }: Props) {
 
       {isEditing && (
         <div style={{ marginTop: "1rem", padding: "1rem", background: "var(--code-bg, #1f2028)", borderRadius: "8px", border: "1px solid var(--accent2, #33DFFF)" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.75rem" } as React.CSSProperties}>
             <div>
               <label className="admin-label">Address</label>
               <input className="admin-input" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} placeholder="e.g. Eiffel Tower, Paris, France" />
             </div>
-            <div style={{ display: "flex", gap: "1rem" }}>
+            <div className="fg-row" style={{ display: "flex", "--fg": "1rem" } as React.CSSProperties}>
               <div style={{ flex: 1 }}>
                 <label className="admin-label">Latitude</label>
                 <input className="admin-input" type="number" step="any" value={draft.lat} onChange={(e) => setDraft({ ...draft, lat: Number(e.target.value) })} />
@@ -109,7 +110,7 @@ export function StreetViewEditor({ locations, onChange }: Props) {
                 <input className="admin-input" type="number" step="any" value={draft.lng} onChange={(e) => setDraft({ ...draft, lng: Number(e.target.value) })} />
               </div>
             </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
               <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
                 {adding ? "Add" : "Update"}
               </button>

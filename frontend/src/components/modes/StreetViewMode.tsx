@@ -611,7 +611,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           <>
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
             <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: -4 }}>{formatPace(latestData.speedKmh)}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
               <span>{latestData.heartRate} bpm</span>
               {latestData.heartRate > 0 && (() => {
                 const maxHr = getMaxHrForAge(profile?.age);

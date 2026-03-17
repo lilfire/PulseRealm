@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 interface RealmInfo {
   id: string;
@@ -84,10 +84,11 @@ export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.75rem" } as React.CSSProperties}>
       {realms.map((r) => (
         <div
           key={r.id}
+          className="fg-row"
           style={{
             background: "var(--code-bg, #1f2028)",
             border: "1px solid var(--border, #2e303a)",
@@ -96,10 +97,10 @@ export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: "1rem",
-          }}
+            "--fg": "1rem",
+          } as React.CSSProperties}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.25rem" } as React.CSSProperties}>
             <span style={{ color: "var(--text-h, #f3f4f6)", fontWeight: 600, fontSize: "1rem" }}>
               {r.mode}
             </span>
@@ -111,7 +112,7 @@ export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
             </span>
             <HostKeyReveal secret={r.hostSecret} />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.75rem" } as React.CSSProperties}>
             <div
               style={{
                 fontFamily: "monospace",

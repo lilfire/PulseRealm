@@ -754,7 +754,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "16px" } as React.CSSProperties}>
           <div style={{
             fontSize: 13, fontWeight: 600, textTransform: "uppercase",
             letterSpacing: 1, color: "var(--accent2, #33DFFF)",
@@ -821,8 +821,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           padding: "12px 32px",
           background: `${ZONE_COLORS[config.targetZone - 1]}18`,
           borderBottom: "1px solid var(--border)",
-          gap: 12,
-        }}>
+          "--fg": "12px",
+        } as React.CSSProperties} className="fg-row">
           <div style={{
             fontSize: 15, fontWeight: 600,
             color: ZONE_COLORS[config.targetZone - 1],
@@ -842,8 +842,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           padding: "14px 32px",
           background: "rgba(255, 215, 0, 0.08)",
           borderBottom: "1px solid var(--border)",
-          gap: 12,
-        }}>
+          "--fg": "12px",
+        } as React.CSSProperties} className="fg-row">
           <span style={{ fontSize: 24 }}>&#128081;</span>
           <span style={{ fontSize: 18, fontWeight: 700, color: "#ffd700" }}>
             {isTeam ? currentKing : (clientProfiles[currentKing]?.name ?? currentKing.slice(0, 8))}
@@ -861,8 +861,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           padding: "16px 32px",
           background: "rgba(34, 197, 94, 0.12)",
           borderBottom: "1px solid var(--border)",
-          gap: 12,
-        }}>
+          "--fg": "12px",
+        } as React.CSSProperties} className="fg-row">
           <span style={{ fontSize: 24 }}>&#127942;</span>
           <span style={{ fontSize: 20, fontWeight: 700, color: "#22c55e" }}>
             {isTeam ? raceWinner : (clientProfiles[raceWinner]?.name ?? raceWinner.slice(0, 8))} wins!
@@ -877,8 +877,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           padding: "16px 32px",
           background: "rgba(34, 197, 94, 0.12)",
           borderBottom: "1px solid var(--border)",
-          gap: 12,
-        }}>
+          "--fg": "12px",
+        } as React.CSSProperties} className="fg-row">
           <span style={{ fontSize: 24 }}>&#127942;</span>
           <span style={{ fontSize: 20, fontWeight: 700, color: "#22c55e" }}>
             {isTeam ? elimWinner : (clientProfiles[elimWinner]?.name ?? elimWinner.slice(0, 8))} wins!
@@ -892,7 +892,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         flex: 1, overflow: "auto",
         padding: "20px 32px",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 1100, margin: "0 auto" }}>
+        <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "12px", maxWidth: 1100, margin: "0 auto" } as React.CSSProperties}>
           {sorted.map((entry, idx) => {
             const isElimZone = config.subMode === "elimination"
               && !entry.eliminated
@@ -902,8 +902,9 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             return (
               <div
                 key={entry.id}
+                className="fg-row"
                 style={{
-                  display: "flex", alignItems: "center", gap: 20,
+                  display: "flex", alignItems: "center", "--fg": "20px",
                   background: entry.eliminated
                     ? "rgba(255,255,255,0.02)"
                     : isElimZone
@@ -920,7 +921,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                         : "1px solid var(--border)",
                   opacity: entry.eliminated ? 0.4 : 1,
                   transition: "all 0.5s ease, transform 0.5s ease",
-                }}
+                } as React.CSSProperties}
               >
                 {/* Position */}
                 <div style={{
@@ -1007,7 +1008,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
                 {/* Race: progress bar */}
                 {config.subMode === "race" && (
-                  <div style={{ width: 320, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div className="fg-col" style={{ width: 320, display: "flex", flexDirection: "column", "--fg": "4px" } as React.CSSProperties}>
                     <div style={{
                       height: 8, borderRadius: 4,
                       background: "rgba(255,255,255,0.08)",
