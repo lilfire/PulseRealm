@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
+import com.pulserealm.client.ui.components.NumericStepperField
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,12 +27,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -294,7 +291,7 @@ private fun PersonalSummaryPage(
 
     // Calibration state
     var showCalibration by remember { mutableStateOf(false) }
-    var distanceInput by remember { mutableStateOf("") }
+    var distanceInput by remember { mutableStateOf(distance.roundToInt()) }
     var calibrationError by remember { mutableStateOf<String?>(null) }
     var calibrationSaved by remember { mutableStateOf(false) }
 
@@ -408,7 +405,7 @@ private fun PersonalSummaryPage(
                         onClick = {
                             showCalibration = true
                             calibrationError = null
-                            distanceInput = ""
+                            distanceInput = distance.roundToInt()
                         },
                         modifier = Modifier
                             .fillMaxWidth(0.7f)
@@ -425,26 +422,16 @@ private fun PersonalSummaryPage(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "Actual Distance (m)",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        BasicTextField(
-                            value = distanceInput,
-                            onValueChange = { distanceInput = it.filter { c -> c.isDigit() || c == '.' } },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            textStyle = TextStyle(
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontFamily = FontFamily.Monospace,
-                                textAlign = TextAlign.Center
-                            ),
-                            cursorBrush = SolidColor(PulseColors.Cyan),
-                            modifier = Modifier
-                                .fillMaxWidth(0.6f)
-                                .padding(vertical = 2.dp)
+                        NumericStepperField(
+                            label = "Actual Distance (m)",
+                            value = distanceInput.toString(),
+                            onValueChange = { distanceInput = it.toIntOrNull() ?: distanceInput },
+                            minValue = 10,
+                            maxValue = 50000,
+                            step = 10,
+                            defaultValue = distance.roundToInt(),
+                            unit = " m",
+                            modifier = Modifier.fillMaxWidth(0.9f)
                         )
                         if (calibrationError != null) {
                             Text(
@@ -459,11 +446,7 @@ private fun PersonalSummaryPage(
                         ) {
                             Button(
                                 onClick = {
-                                    val actualDist = distanceInput.toDoubleOrNull()
-                                    if (actualDist == null || actualDist <= 0) {
-                                        calibrationError = "Enter a valid distance"
-                                        return@Button
-                                    }
+                                    val actualDist = distanceInput.toDouble()
                                     val factor = actualDist * 100.0 / (steps * heightCm)
                                     if (factor < 0.2 || factor > 0.8) {
                                         calibrationError = "Factor ${"%.3f".format(factor)} out of range (0.2-0.8)"

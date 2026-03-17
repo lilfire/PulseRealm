@@ -3,6 +3,7 @@ package com.pulserealm.client.ui.components
 import android.app.RemoteInput
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,18 +12,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.ButtonColors
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import kotlinx.coroutines.delay
 import androidx.wear.input.RemoteInputIntentHelper
 import com.pulserealm.client.ui.theme.PulseColors
 
@@ -100,6 +109,42 @@ fun ProfileField(
 }
 
 @Composable
+fun RepeatingButton(
+    onClick: (holdTicks: Int) -> Unit,
+    modifier: Modifier = Modifier,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
+    content: @Composable () -> Unit
+) {
+    var pressed by remember { mutableStateOf(false) }
+
+    Button(
+        onClick = { onClick(0) },
+        modifier = modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    pressed = true
+                    tryAwaitRelease()
+                    pressed = false
+                }
+            )
+        },
+        colors = colors,
+        content = { content() }
+    )
+
+    LaunchedEffect(pressed) {
+        if (!pressed) return@LaunchedEffect
+        delay(400)
+        var ticks = 0
+        while (pressed) {
+            onClick(ticks)
+            delay(150)
+            ticks++
+        }
+    }
+}
+
+@Composable
 fun NumericStepperField(
     label: String,
     value: String,
@@ -112,6 +157,12 @@ fun NumericStepperField(
     modifier: Modifier = Modifier.fillMaxWidth(0.85f)
 ) {
     val currentValue = value.toIntOrNull() ?: defaultValue
+
+    fun stepMultiplier(holdTicks: Int): Int = when {
+        holdTicks > 20 -> 10
+        holdTicks > 10 -> 5
+        else -> 1
+    }
 
     Column(
         modifier = modifier,
@@ -129,13 +180,13 @@ fun NumericStepperField(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(
-                onClick = {
-                    val newValue = (currentValue - step).coerceIn(minValue, maxValue)
+            RepeatingButton(
+                onClick = { holdTicks ->
+                    val effectiveStep = step * stepMultiplier(holdTicks)
+                    val newValue = (currentValue - effectiveStep).coerceIn(minValue, maxValue)
                     onValueChange(newValue.toString())
                 },
                 modifier = Modifier.size(32.dp),
-                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = PulseColors.DarkSurface
                 )
@@ -155,13 +206,13 @@ fun NumericStepperField(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
-            Button(
-                onClick = {
-                    val newValue = (currentValue + step).coerceIn(minValue, maxValue)
+            RepeatingButton(
+                onClick = { holdTicks ->
+                    val effectiveStep = step * stepMultiplier(holdTicks)
+                    val newValue = (currentValue + effectiveStep).coerceIn(minValue, maxValue)
                     onValueChange(newValue.toString())
                 },
                 modifier = Modifier.size(32.dp),
-                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = PulseColors.DarkSurface
                 )

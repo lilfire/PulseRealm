@@ -1,8 +1,10 @@
 package com.pulserealm.client.ui.setup
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -111,6 +113,10 @@ fun ProfileSetupScreen(
                     defaultValue = 70,
                     unit = " kg"
                 )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             item {
