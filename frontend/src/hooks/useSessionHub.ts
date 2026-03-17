@@ -5,7 +5,7 @@ import {
   LogLevel,
 } from "@microsoft/signalr";
 import type { ClientProfile, WearableData } from "../types/session";
-import { MAX_HR } from "../utils/wearable";
+import { getMaxHrForAge } from "../utils/wearable";
 
 export interface ClientSummary {
   clientId: string;
@@ -59,6 +59,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     speedSum: 0,
     speedCount: 0,
     currentHr: 0,
+    currentClientId: "",
     lastDataReceivedAt: 0,
     activePeriodSeconds: 0,
     timeInZone: {} as Record<string, number>,
@@ -67,6 +68,9 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     prevStepsForCadence: 0,
     prevStepsTimeForCadence: 0,
   });
+  const profilesRef = useRef<Record<string, ClientProfile>>({});
+  // Keep profilesRef in sync with state so intervals can access profiles without stale closures
+  useEffect(() => { profilesRef.current = clientProfiles; }, [clientProfiles]);
 
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
@@ -83,7 +87,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     setLatestData(null);
     setRealmConfig(null);
     setDisconnectedClients(new Set());
-    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
+    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, currentClientId: "", lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
 
     if (!realmId || !resolvedUrl) return;
 
@@ -153,6 +157,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
         s.heartRateCount++;
         s.maxHeartRate = Math.max(s.maxHeartRate, data.heartRate);
         s.currentHr = data.heartRate;
+        s.currentClientId = data.clientId;
       }
       if (data.speedKmh > 0) {
         s.speedSum += data.speedKmh;
@@ -212,7 +217,8 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       if (s.lastDataReceivedAt > 0 && now - s.lastDataReceivedAt < 5000) {
         s.activePeriodSeconds++;
         if (s.currentHr > 0) {
-          const pct = s.currentHr / MAX_HR;
+          const maxHr = getMaxHrForAge(profilesRef.current[s.currentClientId]?.age);
+          const pct = s.currentHr / maxHr;
           const zone = pct < 0.57 ? 1 : pct < 0.63 ? 2 : pct < 0.76 ? 3 : pct < 0.89 ? 4 : 5;
           s.timeInZone[zone] = (s.timeInZone[zone] ?? 0) + 1;
         }
