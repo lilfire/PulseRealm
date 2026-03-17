@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 
 interface Props {
   apiUrl: string;
@@ -43,7 +43,7 @@ export function AdminLogin({ apiUrl, onSuccess, onBack }: Props) {
         <p style={{ color: "var(--text, #9ca3af)", fontSize: "0.9rem", margin: "0 0 1.5rem" }}>
           Enter your credentials to access settings
         </p>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <form onSubmit={handleSubmit} className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "1rem" } as React.CSSProperties}>
           <input
             type="text"
             value={username}

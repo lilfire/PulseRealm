@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
 import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
@@ -370,12 +370,12 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       overflow: "hidden",
     }}>
       {/* ── Team totals bar ─────────────────────────────────────── */}
-      <div style={{
+      <div className="fg-row" style={{
         display: "flex", justifyContent: "center", alignItems: "baseline",
-        gap: 48, padding: "28px 32px 20px",
+        "--fg": "48px", padding: "28px 32px 20px",
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
-      }}>
+      } as React.CSSProperties}>
         <div style={{ textAlign: "center" }}>
           <div style={{
             fontSize: 64, fontWeight: 700, lineHeight: 1,
@@ -446,17 +446,17 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           const zoneProgress = hr > 0 ? Math.min(hr / clientMaxHr, 1) : 0;
 
           return (
-            <div key={cid} style={{
+            <div key={cid} className="fg-col" style={{
               background: "var(--code-bg)",
               borderRadius: 12,
               padding: "20px 24px",
-              display: "flex", flexDirection: "column", gap: 14,
+              display: "flex", flexDirection: "column", "--fg": "14px",
               opacity: active ? 1 : 0.4,
               transition: "opacity 0.6s ease",
               border: "1px solid var(--border)",
-            }}>
+            } as React.CSSProperties}>
               {/* Name row */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "12px" } as React.CSSProperties}>
                 {/* Avatar */}
                 <div style={{
                   width: 40, height: 40, borderRadius: "50%",
@@ -487,7 +487,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
               </div>
 
               {/* HR */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
                 <span style={{
                   fontSize: 32, fontWeight: 700, fontFamily: "var(--mono)",
                   color: active && hr > 0 ? "var(--text-h)" : "var(--text)",
@@ -523,7 +523,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
               </div>
 
               {/* Cadence */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
                 <span style={{
                   fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
                   color: active && cadence > 0 ? "var(--text-h)" : "var(--text)",
@@ -535,7 +535,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
               </div>
 
               {/* Calories */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
                 <span style={{
                   fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
                   color: active && (t?.caloriesBurned ?? 0) > 0 ? "var(--text-h)" : "var(--text)",

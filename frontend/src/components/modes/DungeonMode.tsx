@@ -1060,7 +1060,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0.75rem 1rem", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid #222",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.75rem" } as React.CSSProperties}>
           <span style={{ fontSize: "1.3rem" }}>&#128081;</span>
           <span style={{ fontWeight: 700, fontSize: "1.1rem" }}>Dungeon</span>
           <span style={{ color: "#888", fontSize: "0.85rem" }}>
@@ -1069,7 +1069,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
               : `Room ${display.currentRoom + 1} / ${display.rooms.length}`}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "1rem" } as React.CSSProperties}>
           <span style={{ fontSize: "0.8rem", color: "#FF5C75", background: "rgba(255,92,117,0.1)", padding: "0.2rem 0.6rem", borderRadius: "4px" }}>
             {display.teamCalories} / {display.nextCalorieMilestone} kcal
           </span>
@@ -1107,7 +1107,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       )}
 
       {/* Room progress bar */}
-      <div style={{ display: "flex", padding: "0.5rem 1rem", gap: "3px", background: "#111" }}>
+      <div className="fg-row" style={{ display: "flex", padding: "0.5rem 1rem", "--fg": "3px", background: "#111" } as React.CSSProperties}>
         {display.rooms.map((room, i) => {
           const isCurrent = i === display.currentRoom;
           const isCleared = i < display.currentRoom;
@@ -1138,10 +1138,10 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       </div>
 
       {/* Bottom stats */}
-      <div style={{
+      <div className="fg-wrap" style={{
         padding: "0.75rem 1rem", background: "rgba(0,0,0,0.5)", borderTop: "1px solid #222",
-        display: "flex", justifyContent: "space-around", flexWrap: "wrap", gap: "0.5rem",
-      }}>
+        display: "flex", justifyContent: "space-around", flexWrap: "wrap", "--fg": "0.5rem",
+      } as React.CSSProperties}>
         {display.clientStats.length === 0 ? (
           <span style={{ color: "#555" }}>Waiting for player data...</span>
         ) : display.clientStats.map((cs, i) => (
@@ -1373,7 +1373,7 @@ function TreasureRoom({ display }: { display: Display }) {
       <div style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.5rem" }}>
         {display.treasureSteps} steps
       </div>
-      <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", fontSize: "0.8rem" }}>
+      <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.5rem", fontSize: "0.8rem" } as React.CSSProperties}>
         {[
           { label: `< ${med}: Small`, active: tier === "small" },
           { label: `${med}–${lrg}: Medium`, active: tier === "medium" },
@@ -1399,7 +1399,7 @@ function BossRoom({ display }: { display: Display }) {
   return (
     <div>
       {/* Phase indicators */}
-      <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", marginBottom: "1.5rem" }}>
+      <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.5rem", marginBottom: "1.5rem" } as React.CSSProperties}>
         {phases.map((label, i) => {
           const isActive = i === display.bossPhase;
           const isCleared = i < display.bossPhase;

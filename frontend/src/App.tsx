@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRealmHub, type RealmSummary } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
@@ -415,7 +415,7 @@ function App() {
                 <p style={{ color: "var(--text, #9ca3af)", fontSize: "0.9rem", margin: "0 0 0.75rem" }}>
                   Enter a 6-digit join code to watch a realm
                 </p>
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.5rem" } as React.CSSProperties}>
                   <input
                     type="text"
                     value={joinCodeInput}

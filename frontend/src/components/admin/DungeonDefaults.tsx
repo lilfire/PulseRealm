@@ -1,3 +1,5 @@
+import React from "react";
+
 interface Props {
   difficulty: string;
   timeframeMinutes: number;
@@ -18,10 +20,10 @@ const btnStyle = (selected: boolean) => ({
 
 export function DungeonDefaults({ difficulty, timeframeMinutes, onChange }: Props) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "1.5rem" } as React.CSSProperties}>
       <div>
         <label className="admin-label">Default Difficulty</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {["easy", "normal", "hard"].map((d) => (
             <button key={d} onClick={() => onChange("dungeonDifficulty", d)} style={btnStyle(difficulty === d)}>
               {d.charAt(0).toUpperCase() + d.slice(1)}
@@ -32,7 +34,7 @@ export function DungeonDefaults({ difficulty, timeframeMinutes, onChange }: Prop
 
       <div>
         <label className="admin-label">Default Timeframe</label>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
           {[15, 30, 45, 60].map((t) => (
             <button key={t} onClick={() => onChange("dungeonTimeframeMinutes", t)} style={btnStyle(timeframeMinutes === t)}>
               {t} min

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
@@ -61,7 +61,7 @@ export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connecte
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Difficulty</h3>
-        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", marginTop: "0.75rem" }}>
+        <div className="fg-row" style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem", "--fg": "0.75rem" } as React.CSSProperties}>
           {difficulties.map((d) => (
             <button
               key={d.value}
@@ -89,7 +89,7 @@ export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connecte
 
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Timeframe</h3>
-        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", marginTop: "0.75rem" }}>
+        <div className="fg-row" style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem", "--fg": "0.75rem" } as React.CSSProperties}>
           {timeframes.map((t) => (
             <button
               key={t}

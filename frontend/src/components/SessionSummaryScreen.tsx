@@ -1,3 +1,4 @@
+import React from "react";
 import type { ClientSummary, RealmSummary } from "../hooks/useSessionHub";
 import type { ClientProfile } from "../types/session";
 import { formatPace } from "../utils/wearable";
@@ -60,7 +61,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
         flexShrink: 0,
         flexWrap: "wrap",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "1rem" } as React.CSSProperties}>
           <img src="/logo.png" alt="PulseRealm" style={{ height: 36 }} />
           <h1 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>Realm Complete</h1>
           {clientNames.length > 0 && (
@@ -73,13 +74,13 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
       </div>
 
       {/* Realm stats bar */}
-      <div style={{
+      <div className="fg-wrap" style={{
         display: "flex",
-        gap: "1rem",
         marginBottom: "1rem",
         flexShrink: 0,
         flexWrap: "wrap",
-      }}>
+        "--fg": "1rem",
+      } as React.CSSProperties}>
         <StatCard label="Duration" value={formatDuration(summary.durationSeconds)} />
         <StatCard label="Active Time" value={formatDuration(summary.activePeriodSeconds ?? 0)} />
         <StatCard label="Participants" value={`${summary.participantCount ?? 0}`} />
@@ -177,7 +178,7 @@ function ComparisonBars({ clients, metric, label, formatter }: {
         const val = c[metric] as number;
         const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
         return (
-          <div key={c.clientId || c.name} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <div key={c.clientId || c.name} className="fg-row" style={{ display: "flex", alignItems: "center", marginBottom: 4, "--fg": "8px" } as React.CSSProperties}>
             <span style={{ fontSize: "0.75rem", color: "var(--text)", minWidth: 70, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {c.name}
             </span>
@@ -217,15 +218,15 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
       justifyContent: "center",
       height: "100%",
     }}>
-      <div style={{
+      <div className="fg-wrap" style={{
         display: "flex",
-        gap: "1.5rem",
         maxWidth: 900,
         width: "100%",
         flexWrap: "wrap",
-      }}>
+        "--fg": "1.5rem",
+      } as React.CSSProperties}>
         {/* Left: stat grid + zone bar */}
-        <div style={{ flex: 3, display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div className="fg-col" style={{ flex: 3, display: "flex", flexDirection: "column", "--fg": "1rem" } as React.CSSProperties}>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
@@ -307,7 +308,7 @@ function FewClientView({ summary, clients }: { summary: RealmSummary; clients: C
   const activeZones = hasZones ? [1, 2, 3, 4, 5].filter((z) => (summary.timeInZone[z] ?? 0) > 0) : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0.75rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", height: "100%", "--fg": "0.75rem" } as React.CSSProperties}>
       <SectionTitle title="Individual" />
       {/* Realm-level zone bar */}
       {activeZones.length > 0 && (
@@ -321,7 +322,7 @@ function FewClientView({ summary, clients }: { summary: RealmSummary; clients: C
 
       {/* Comparison bars (only if 2+ clients) */}
       {clients.length >= 2 && (
-        <div style={{ display: "flex", gap: "0.75rem", flexShrink: 0, flexWrap: "wrap" }}>
+        <div className="fg-wrap" style={{ display: "flex", flexShrink: 0, flexWrap: "wrap", "--fg": "0.75rem" } as React.CSSProperties}>
           <div style={{ flex: 1 }}>
             <ComparisonBars clients={clients} metric="distanceMeters" label="Distance" formatter={formatDistance} />
           </div>
@@ -359,7 +360,7 @@ function MediumClientView({ summary, clients }: { summary: RealmSummary; clients
   const cols = Math.min(clients.length, 3);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0.75rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", height: "100%", "--fg": "0.75rem" } as React.CSSProperties}>
       {/* Realm-level zone bar */}
       {activeZones.length > 0 && (
         <div style={{ flexShrink: 0 }}>
@@ -394,7 +395,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
   const activeZones = hasZones ? [1, 2, 3, 4, 5].filter((z) => (summary.timeInZone[z] ?? 0) > 0) : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0.75rem" }}>
+    <div className="fg-col" style={{ display: "flex", flexDirection: "column", height: "100%", "--fg": "0.75rem" } as React.CSSProperties}>
       {/* Realm-level zone bar */}
       {activeZones.length > 0 && (
         <div style={{ flexShrink: 0 }}>
