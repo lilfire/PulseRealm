@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { RouteConfig } from "../lobbies/RouteLobby";
+import { estimateCaloriesPerSecond } from "../../utils/wearable";
 
 interface Props {
   clients: string[];
@@ -40,6 +41,8 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   const travelledRef = useRef(0);
   const speedRef = useRef(0);
   const totalDistanceRef = useRef(0);
+  const caloriesRef = useRef(0);
+  const [caloriesDisplay, setCaloriesDisplay] = useState(0);
 
   const [routeInfo, setRouteInfo] = useState<{ distanceText: string; durationText: string } | null>(null);
   const [finished, setFinished] = useState(false);
@@ -48,6 +51,20 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
   }, [latestData]);
+
+  // Accumulate calories (1-second tick)
+  useEffect(() => {
+    const id = setInterval(() => {
+      const clientId = clients[0];
+      if (!clientId || !latestData) return;
+      const profile = clientProfiles[clientId];
+      if (profile?.weightKg && profile?.age && latestData.heartRate > 0) {
+        caloriesRef.current += estimateCaloriesPerSecond(latestData.heartRate, profile.weightKg, profile.age);
+        setCaloriesDisplay(Math.round(caloriesRef.current));
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [clients, clientProfiles, latestData]);
 
   // Initialize map and directions
   useEffect(() => {
@@ -382,6 +399,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
             <div>{latestData.heartRate} bpm</div>
             <div>{latestData.steps} steps</div>
+            {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
             <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceRef.current.toFixed(0)} m</div>
           </>
         ) : (

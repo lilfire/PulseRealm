@@ -51,6 +51,17 @@ export function getZoneBpmRange(zone: number, maxHr = MAX_HR): [number, number] 
   return [Math.round(ZONE_BOUNDS[zone - 1] * maxHr), Math.round(ZONE_BOUNDS[zone] * maxHr)];
 }
 
+/**
+ * Estimate calories burned per second using a gender-neutral HR-based formula.
+ * Averaged from Keytel et al. (2005) male/female equations.
+ * Returns 0 when inputs are insufficient for a meaningful estimate.
+ */
+export function estimateCaloriesPerSecond(heartRate: number, weightKg: number, age: number): number {
+  if (heartRate <= 0 || weightKg <= 0 || age <= 0) return 0;
+  const calsPerMin = (-37.549 + 0.5391 * heartRate + 0.1626 * weightKg + 0.1379 * age) / 4.184;
+  return Math.max(0, calsPerMin / 60);
+}
+
 /** Format seconds as m:ss. */
 export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);

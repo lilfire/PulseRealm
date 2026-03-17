@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
+import { estimateCaloriesPerSecond } from "../../utils/wearable";
 
 interface Props {
   clients: string[];
@@ -72,6 +73,8 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const movingRef = useRef(false);
   const totalDistanceRef = useRef(0);
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
+  const caloriesRef = useRef(0);
+  const [caloriesDisplay, setCaloriesDisplay] = useState(0);
   const currentPositionRef = useRef<google.maps.LatLng | null>(null);
   const panoSpacingRef = useRef(12);
   const visitedPanosRef = useRef<Set<string>>(new Set());
@@ -247,6 +250,20 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
   }, [latestData]);
+
+  // Accumulate calories (1-second tick)
+  useEffect(() => {
+    const id = setInterval(() => {
+      const clientId = clients[0];
+      if (!clientId || !latestData) return;
+      const profile = clientProfiles[clientId];
+      if (profile?.weightKg && profile?.age && latestData.heartRate > 0) {
+        caloriesRef.current += estimateCaloriesPerSecond(latestData.heartRate, profile.weightKg, profile.age);
+        setCaloriesDisplay(Math.round(caloriesRef.current));
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [clients, clientProfiles, latestData]);
 
   // Search ahead for a panorama when links run out
   const searchAhead = useCallback(() => {
@@ -595,6 +612,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
             <div>{latestData.heartRate} bpm</div>
             <div>{latestData.steps} steps</div>
+            {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
             <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay.toFixed(0)} m</div>
           </>
         ) : (

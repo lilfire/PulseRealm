@@ -760,6 +760,7 @@ describe("summary screen", () => {
     maxHeartRate: 172,
     averageSpeedKmh: 7.5,
     avgCadenceSpm: 160,
+    caloriesBurned: 0,
     timeInZone: {},
     activePeriodSeconds: 1750,
     participantCount: 1,

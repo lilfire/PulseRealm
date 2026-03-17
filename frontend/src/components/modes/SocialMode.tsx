@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
 
 interface HrZone {
   zone: number;
@@ -43,6 +43,7 @@ interface ClientTracker {
   timeInZone: Record<string, number>;
   cadenceSum: number;
   cadenceCount: number;
+  caloriesBurned: number;
 }
 
 function newTracker(): ClientTracker {
@@ -61,6 +62,7 @@ function newTracker(): ClientTracker {
     timeInZone: {},
     cadenceSum: 0,
     cadenceCount: 0,
+    caloriesBurned: 0,
   };
 }
 
@@ -194,6 +196,12 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           t.cadenceSum += t.cadence;
           t.cadenceCount++;
         }
+        if (t.heartRate > 0) {
+          const profile = clientProfiles[cid];
+          if (profile?.weightKg && profile?.age) {
+            t.caloriesBurned += estimateCaloriesPerSecond(t.heartRate, profile.weightKg, profile.age);
+          }
+        }
       }
     }, 1000);
     return () => clearInterval(id);
@@ -243,10 +251,12 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
   let totalSteps = 0;
   let hrSum = 0;
   let hrCount = 0;
+  let totalCalories = 0;
   for (const cid of clients) {
     const t = trackers[cid];
     if (!t) continue;
     totalSteps += t.steps;
+    totalCalories += t.caloriesBurned;
     if (t.active && t.heartRate > 0) {
       hrSum += t.heartRate;
       hrCount++;
@@ -276,7 +286,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     const clientSummaries: ClientSummary[] = clients.map((cid) => {
       const t = trackers[cid];
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
-      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {} };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0 };
       return {
         clientId: cid,
         name,
@@ -286,6 +296,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         maxHeartRate: t.maxHr,
         avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
         timeInZone: { ...t.timeInZone },
+        caloriesBurned: Math.round(t.caloriesBurned),
       };
     });
 
@@ -295,9 +306,11 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     let groupMaxHr = 0;
     let groupCadenceSum = 0;
     let groupCadenceCount = 0;
+    let groupCalories = 0;
     const groupTimeInZone: Record<string, number> = {};
     for (const cs of clientSummaries) {
       groupSteps += cs.steps;
+      groupCalories += cs.caloriesBurned;
       if (cs.averageHeartRate > 0) { groupHrSum += cs.averageHeartRate; groupHrCount++; }
       groupMaxHr = Math.max(groupMaxHr, cs.maxHeartRate);
       if (cs.avgCadenceSpm > 0) { groupCadenceSum += cs.avgCadenceSpm; groupCadenceCount++; }
@@ -314,6 +327,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       timeInZone: groupTimeInZone,
       activePeriodSeconds: perSecondActive.size,
       participantCount: clients.length,
+      caloriesBurned: groupCalories,
       clientSummaries,
     });
   }, [onEnd, clients, clientProfiles]);
@@ -372,6 +386,18 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           </div>
           <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>
             avg bpm
+          </div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            fontSize: 36, fontWeight: 600, lineHeight: 1,
+            fontFamily: "var(--mono)", color: totalCalories > 0 ? "var(--text-h)" : "var(--text)",
+            transition: "all 0.4s ease",
+          }}>
+            {totalCalories > 0 ? Math.round(totalCalories) : "—"}
+          </div>
+          <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+            kcal
           </div>
         </div>
       </div>
@@ -482,6 +508,18 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                   {active && cadence > 0 ? cadence : "—"}
                 </span>
                 <span style={{ fontSize: 14, color: "var(--text)" }}>spm</span>
+              </div>
+
+              {/* Calories */}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{
+                  fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
+                  color: active && (t?.caloriesBurned ?? 0) > 0 ? "var(--text-h)" : "var(--text)",
+                  transition: "all 0.4s ease",
+                }}>
+                  {active && (t?.caloriesBurned ?? 0) > 0 ? Math.round(t!.caloriesBurned) : "—"}
+                </span>
+                <span style={{ fontSize: 14, color: "var(--text)" }}>kcal</span>
               </div>
             </div>
           );

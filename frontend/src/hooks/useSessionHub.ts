@@ -5,7 +5,7 @@ import {
   LogLevel,
 } from "@microsoft/signalr";
 import type { ClientProfile, WearableData } from "../types/session";
-import { getMaxHrForAge } from "../utils/wearable";
+import { getMaxHrForAge, estimateCaloriesPerSecond } from "../utils/wearable";
 
 export interface ClientSummary {
   clientId: string;
@@ -15,6 +15,7 @@ export interface ClientSummary {
   averageHeartRate: number;
   maxHeartRate: number;
   avgCadenceSpm: number;
+  caloriesBurned: number;
   timeInZone: Record<string, number>;
   teamName?: string;
   teamColor?: string;
@@ -28,6 +29,7 @@ export interface RealmSummary {
   maxHeartRate: number;
   averageSpeedKmh: number;
   avgCadenceSpm: number;
+  caloriesBurned: number;
   timeInZone: Record<string, number>;
   activePeriodSeconds: number;
   participantCount: number;
@@ -65,6 +67,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     timeInZone: {} as Record<string, number>,
     cadenceSum: 0,
     cadenceCount: 0,
+    caloriesBurned: 0,
     prevStepsForCadence: 0,
     prevStepsTimeForCadence: 0,
   });
@@ -87,7 +90,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     setLatestData(null);
     setRealmConfig(null);
     setDisconnectedClients(new Set());
-    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, currentClientId: "", lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
+    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, currentClientId: "", lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, caloriesBurned: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
 
     if (!realmId || !resolvedUrl) return;
 
@@ -198,6 +201,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
         maxHeartRate: summary.maxHeartRate || s.maxHeartRate,
         averageSpeedKmh: summary.averageSpeedKmh || (s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0),
         avgCadenceSpm: summary.avgCadenceSpm || (s.cadenceCount > 0 ? Math.round(s.cadenceSum / s.cadenceCount) : 0),
+        caloriesBurned: summary.caloriesBurned || Math.round(s.caloriesBurned),
         timeInZone: Object.keys(summary.timeInZone ?? {}).length > 0 ? summary.timeInZone : { ...s.timeInZone },
         activePeriodSeconds: summary.activePeriodSeconds || s.activePeriodSeconds,
       };
@@ -221,6 +225,13 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
           const pct = s.currentHr / maxHr;
           const zone = pct < 0.57 ? 1 : pct < 0.63 ? 2 : pct < 0.76 ? 3 : pct < 0.89 ? 4 : 5;
           s.timeInZone[zone] = (s.timeInZone[zone] ?? 0) + 1;
+        }
+        // Accumulate calories
+        if (s.currentHr > 0) {
+          const profile = profilesRef.current[s.currentClientId];
+          if (profile?.weightKg && profile?.age) {
+            s.caloriesBurned += estimateCaloriesPerSecond(s.currentHr, profile.weightKg, profile.age);
+          }
         }
       }
     }, 1000);
@@ -289,6 +300,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       maxHeartRate: s.maxHeartRate,
       averageSpeedKmh: s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0,
       avgCadenceSpm: s.cadenceCount > 0 ? Math.round(s.cadenceSum / s.cadenceCount) : 0,
+      caloriesBurned: Math.round(s.caloriesBurned),
       timeInZone: { ...s.timeInZone },
       activePeriodSeconds: s.activePeriodSeconds,
       participantCount: clients.length,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ interface ClientTracker {
   timeInZone: Record<string, number>;
   cadenceSum: number;
   cadenceCount: number;
+  caloriesBurned: number;
   // Sub-mode specific
   points: number;
   finished: boolean;
@@ -39,7 +40,7 @@ function newTracker(): ClientTracker {
     heartRate: 0, steps: 0, prevSteps: 0, cadence: 0,
     active: false, lastDataTime: 0, stepWindow: [],
     distanceMeters: 0, hrSum: 0, hrCount: 0, maxHr: 0,
-    timeInZone: {}, cadenceSum: 0, cadenceCount: 0,
+    timeInZone: {}, cadenceSum: 0, cadenceCount: 0, caloriesBurned: 0,
     points: 0, finished: false, finishTime: null, finishPosition: null,
     eliminated: false, eliminatedPosition: null,
   };
@@ -72,6 +73,7 @@ interface LeaderboardEntry {
   finishTime: number | null;
   eliminated: boolean;
   eliminatedPosition: number | null;
+  calories: number;
   inZone?: boolean;
   currentZone?: number;
   kingSeconds?: number;
@@ -361,6 +363,11 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           t.cadenceSum += t.cadence;
           t.cadenceCount++;
         }
+        // Accumulate calories
+        const profile = clientProfiles[cid];
+        if (profile?.weightKg && profile?.age) {
+          t.caloriesBurned += estimateCaloriesPerSecond(t.heartRate, profile.weightKg, profile.age);
+        }
       }
 
       // King: award points to current leader
@@ -532,7 +539,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       const t = trackers[cid];
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
       const team = clientTeamMap.get(cid);
-      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, teamName: team?.name, teamColor: team?.color };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0, teamName: team?.name, teamColor: team?.color };
       totalDist += t.distanceMeters;
       return {
         clientId: cid,
@@ -543,6 +550,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         maxHeartRate: t.maxHr,
         avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
         timeInZone: { ...t.timeInZone },
+        caloriesBurned: Math.round(t.caloriesBurned),
         teamName: team?.name,
         teamColor: team?.color,
       };
@@ -554,12 +562,14 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
     let groupMaxHr = 0;
     let groupCadenceSum = 0;
     let groupCadenceCount = 0;
+    let groupCalories = 0;
     const groupTimeInZone: Record<string, number> = {};
     for (const cs of clientSummaries) {
       groupSteps += cs.steps;
       if (cs.averageHeartRate > 0) { groupHrSum += cs.averageHeartRate; groupHrCount++; }
       groupMaxHr = Math.max(groupMaxHr, cs.maxHeartRate);
       if (cs.avgCadenceSpm > 0) { groupCadenceSum += cs.avgCadenceSpm; groupCadenceCount++; }
+      groupCalories += cs.caloriesBurned;
       for (const [zone, secs] of Object.entries(cs.timeInZone)) {
         groupTimeInZone[zone] = (groupTimeInZone[zone] ?? 0) + secs;
       }
@@ -574,6 +584,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       activePeriodSeconds,
       participantCount: clients.length,
       isTeamFormat: isTeam,
+      caloriesBurned: groupCalories,
       clientSummaries,
     });
   }, [clients, clientProfiles, isTeam, config.teams]);
@@ -608,6 +619,11 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   // Trackers are mutated in effects and re-renders are driven by forceRender()
   const trackers = trackersRef.current;
 
+  let totalCalories = 0;
+  for (const cid of clients) {
+    totalCalories += trackers[cid]?.caloriesBurned ?? 0;
+  }
+
   function buildEntries(): LeaderboardEntry[] {
     if (isTeam) {
       return config.teams.map((team) => {
@@ -635,6 +651,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           finishTime: tk?.finishTime ?? null,
           eliminated: tk?.eliminated ?? false,
           eliminatedPosition: tk?.eliminatedPosition ?? null,
+          calories: team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.caloriesBurned ?? 0), 0),
         };
       });
     }
@@ -661,6 +678,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         finishTime: t?.finishTime ?? null,
         eliminated: t?.eliminated ?? false,
         eliminatedPosition: t?.eliminatedPosition ?? null,
+        calories: t?.caloriesBurned ?? 0,
         inZone: config.subMode === "heartzone" ? zone === config.targetZone : undefined,
         currentZone: zone > 0 ? zone : undefined,
         kingSeconds: config.subMode === "king" ? (t?.points ?? 0) : undefined,
@@ -954,6 +972,16 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                   )}
                 </div>
 
+                {/* Calories */}
+                {entry.calories > 0 && (
+                  <div style={{ textAlign: "right", minWidth: 60 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+                      {Math.round(entry.calories)}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text)" }}>kcal</div>
+                  </div>
+                )}
+
                 {/* Race: progress bar */}
                 {config.subMode === "race" && (
                   <div style={{ width: 320, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1040,6 +1068,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         <div style={{ fontSize: 13, color: "var(--text)" }}>
           {clients.length} runner{clients.length !== 1 ? "s" : ""}
           {config.subMode === "elimination" && ` · ${sorted.filter((e) => !e.eliminated).length} remaining`}
+          {totalCalories > 0 && ` · ${Math.round(totalCalories)} kcal`}
         </div>
         <div style={{
           fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",

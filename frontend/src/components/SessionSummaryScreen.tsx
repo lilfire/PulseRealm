@@ -230,6 +230,7 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
             <StatCard label="Steps" value={summary.totalSteps.toLocaleString()} />
             <StatCard label="Avg HR" value={summary.averageHeartRate > 0 ? `${summary.averageHeartRate} bpm` : "—"} />
             <StatCard label="Peak HR" value={summary.maxHeartRate > 0 ? `${summary.maxHeartRate} bpm` : "—"} />
+            <StatCard label="Calories" value={summary.caloriesBurned > 0 ? `${summary.caloriesBurned} kcal` : "—"} />
             <StatCard label="Avg Cadence" value={summary.avgCadenceSpm > 0 ? `${summary.avgCadenceSpm} spm` : "—"} />
             <StatCard label="Avg Speed" value={`${(summary.averageSpeedKmh ?? 0).toFixed(1)} km/h`} />
           </div>
@@ -403,7 +404,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)", position: "sticky", top: 0, background: "var(--code-bg)" }}>
-              {["Name", "Distance", "Steps", "Avg HR", "Peak HR", "Cadence"].map((h) => (
+              {["Name", "Distance", "Steps", "Avg HR", "Peak HR", "Calories", "Cadence"].map((h) => (
                 <th key={h} style={{
                   padding: "0.6rem 0.75rem",
                   textAlign: "left",
@@ -426,6 +427,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.steps.toLocaleString()}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.averageHeartRate > 0 ? `${cs.averageHeartRate}` : "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.maxHeartRate > 0 ? `${cs.maxHeartRate}` : "—"}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.caloriesBurned > 0 ? `${cs.caloriesBurned}` : "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.avgCadenceSpm > 0 ? `${cs.avgCadenceSpm}` : "—"}</td>
               </tr>
             ))}
@@ -550,6 +552,7 @@ function ClientCard({ cs, showZones, showZoneBar }: { cs: ClientSummary; showZon
       <MiniStat label="Steps" value={cs.steps.toLocaleString()} />
       <MiniStat label="Avg HR" value={cs.averageHeartRate > 0 ? `${cs.averageHeartRate} bpm` : "—"} />
       <MiniStat label="Peak HR" value={cs.maxHeartRate > 0 ? `${cs.maxHeartRate} bpm` : "—"} />
+      <MiniStat label="Calories" value={cs.caloriesBurned > 0 ? `${cs.caloriesBurned} kcal` : "—"} />
       <MiniStat label="Cadence" value={cs.avgCadenceSpm > 0 ? `${cs.avgCadenceSpm} spm` : "—"} />
 
       {/* Zone bar (compact visual) */}
