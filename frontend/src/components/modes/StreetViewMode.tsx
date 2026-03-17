@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 
 interface Props {
   clients: string[];
@@ -57,6 +58,8 @@ const arrowBtnStyle: React.CSSProperties = {
 const PRELOAD_COUNT = 3;
 
 export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd, role = "host" }: Props) {
+  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
+
   // Two containers — one visible, one hidden preloading the next pano
   const containerARef = useRef<HTMLDivElement>(null);
   const containerBRef = useRef<HTMLDivElement>(null);
@@ -168,7 +171,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
   // Initialize both panoramas once
   useEffect(() => {
-    if (!containerARef.current || !containerBRef.current || panoARef.current) return;
+    if (!mapsLoaded || !containerARef.current || !containerBRef.current || panoARef.current) return;
 
     const startPos = new google.maps.LatLng(startLocation.lat, startLocation.lng);
     const svService = new google.maps.StreetViewService();
@@ -245,7 +248,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       panoARef.current = null;
       panoBRef.current = null;
     };
-  }, [startLocation]);
+  }, [startLocation, mapsLoaded]);
 
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
@@ -539,6 +542,14 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
   const clientId = clients[0];
   const profile = clientId ? clientProfiles[clientId] : null;
+
+  if (!mapsLoaded) {
+    return (
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+        {mapsError ? <div style={{ color: "#FF5C75" }}>Failed to load Google Maps: {mapsError}</div> : <div>Loading Google Maps…</div>}
+      </div>
+    );
+  }
 
   return (
     <>
