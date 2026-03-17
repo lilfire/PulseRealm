@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ interface ClientTracker {
   cadenceSum: number;
   cadenceCount: number;
   lastDataTime: number;
+  caloriesBurned: number;
 }
 
 interface GameState {
@@ -67,6 +68,8 @@ interface GameState {
   stepReductionBuff: boolean;
   hpReductionBuff: boolean;
   totalPooledSteps: number;
+  lastCalorieMilestone: number;
+  calorieBurstStored: number;
 }
 
 interface Display {
@@ -102,10 +105,13 @@ interface Display {
   bossTrapCadenceMax: number;
   bossInWindow: boolean;
   bossEnduranceClients: { name: string; ready: boolean; hr: number; holdSeconds: number; holdTarget: number; hrThreshold: number }[];
-  clientStats: { name: string; cadence: number; hr: number; steps: number }[];
+  clientStats: { name: string; cadence: number; hr: number; steps: number; calories: number }[];
   hasBuff: boolean;
   buffDesc: string;
   roomMessage: string;
+  teamCalories: number;
+  nextCalorieMilestone: number;
+  calorieBurstStored: number;
 }
 
 // ── Difficulty scaling ─────────────────────────────────────────────────────
@@ -282,8 +288,16 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
   const gs = useRef<GameState | null>(null);
   const trackers = useRef<Map<string, ClientTracker>>(new Map());
   const [display, setDisplay] = useState<Display | null>(null);
+  const [burstNotification, setBurstNotification] = useState<string | null>(null);
   const initRef = useRef(false);
   const startTimeRef = useRef(Date.now());
+
+  // Auto-clear burst notification after 3 seconds
+  useEffect(() => {
+    if (!burstNotification) return;
+    const t = setTimeout(() => setBurstNotification(null), 3000);
+    return () => clearTimeout(t);
+  }, [burstNotification]);
 
   // Initialize dungeon on mount
   useEffect(() => {
@@ -325,6 +339,8 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       stepReductionBuff: false,
       hpReductionBuff: false,
       totalPooledSteps: 0,
+      lastCalorieMilestone: 0,
+      calorieBurstStored: 0,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only init
   }, []);
@@ -359,6 +375,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         cadenceSum: 0,
         cadenceCount: 0,
         lastDataTime: 0,
+        caloriesBurned: 0,
       };
       trackers.current.set(clientId, t);
     }
@@ -417,6 +434,12 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         g.enemyMaxHp = hp;
         g.enemyHp = hp;
         g.lowCadenceSince = null;
+        if (g.calorieBurstStored > 0) {
+          const burstDmg = Math.round(hp * 0.15);
+          g.enemyHp = Math.max(0, g.enemyHp - burstDmg);
+          g.calorieBurstStored--;
+          setBurstNotification(`Stored Calorie Burst! ${burstDmg} damage to enemy!`);
+        }
         break;
       }
       case "trap":
@@ -445,6 +468,12 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       case "boss":
         g.bossPhase = 0;
         initBossPhase(0);
+        if (g.calorieBurstStored > 0) {
+          const burstDmg = Math.round(g.bossMaxHp * 0.15);
+          g.bossHp = Math.max(0, g.bossHp - burstDmg);
+          g.calorieBurstStored--;
+          setBurstNotification(`Stored Calorie Burst! ${burstDmg} damage to boss!`);
+        }
         break;
     }
   }, [playerScale, initBossPhase]);
@@ -462,8 +491,15 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     g.phase = "corridor";
     g.corridorSteps = 0;
     const scale = playerScale();
-    const target = params.current.corridorTiles * STEPS_PER_TILE * scale;
-    g.corridorTarget = g.stepReductionBuff ? Math.round(target * 0.9) : Math.round(target);
+    let target = params.current.corridorTiles * STEPS_PER_TILE * scale;
+    target = g.stepReductionBuff ? Math.round(target * 0.9) : Math.round(target);
+    if (g.calorieBurstStored > 0) {
+      const skip = Math.round(target * 0.25);
+      target -= skip;
+      g.calorieBurstStored--;
+      setBurstNotification(`Stored Calorie Burst! Skipped ${skip} corridor steps!`);
+    }
+    g.corridorTarget = target;
   }, [playerScale]);
 
   // Process incoming wearable data
@@ -477,6 +513,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     t.heartRate = latestData.heartRate;
 
     const now = Date.now();
+    const prevDataTime = t.lastDataTime;
     t.lastDataTime = now;
 
     // Track heart-rate summary metrics on every data point
@@ -486,6 +523,13 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       t.maxHr = Math.max(t.maxHr, latestData.heartRate);
       const zone = getZoneForHr(latestData.heartRate);
       t.timeInZone[zone] = (t.timeInZone[zone] ?? 0) + 1;
+    }
+
+    // Accumulate calories based on time delta between data events
+    const profile = clientProfiles[latestData.clientId];
+    if (profile?.weightKg && profile?.age) {
+      const timeDelta = prevDataTime > 0 ? Math.min((now - prevDataTime) / 1000, 5) : 1;
+      t.caloriesBurned += estimateCaloriesPerSecond(latestData.heartRate, profile.weightKg, profile.age) * timeDelta;
     }
 
     // First data point for this client — just record baseline
@@ -626,7 +670,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     const clientStats = activeClients.map((cid) => {
       const t = getTracker(cid);
       const profile = clientProfiles[cid];
-      return { name: profile?.name || cid, cadence: Math.round(t.cadence), hr: t.heartRate, steps: t.prevSteps };
+      return { name: profile?.name || cid, cadence: Math.round(t.cadence), hr: t.heartRate, steps: t.prevSteps, calories: Math.round(t.caloriesBurned) };
     });
 
     const treasureTimeLeft =
@@ -634,10 +678,11 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         ? Math.max(0, g.treasureDuration - (now - g.treasureStartTime))
         : g.treasureDuration;
 
-    const hasBuff = g.stepReductionBuff || g.hpReductionBuff;
+    const hasBuff = g.stepReductionBuff || g.hpReductionBuff || g.calorieBurstStored > 0;
     const buffParts: string[] = [];
     if (g.stepReductionBuff) buffParts.push("Step threshold -10%");
     if (g.hpReductionBuff) buffParts.push("Enemy HP -20%");
+    if (g.calorieBurstStored > 0) buffParts.push("Calorie Burst x" + g.calorieBurstStored);
 
     let roomMessage = "";
     if (g.phase === "room") {
@@ -718,6 +763,9 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       hasBuff,
       buffDesc: buffParts.join(" + "),
       roomMessage,
+      teamCalories: Math.round([...trackers.current.values()].reduce((sum, t) => sum + t.caloriesBurned, 0)),
+      nextCalorieMilestone: g.lastCalorieMilestone + 100,
+      calorieBurstStored: g.calorieBurstStored,
     });
   }, [clients, clientProfiles, getTracker, getTeamCadence]);
 
@@ -874,6 +922,30 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         }
       }
 
+      // Calorie burst milestone check
+      const teamCalories = [...trackers.current.values()].reduce((sum, t) => sum + t.caloriesBurned, 0);
+      if (teamCalories >= g.lastCalorieMilestone + 100) {
+        g.lastCalorieMilestone += 100;
+        const room = g.phase === "room" ? rooms.current[g.currentRoom] : null;
+
+        if (g.phase === "room" && room?.type === "enemy" && g.enemyHp > 0) {
+          const burstDmg = Math.round(g.enemyMaxHp * 0.15);
+          g.enemyHp = Math.max(0, g.enemyHp - burstDmg);
+          setBurstNotification(`Calorie Burst! ${burstDmg} damage to enemy!`);
+        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 0 && g.bossHp > 0) {
+          const burstDmg = Math.round(g.bossMaxHp * 0.15);
+          g.bossHp = Math.max(0, g.bossHp - burstDmg);
+          setBurstNotification(`Calorie Burst! ${burstDmg} damage to boss!`);
+        } else if (g.phase === "corridor" && g.corridorSteps < g.corridorTarget) {
+          const skip = Math.round((g.corridorTarget - g.corridorSteps) * 0.25);
+          g.corridorSteps += skip;
+          setBurstNotification(`Calorie Burst! Skipped ${skip} corridor steps!`);
+        } else {
+          g.calorieBurstStored++;
+          setBurstNotification(`Calorie Burst stored! (x${g.calorieBurstStored}) — will activate on next enemy or corridor`);
+        }
+      }
+
       // Update display
       updateDisplay();
     }, TICK_MS);
@@ -887,7 +959,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     const clientSummaries: ClientSummary[] = clients.map((cid) => {
       const t = allTrackers.get(cid);
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
-      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {} };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0 };
       return {
         clientId: cid,
         name,
@@ -897,6 +969,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         maxHeartRate: t.maxHr,
         avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
         timeInZone: { ...t.timeInZone },
+        caloriesBurned: Math.round(t.caloriesBurned),
       };
     });
 
@@ -907,6 +980,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     let groupCadenceSum = 0;
     let groupCadenceCount = 0;
     let totalDist = 0;
+    let groupCalories = 0;
     const groupTimeInZone: Record<string, number> = {};
     for (const cs of clientSummaries) {
       groupSteps += cs.steps;
@@ -914,6 +988,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       if (cs.averageHeartRate > 0) { groupHrSum += cs.averageHeartRate; groupHrCount++; }
       groupMaxHr = Math.max(groupMaxHr, cs.maxHeartRate);
       if (cs.avgCadenceSpm > 0) { groupCadenceSum += cs.avgCadenceSpm; groupCadenceCount++; }
+      groupCalories += cs.caloriesBurned;
       for (const [zone, secs] of Object.entries(cs.timeInZone)) {
         groupTimeInZone[zone] = (groupTimeInZone[zone] ?? 0) + secs;
       }
@@ -942,6 +1017,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       timeInZone: groupTimeInZone,
       activePeriodSeconds: perSecondActive.size,
       participantCount: clients.length,
+      caloriesBurned: groupCalories,
       clientSummaries,
     });
   }, [onEnd, clients, clientProfiles]);
@@ -971,6 +1047,9 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <span style={{ fontSize: "0.8rem", color: "#FF5C75", background: "rgba(255,92,117,0.1)", padding: "0.2rem 0.6rem", borderRadius: "4px" }}>
+            {display.teamCalories} / {display.nextCalorieMilestone} kcal
+          </span>
           {display.hasBuff && (
             <span style={{ fontSize: "0.8rem", color: "#fbbf24", background: "rgba(251,191,36,0.1)", padding: "0.2rem 0.6rem", borderRadius: "4px" }}>
               {display.buffDesc}
@@ -989,6 +1068,20 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           )}
         </div>
       </div>
+
+      {/* Calorie burst notification */}
+      {burstNotification && (
+        <div style={{
+          position: "absolute", top: "4.5rem", left: "50%", transform: "translateX(-50%)",
+          zIndex: 200, padding: "0.6rem 1.5rem", borderRadius: "8px",
+          background: "rgba(255,92,117,0.15)", border: "1px solid #FF5C75",
+          boxShadow: "0 0 20px rgba(255,92,117,0.3)", color: "#FF5C75",
+          fontWeight: 700, fontSize: "1rem", textAlign: "center",
+          animation: "fadeIn 0.3s ease-out",
+        }}>
+          🔥 {burstNotification}
+        </div>
+      )}
 
       {/* Room progress bar */}
       <div style={{ display: "flex", padding: "0.5rem 1rem", gap: "3px", background: "#111" }}>
@@ -1035,7 +1128,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           }}>
             <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.15rem" }}>{cs.name}</div>
             <div style={{ fontSize: "0.75rem", color: "#888" }}>
-              {cs.cadence} spm &middot; {cs.hr} bpm
+              {cs.cadence} spm &middot; {cs.hr} bpm{cs.calories > 0 ? ` · ${cs.calories} kcal` : ""}
             </div>
           </div>
         ))}
