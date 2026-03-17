@@ -23,6 +23,7 @@ interface Props {
   onStart: (route: RouteConfig) => void;
   onLeave: () => void;
   onEnd?: () => void;
+  onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
 }
@@ -185,7 +186,7 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret }: Props) {
+export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
@@ -201,6 +202,7 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
       onStart={() => from && to && onStart({ from, to })}
       onLeave={onLeave}
       onEnd={onEnd}
+      onKick={onKick}
       role={role}
       hostSecret={hostSecret}
     >

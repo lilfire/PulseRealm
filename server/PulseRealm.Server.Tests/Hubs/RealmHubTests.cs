@@ -697,7 +697,7 @@ public class RealmHubTests
     }
 
     [Fact]
-    public async Task OnDisconnectedAsync_LobbyRealm_SendsClientLeftToGroup()
+    public async Task OnDisconnectedAsync_LobbyRealm_SendsClientDisconnectedToGroup()
     {
         var connId = Guid.NewGuid().ToString();
         var (hub, manager, _, mockProxy, _) = CreateHub(connId);
@@ -710,9 +710,48 @@ public class RealmHubTests
         await hub.OnDisconnectedAsync(null);
 
         mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientDisconnected",
+            It.Is<object?[]>(a => a.Length > 0 && (string)a[0]! == clientId),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task LeaveRealm_RemovesClientAndSendsClientLeft()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, mockGroups) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Dave", HeightCm = 175, WeightKg = 70 });
+
+        await hub.LeaveRealm();
+
+        Assert.DoesNotContain(clientId, realm.ConnectedClientIds);
+        Assert.Null(manager.GetClientProfile(realm.Id, clientId));
+        mockProxy.Verify(p => p.SendCoreAsync(
             "ClientLeft",
             It.Is<object?[]>(a => a.Length > 0 && (string)a[0]! == clientId),
             default), Times.Once);
+    }
+
+    [Fact]
+    public async Task LeaveRealm_ThenDisconnect_DoesNotSendClientDisconnected()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Eve", HeightCm = 165, WeightKg = 55 });
+
+        await hub.LeaveRealm();
+        await hub.OnDisconnectedAsync(null);
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientDisconnected", It.IsAny<object?[]>(), default), Times.Never);
     }
 
     [Fact]

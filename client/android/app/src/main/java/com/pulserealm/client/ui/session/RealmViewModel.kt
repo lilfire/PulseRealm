@@ -70,6 +70,12 @@ class RealmViewModel @Inject constructor(
         application.stopService(Intent(application, DataStreamingService::class.java))
     }
 
+    /** Intentionally leave the realm. Returns true if a summary screen will appear. */
+    fun leaveRealm(): Boolean {
+        stopStreaming()
+        return signalRClient.leaveRealm()
+    }
+
     fun disconnect() {
         stopStreaming()
         signalRClient.disconnect()

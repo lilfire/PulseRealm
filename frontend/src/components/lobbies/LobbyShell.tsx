@@ -19,13 +19,14 @@ interface Props {
   onStart: () => void;
   onLeave: () => void;
   onEnd?: () => void;
+  onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
   minPlayers?: number;
   children?: ReactNode;
 }
 
-export function LobbyShell({ joinCode, mode, clients, clientProfiles, connected: _connected, canStart, onStart, onLeave, onEnd, role = "host", hostSecret, minPlayers, children }: Props) {
+export function LobbyShell({ joinCode, mode, clients, clientProfiles, connected: _connected, canStart, onStart, onLeave, onEnd, onKick, role = "host", hostSecret, minPlayers, children }: Props) {
   const isGuest = role === "guest";
   const canControl = role === "host" || role === "admin";
   const rs = ROLE_STYLES[role];
@@ -75,9 +76,29 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, connected:
               {clients.map((id) => {
                 const profile = clientProfiles[id];
                 return (
-                  <li key={id} style={{ padding: "0.4rem 0" }}>
-                    {profile?.name || id}
-                    {profile?.heightCm ? ` — ${profile.heightCm} cm` : ""}
+                  <li key={id} style={{ padding: "0.4rem 0", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span>
+                      {profile?.name || id}
+                      {profile?.heightCm ? ` — ${profile.heightCm} cm` : ""}
+                    </span>
+                    {canControl && onKick && (
+                      <button
+                        onClick={() => onKick(id)}
+                        title="Kick player"
+                        style={{
+                          background: "none",
+                          border: "1px solid rgba(255,61,90,0.3)",
+                          color: "#FF3D5A",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          padding: "0.15rem 0.4rem",
+                          fontSize: "0.7rem",
+                          lineHeight: 1,
+                        }}
+                      >
+                        Kick
+                      </button>
+                    )}
                   </li>
                 );
               })}

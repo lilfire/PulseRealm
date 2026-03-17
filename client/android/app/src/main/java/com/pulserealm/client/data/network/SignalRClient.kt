@@ -225,6 +225,25 @@ class SignalRClient(
         hubConnection?.send("SendWearableData", realmId, dataMap)
     }
 
+    /**
+     * Intentionally leave the realm. If the realm was started, the server sends
+     * a RealmEnded summary and this returns true — the caller should wait for the
+     * user to dismiss the summary before calling [disconnect].
+     */
+    fun leaveRealm(): Boolean {
+        intentionalDisconnect.set(true)
+        reconnectJob?.cancel()
+        reconnectJob = null
+        try {
+            val hasSummary = hubConnection
+                ?.invoke(Boolean::class.java, "LeaveRealm")
+                ?.blockingGet() ?: false
+            if (hasSummary) return true
+        } catch (_: Exception) { }
+        disconnectInternal()
+        return false
+    }
+
     fun disconnect() {
         intentionalDisconnect.set(true)
         disconnectInternal()

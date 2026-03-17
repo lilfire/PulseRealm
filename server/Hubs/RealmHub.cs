@@ -18,6 +18,9 @@ public class RealmHub : Hub
     /// <summary>Step offset per client to handle app restarts where the step counter resets to 0.</summary>
     private static readonly ConcurrentDictionary<string, int> _stepOffsets = new();
 
+    /// <summary>Connection IDs of clients that explicitly called LeaveRealm (intentional leave, not connection loss).</summary>
+    private static readonly ConcurrentDictionary<string, bool> _pendingLeaves = new();
+
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
 
@@ -177,6 +180,52 @@ public class RealmHub : Hub
     }
 
     /// <summary>
+    /// Called by the host or admin dashboard to kick a client from a realm.
+    /// Performs full cleanup and prevents reconnection by removing from KnownClientIds.
+    /// </summary>
+    public async Task KickClient(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+        {
+            await Clients.Caller.SendAsync("Error", "Realm not found.");
+            return;
+        }
+
+        // Find the kicked client's connection ID so we can remove them from the SignalR group
+        string? kickedConnectionId = null;
+        foreach (var kvp in _connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+            {
+                kickedConnectionId = kvp.Key;
+                break;
+            }
+        }
+
+        // Full removal including KnownClientIds so the client cannot reconnect
+        _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
+        _lastData.TryRemove(clientId, out _);
+        _stepOffsets.TryRemove(clientId, out _);
+
+        if (kickedConnectionId != null)
+        {
+            _connectionMap.TryRemove(kickedConnectionId, out _);
+            _pendingLeaves[kickedConnectionId] = true; // prevent OnDisconnectedAsync from sending ClientDisconnected
+            await Groups.RemoveFromGroupAsync(kickedConnectionId, realmId);
+        }
+
+        // Notify the kicked client directly, then notify the rest of the group
+        await Clients.Group(realmId).SendAsync("ClientKicked", clientId);
+        if (kickedConnectionId != null)
+        {
+            await Clients.Client(kickedConnectionId).SendAsync("ClientKicked", clientId);
+        }
+
+        await TryAutoEndRealm(realmId);
+    }
+
+    /// <summary>
     /// Called by the dashboard to end a realm. Broadcasts a summary to all clients.
     /// </summary>
     public async Task EndRealm(string realmId, RealmSummary summary)
@@ -232,8 +281,52 @@ public class RealmHub : Hub
         await Clients.Caller.SendAsync("JoinedRealm", state);
     }
 
+    /// <summary>
+    /// Called by a client to intentionally leave a realm.
+    /// Marks the connection so that OnDisconnectedAsync performs full cleanup
+    /// and notifies others with "ClientLeft" instead of "ClientDisconnected".
+    /// </summary>
+    public async Task<bool> LeaveRealm()
+    {
+        _pendingLeaves[Context.ConnectionId] = true;
+
+        if (_connectionMap.TryRemove(Context.ConnectionId, out var mapping))
+        {
+            var realm = _realmManager.GetById(mapping.RealmId);
+            var wasStarted = realm is not null && realm.Status == RealmStatus.Started;
+
+            // If the realm was started, send the leaving client a summary so they see the end screen
+            if (wasStarted)
+            {
+                var summary = new RealmSummary
+                {
+                    DurationSeconds = (DateTime.UtcNow - realm!.CreatedAt).TotalSeconds,
+                    ParticipantCount = realm.WithLock(r => r.ConnectedClientIds.Count),
+                };
+                await Clients.Caller.SendAsync("RealmEnded", summary);
+            }
+
+            _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId, removeFromKnown: true);
+            _lastData.TryRemove(mapping.ClientId, out _);
+            _stepOffsets.TryRemove(mapping.ClientId, out _);
+
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, mapping.RealmId);
+            await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
+            await TryAutoEndRealm(mapping.RealmId);
+            return wasStarted;
+        }
+        return false;
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        // If the client already called LeaveRealm, cleanup is done — just clear the flag.
+        if (_pendingLeaves.TryRemove(Context.ConnectionId, out _))
+        {
+            await base.OnDisconnectedAsync(exception);
+            return;
+        }
+
         if (_connectionMap.TryRemove(Context.ConnectionId, out var mapping))
         {
             var realm = _realmManager.GetById(mapping.RealmId);
@@ -248,10 +341,40 @@ public class RealmHub : Hub
                 _lastData.TryRemove(mapping.ClientId, out _);
                 _stepOffsets.TryRemove(mapping.ClientId, out _);
             }
-            await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
+            await Clients.Group(mapping.RealmId).SendAsync("ClientDisconnected", mapping.ClientId);
+            await TryAutoEndRealm(mapping.RealmId);
         }
 
         await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Checks if a realm has no connected clients left and, if so, ends it automatically.
+    /// </summary>
+    private async Task TryAutoEndRealm(string realmId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            return;
+
+        var shouldEnd = realm.WithLock(r =>
+        {
+            if (r.Status == RealmStatus.Ended)
+                return false;
+            return r.ConnectedClientIds.Count == 0;
+        });
+
+        if (shouldEnd)
+        {
+            realm.WithLock(r => r.Status = RealmStatus.Ended);
+            var summary = new RealmSummary
+            {
+                DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds,
+            };
+
+            CleanupRealmHubState(realmId);
+            await Clients.Group(realmId).SendAsync("RealmEnded", summary);
+        }
     }
 
     /// <summary>
@@ -265,6 +388,7 @@ public class RealmHub : Hub
             {
                 _lastData.TryRemove(kvp.Value.ClientId, out _);
                 _stepOffsets.TryRemove(kvp.Value.ClientId, out _);
+                _pendingLeaves.TryRemove(kvp.Key, out _);
             }
         }
     }

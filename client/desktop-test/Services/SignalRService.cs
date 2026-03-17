@@ -137,6 +137,43 @@ public class SignalRService : IAsyncDisposable
         }
     }
 
+    /// <summary>Abruptly kills the underlying connection without a clean close handshake,
+    /// simulating a network drop or device losing connectivity.</summary>
+    public async Task SimulateConnectionLostAsync()
+    {
+        if (_connection is null) return;
+
+        // Dispose triggers the Closed event without a graceful close frame,
+        // so the server sees it as a sudden disconnect.
+        var conn = _connection;
+        _connection = null;
+        await conn.DisposeAsync();
+        LogReceived?.Invoke("Simulated connection loss (abrupt dispose).", "warn");
+    }
+
+    /// <summary>Tells the server the client is intentionally leaving.
+    /// If the realm was started the server sends RealmEnded with a summary
+    /// and this returns true — the caller should wait for that event before disconnecting.
+    /// Otherwise disconnects immediately and returns false.</summary>
+    public async Task<bool> LeaveRealmAsync()
+    {
+        if (_connection is null) return false;
+        try
+        {
+            var hasSummary = await _connection.InvokeAsync<bool>("LeaveRealm");
+            if (hasSummary)
+            {
+                // Server sent RealmEnded — don't disconnect yet.
+                // DisconnectAsync is called when the user dismisses the summary.
+                return true;
+            }
+        }
+        catch { }
+
+        await DisconnectAsync();
+        return false;
+    }
+
     public async Task DisconnectAsync()
     {
         _realmId = null;

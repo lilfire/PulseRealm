@@ -87,7 +87,7 @@ function App() {
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/realm`)
     : server.hubUrl;
 
-  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, startRealm, endRealm, notifyEliminated } = useRealmHub(
+  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, startRealm, endRealm, notifyEliminated, kickClient } = useRealmHub(
     realm?.id ?? null,
     hubUrl
   );
@@ -509,6 +509,7 @@ function App() {
       hostSecret: hostSecret ?? undefined,
       onLeave: resetRealm,
       onEnd: () => { endRealm(0); },
+      onKick: kickClient,
     };
 
     if (realm.mode === "competition") {

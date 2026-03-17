@@ -84,8 +84,9 @@ fun RealmScreen(
     if (eliminated) {
         EliminatedScreen(
             onLeave = {
-                viewModel.disconnect()
-                onDisconnected()
+                if (!viewModel.leaveRealm()) {
+                    onDisconnected()
+                }
             }
         )
         return
@@ -111,8 +112,10 @@ fun RealmScreen(
                 )
                 1 -> RealmSettingsPage(
                     onLeave = {
-                        viewModel.disconnect()
-                        onDisconnected()
+                        if (!viewModel.leaveRealm()) {
+                            onDisconnected()
+                        }
+                        // If leaveRealm returned true, summary screen will appear via realmEnded state
                     }
                 )
             }

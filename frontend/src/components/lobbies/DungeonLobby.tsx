@@ -23,6 +23,7 @@ interface Props {
   onStart: (config: DungeonConfig) => void;
   onLeave: () => void;
   onEnd?: () => void;
+  onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
   defaults?: DungeonDefaults | null;
@@ -36,7 +37,7 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, defaults }: Props) {
+export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults }: Props) {
   const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
     validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
@@ -54,6 +55,7 @@ export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connecte
       onStart={() => onStart({ difficulty, timeframe })}
       onLeave={onLeave}
       onEnd={onEnd}
+      onKick={onKick}
       role={role}
       hostSecret={hostSecret}
     >

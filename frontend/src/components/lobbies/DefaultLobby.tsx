@@ -10,11 +10,12 @@ interface Props {
   onStart: () => void;
   onLeave: () => void;
   onEnd?: () => void;
+  onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
 }
 
-export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret }: Props) {
+export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret }: Props) {
   return (
     <LobbyShell
       joinCode={joinCode}
@@ -26,6 +27,7 @@ export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connecte
       onStart={onStart}
       onLeave={onLeave}
       onEnd={onEnd}
+      onKick={onKick}
       role={role}
       hostSecret={hostSecret}
     />

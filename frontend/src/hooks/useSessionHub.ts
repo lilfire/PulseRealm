@@ -48,6 +48,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
   const [clientProfiles, setClientProfiles] = useState<Record<string, ClientProfile>>({});
   const [latestData, setLatestData] = useState<WearableData | null>(null);
   const [realmConfig, setRealmConfig] = useState<Record<string, unknown> | null>(null);
+  const [disconnectedClients, setDisconnectedClients] = useState<Set<string>>(new Set());
 
   // Track cumulative stats for the summary
   const statsRef = useRef({
@@ -81,6 +82,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     setClientProfiles({});
     setLatestData(null);
     setRealmConfig(null);
+    setDisconnectedClients(new Set());
     statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
 
     if (!realmId || !resolvedUrl) return;
@@ -92,8 +94,14 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       .build();
 
     connection.on("ClientJoined", (profile: ClientProfile) => {
-      setClients((prev) => [...prev, profile.clientId]);
+      setClients((prev) => prev.includes(profile.clientId) ? prev : [...prev, profile.clientId]);
       setClientProfiles((prev) => ({ ...prev, [profile.clientId]: profile }));
+      setDisconnectedClients((prev) => {
+        if (!prev.has(profile.clientId)) return prev;
+        const next = new Set(prev);
+        next.delete(profile.clientId);
+        return next;
+      });
     });
 
     connection.on("ClientLeft", (clientId: string) => {
@@ -101,6 +109,35 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       setClientProfiles((prev) => {
         const next = { ...prev };
         delete next[clientId];
+        return next;
+      });
+      setDisconnectedClients((prev) => {
+        if (!prev.has(clientId)) return prev;
+        const next = new Set(prev);
+        next.delete(clientId);
+        return next;
+      });
+    });
+
+    connection.on("ClientKicked", (clientId: string) => {
+      setClients((prev) => prev.filter((id) => id !== clientId));
+      setClientProfiles((prev) => {
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
+      setDisconnectedClients((prev) => {
+        if (!prev.has(clientId)) return prev;
+        const next = new Set(prev);
+        next.delete(clientId);
+        return next;
+      });
+    });
+
+    connection.on("ClientDisconnected", (clientId: string) => {
+      setDisconnectedClients((prev) => {
+        const next = new Set(prev);
+        next.add(clientId);
         return next;
       });
     });
@@ -218,6 +255,10 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     connectionRef.current?.invoke("NotifyEliminated", realmId, clientId);
   }, [realmId]);
 
+  const kickClient = useCallback((clientId: string) => {
+    connectionRef.current?.invoke("KickClient", realmId, clientId);
+  }, [realmId]);
+
   const endRealm = useCallback((totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => {
     const s = statsRef.current;
     const summary: RealmSummary = {
@@ -236,5 +277,5 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     connectionRef.current?.invoke("EndRealm", realmId, summary);
   }, [realmId, clients.length]);
 
-  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, startRealm, endRealm, notifyEliminated };
+  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, disconnectedClients, startRealm, endRealm, notifyEliminated, kickClient };
 }

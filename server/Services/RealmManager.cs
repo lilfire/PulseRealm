@@ -54,7 +54,7 @@ public class RealmManager
         }
     }
 
-    public void RemoveClient(string realmId, string clientId)
+    public void RemoveClient(string realmId, string clientId, bool removeFromKnown = false)
     {
         if (_realms.TryGetValue(realmId, out var realm))
         {
@@ -62,6 +62,8 @@ public class RealmManager
             {
                 r.ConnectedClientIds.Remove(clientId);
                 r.ClientProfiles.Remove(clientId);
+                if (removeFromKnown)
+                    r.KnownClientIds.Remove(clientId);
             });
         }
     }

@@ -102,6 +102,24 @@ public class AdminController : ControllerBase
 
         return Ok(new { message = "Realm ended" });
     }
+    [HttpPost("realms/{realmId}/kick/{clientId}")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> KickClient(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            return NotFound(new { error = "Realm not found" });
+
+        var isConnected = realm.WithLock(r => r.ConnectedClientIds.Contains(clientId));
+        if (!isConnected)
+            return NotFound(new { error = "Client not found in realm" });
+
+        _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
+
+        await _hubContext.Clients.Group(realmId).SendAsync("ClientKicked", clientId);
+
+        return Ok(new { message = "Client kicked" });
+    }
 }
 
 public class LoginRequest

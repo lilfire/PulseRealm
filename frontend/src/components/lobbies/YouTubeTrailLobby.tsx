@@ -17,6 +17,7 @@ interface Props {
   onStart: (video: YouTubeVideo) => void;
   onLeave: () => void;
   onEnd?: () => void;
+  onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
   curatedVideos?: YouTubeVideo[] | null;
@@ -63,7 +64,7 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, curatedVideos }: Props) {
+export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -108,6 +109,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
       onStart={() => video && onStart(video)}
       onLeave={onLeave}
       onEnd={onEnd}
+      onKick={onKick}
       role={role}
       hostSecret={hostSecret}
     >

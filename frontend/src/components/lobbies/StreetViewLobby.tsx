@@ -18,6 +18,7 @@ interface Props {
   onStart: (location: StreetViewLocation) => void;
   onLeave: () => void;
   onEnd?: () => void;
+  onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
   curatedLocations?: StreetViewLocation[] | null;
@@ -71,7 +72,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, role, hostSecret, curatedLocations }: Props) {
+export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
   const [query, setQuery] = useState("");
@@ -162,6 +163,7 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
       onStart={() => location && onStart(location)}
       onLeave={onLeave}
       onEnd={onEnd}
+      onKick={onKick}
       role={role}
       hostSecret={hostSecret}
     >

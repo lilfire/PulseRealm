@@ -251,8 +251,14 @@ public partial class MainViewModel : ObservableObject
     private async Task Disconnect()
     {
         StopSendTimer();
-        await _signalR.DisconnectAsync();
-        AddLog("Disconnected.", "warn");
+        await _signalR.LeaveRealmAsync();
+    }
+
+    [RelayCommand]
+    private async Task SimulateConnectionLost()
+    {
+        StopSendTimer();
+        await _signalR.SimulateConnectionLostAsync();
     }
 
     private void OnRealmEnded(JsonElement summary)
