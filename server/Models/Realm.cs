@@ -21,7 +21,7 @@ public class Realm
     {
         RealmMode.Competition => 8,
         RealmMode.StreetView => 1,
-        RealmMode.YouTubeTrail => 4,
+        RealmMode.YouTubeTrail => 1,
         RealmMode.Route => 1,
         RealmMode.Dungeon => 4,
         RealmMode.Social => 4,
