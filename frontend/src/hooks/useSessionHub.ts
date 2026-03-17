@@ -182,7 +182,21 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     });
 
     connection.on("RealmEnded", (summary: RealmSummary) => {
-      setRealmSummary(summary);
+      // When the realm ends via client leave / auto-end, the server sends a
+      // bare summary (only duration + participant count).  Merge locally
+      // tracked stats so the summary screen shows real values.
+      const s = statsRef.current;
+      const merged: RealmSummary = {
+        ...summary,
+        totalSteps: summary.totalSteps || s.totalSteps,
+        averageHeartRate: summary.averageHeartRate || (s.heartRateCount > 0 ? Math.round(s.heartRateSum / s.heartRateCount) : 0),
+        maxHeartRate: summary.maxHeartRate || s.maxHeartRate,
+        averageSpeedKmh: summary.averageSpeedKmh || (s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0),
+        avgCadenceSpm: summary.avgCadenceSpm || (s.cadenceCount > 0 ? Math.round(s.cadenceSum / s.cadenceCount) : 0),
+        timeInZone: Object.keys(summary.timeInZone ?? {}).length > 0 ? summary.timeInZone : { ...s.timeInZone },
+        activePeriodSeconds: summary.activePeriodSeconds || s.activePeriodSeconds,
+      };
+      setRealmSummary(merged);
       setEnded(true);
     });
 
