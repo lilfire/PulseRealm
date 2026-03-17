@@ -17,7 +17,7 @@ public class SignalRService : IAsyncDisposable
     public string? RealmId => _realmId;
 
     public async Task<bool> ConnectAsync(string serverUrl, string joinCode, string clientId,
-        string playerName = "", double heightCm = 0, double weightKg = 0)
+        string playerName = "", int age = 0, double heightCm = 0, double weightKg = 0)
     {
         try
         {
@@ -81,6 +81,7 @@ public class SignalRService : IAsyncDisposable
             {
                 clientId,
                 name = playerName,
+                age,
                 heightCm,
                 weightKg,
             };

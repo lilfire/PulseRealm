@@ -50,6 +50,7 @@ export function maxClientsForMode(mode: RealmMode): number {
 export interface ClientProfile {
   clientId: string;
   name: string;
+  age: number;
   heightCm: number;
   weightKg: number;
 }

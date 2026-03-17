@@ -22,6 +22,7 @@ data class JoinUiState(
     val serverUrl: String = "",
     val joinCode: String = "",
     val playerName: String = "",
+    val age: String = "",
     val heightCm: String = "",
     val weightKg: String = "",
     val isLoading: Boolean = false,
@@ -40,6 +41,7 @@ class JoinViewModel @Inject constructor(
 
     companion object {
         private const val PREF_PLAYER_NAME = "player_name"
+        private const val PREF_AGE = "age"
         private const val PREF_HEIGHT_CM = "height_cm"
         private const val PREF_WEIGHT_KG = "weight_kg"
         private const val PREF_CLIENT_ID = "client_id"
@@ -73,6 +75,7 @@ class JoinViewModel @Inject constructor(
 
         // Load saved profile settings
         val savedName = prefs.getString(PREF_PLAYER_NAME, "") ?: ""
+        val savedAge = prefs.getString(PREF_AGE, "") ?: ""
         val savedHeight = prefs.getString(PREF_HEIGHT_CM, "") ?: ""
         val savedWeight = prefs.getString(PREF_WEIGHT_KG, "") ?: ""
 
@@ -80,6 +83,7 @@ class JoinViewModel @Inject constructor(
             clientId = clientId,
             serverUrl = serverUrl,
             playerName = savedName,
+            age = savedAge,
             heightCm = savedHeight,
             weightKg = savedWeight,
         )
@@ -95,6 +99,12 @@ class JoinViewModel @Inject constructor(
     fun updatePlayerName(name: String) {
         _uiState.value = _uiState.value.copy(playerName = name)
         prefs.edit().putString(PREF_PLAYER_NAME, name).apply()
+    }
+
+    fun updateAge(age: String) {
+        val filtered = age.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(age = filtered)
+        prefs.edit().putString(PREF_AGE, filtered).apply()
     }
 
     fun updateHeightCm(height: String) {
@@ -157,6 +167,7 @@ class JoinViewModel @Inject constructor(
                     state.joinCode,
                     state.clientId,
                     state.playerName,
+                    state.age.toIntOrNull() ?: 0,
                     state.heightCm.toDoubleOrNull() ?: 0.0,
                     state.weightKg.toDoubleOrNull() ?: 0.0
                 )

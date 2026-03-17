@@ -24,6 +24,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
+import com.pulserealm.client.ui.components.NumericStepperField
 import com.pulserealm.client.ui.components.ProfileField
 import com.pulserealm.client.ui.theme.PulseColors
 
@@ -79,19 +80,36 @@ fun ProfileSetupScreen(
                 )
             }
             item {
-                ProfileField(
-                    label = "Height (cm)",
-                    inputKey = "height_cm",
-                    value = uiState.heightCm,
-                    onValueChange = { viewModel.updateHeightCm(it) }
+                NumericStepperField(
+                    label = "Age",
+                    value = uiState.age,
+                    onValueChange = { viewModel.updateAge(it) },
+                    minValue = 5,
+                    maxValue = 120,
+                    defaultValue = 25,
+                    unit = " yrs"
                 )
             }
             item {
-                ProfileField(
+                NumericStepperField(
+                    label = "Height (cm)",
+                    value = uiState.heightCm,
+                    onValueChange = { viewModel.updateHeightCm(it) },
+                    minValue = 100,
+                    maxValue = 220,
+                    defaultValue = 170,
+                    unit = " cm"
+                )
+            }
+            item {
+                NumericStepperField(
                     label = "Weight (kg)",
-                    inputKey = "weight_kg",
                     value = uiState.weightKg,
-                    onValueChange = { viewModel.updateWeightKg(it) }
+                    onValueChange = { viewModel.updateWeightKg(it) },
+                    minValue = 30,
+                    maxValue = 200,
+                    defaultValue = 70,
+                    unit = " kg"
                 )
             }
 

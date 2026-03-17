@@ -28,6 +28,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _serverUrl = "";
     [ObservableProperty] private string _joinCode = "";
     [ObservableProperty] private string _playerName = "TestPlayer";
+    [ObservableProperty] private int _age = 25;
     [ObservableProperty] private double _heightCm = 175;
     [ObservableProperty] private double _weightKg = 70;
     [ObservableProperty] private bool _isConnected;
@@ -239,7 +240,7 @@ public partial class MainViewModel : ObservableObject
 
         AddLog($"Connecting to {ServerUrl}/hubs/realm …", "info");
         var ok = await _signalR.ConnectAsync(ServerUrl, JoinCode.Trim().ToUpperInvariant(), ClientId,
-            PlayerName, HeightCm, WeightKg);
+            PlayerName, Age, HeightCm, WeightKg);
 
         if (ok)
         {

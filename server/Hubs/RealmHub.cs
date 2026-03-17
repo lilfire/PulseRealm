@@ -40,6 +40,8 @@ public class RealmHub : Hub
                 throw new HubException("Name is cannot be blank or empty");
             if (!string.IsNullOrWhiteSpace(profile.Name) && profile.Name.Length > 50)
                 throw new HubException("Name is too long (max 50 characters).");
+            if (profile.Age is < 5 or > 120)
+                throw new HubException("Age must be between 5 and 120.");
             if (profile.HeightCm is < 50 or > 250)
                 throw new HubException("Height must be between 50 and 250 cm.");
             if (profile.WeightKg is < 10 or > 500)

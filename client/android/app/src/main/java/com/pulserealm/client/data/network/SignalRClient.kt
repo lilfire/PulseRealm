@@ -60,6 +60,7 @@ class SignalRClient(
     @Volatile private var currentJoinCode: String? = null
     @Volatile private var currentClientId: String? = null
     @Volatile private var currentName: String = ""
+    @Volatile private var currentAge: Int = 0
     @Volatile private var currentHeightCm: Double = 0.0
     @Volatile private var currentWeightKg: Double = 0.0
     private val intentionalDisconnect = AtomicBoolean(false)
@@ -184,17 +185,19 @@ class SignalRClient(
         }
     }
 
-    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", heightCm: Double = 0.0, weightKg: Double = 0.0) = withContext(Dispatchers.IO) {
+    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0) = withContext(Dispatchers.IO) {
         currentJoinCode = joinCode
         currentClientId = clientId
         currentName = name
+        currentAge = age
         currentHeightCm = heightCm
         currentWeightKg = weightKg
 
-        val hasProfile = name.isNotBlank() && heightCm > 0.0 && weightKg > 0.0
+        val hasProfile = name.isNotBlank() && age > 0 && heightCm > 0.0 && weightKg > 0.0
         val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
             "clientId" to clientId,
             "name" to name,
+            "age" to age,
             "heightCm" to heightCm,
             "weightKg" to weightKg
         ) else null
@@ -307,10 +310,11 @@ class SignalRClient(
                     _connectionState.value = ConnectionState.CONNECTED
 
                     // Re-join the realm
-                    val hasProfile = currentName.isNotBlank() && currentHeightCm > 0.0 && currentWeightKg > 0.0
+                    val hasProfile = currentName.isNotBlank() && currentAge > 0 && currentHeightCm > 0.0 && currentWeightKg > 0.0
                     val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
                         "clientId" to clientId,
                         "name" to currentName,
+                        "age" to currentAge,
                         "heightCm" to currentHeightCm,
                         "weightKg" to currentWeightKg
                     ) else null

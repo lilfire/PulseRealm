@@ -54,6 +54,7 @@ class JoinViewModelTest {
         every { prefs.edit() } returns editor
         every { prefs.getString("client_id", null) } returns "wear-test1234"
         every { prefs.getString("player_name", "") } returns "TestPlayer"
+        every { prefs.getString("age", "") } returns "25"
         every { prefs.getString("height_cm", "") } returns "175"
         every { prefs.getString("weight_kg", "") } returns "70"
         every { prefs.getString("connection_mode", "local") } returns "local"
@@ -87,6 +88,11 @@ class JoinViewModelTest {
     @Test
     fun `initial state loads height from prefs`() {
         assertEquals("175", viewModel.uiState.value.heightCm)
+    }
+
+    @Test
+    fun `initial state loads age from prefs`() {
+        assertEquals("25", viewModel.uiState.value.age)
     }
 
     @Test
@@ -294,7 +300,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         // Mock the REST API call
         val mockApi = mockk<RealmApi>()
@@ -329,7 +335,7 @@ class JoinViewModelTest {
             assertTrue(viewModel.uiState.value.isLoading)
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
@@ -350,7 +356,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
@@ -370,7 +376,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "654321", "social", "ts", emptyList())
@@ -384,6 +390,7 @@ class JoinViewModelTest {
                 "654321",
                 "wear-test1234",
                 "TestPlayer",
+                25,
                 175.0,
                 70.0
             )
@@ -398,7 +405,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
@@ -455,7 +462,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } answers {
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } answers {
             errorFlow.value = "Invalid join code"
         }
 
@@ -476,7 +483,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } throws RuntimeException("HTTP 404")
@@ -505,7 +512,7 @@ class JoinViewModelTest {
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())

@@ -5,8 +5,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,4 +97,82 @@ fun ProfileField(
             launcher.launch(intent)
         }
     )
+}
+
+@Composable
+fun NumericStepperField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    minValue: Int,
+    maxValue: Int,
+    step: Int = 1,
+    defaultValue: Int = minValue,
+    unit: String = "",
+    modifier: Modifier = Modifier.fillMaxWidth(0.85f)
+) {
+    val currentValue = value.toIntOrNull() ?: defaultValue
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = label,
+            color = PulseColors.MutedText,
+            style = MaterialTheme.typography.caption3,
+            textAlign = TextAlign.Center
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = {
+                    val newValue = (currentValue - step).coerceIn(minValue, maxValue)
+                    onValueChange(newValue.toString())
+                },
+                modifier = Modifier.size(32.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = PulseColors.DarkSurface
+                )
+            ) {
+                Text(
+                    text = "−",
+                    color = PulseColors.Cyan,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Text(
+                text = if (value.isNotEmpty()) "$currentValue$unit" else "---",
+                color = if (value.isEmpty()) PulseColors.DarkestText else Color.White,
+                fontSize = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f)
+            )
+            Button(
+                onClick = {
+                    val newValue = (currentValue + step).coerceIn(minValue, maxValue)
+                    onValueChange(newValue.toString())
+                },
+                modifier = Modifier.size(32.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = PulseColors.DarkSurface
+                )
+            ) {
+                Text(
+                    text = "+",
+                    color = PulseColors.Cyan,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
 }

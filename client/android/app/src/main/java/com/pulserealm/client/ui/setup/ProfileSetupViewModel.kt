@@ -10,11 +10,12 @@ import javax.inject.Inject
 
 data class ProfileSetupUiState(
     val playerName: String = "",
+    val age: String = "",
     val heightCm: String = "",
     val weightKg: String = "",
 ) {
     val isComplete: Boolean
-        get() = playerName.isNotBlank() && heightCm.isNotBlank() && weightKg.isNotBlank()
+        get() = playerName.isNotBlank() && age.isNotBlank() && heightCm.isNotBlank() && weightKg.isNotBlank()
 }
 
 @HiltViewModel
@@ -24,6 +25,7 @@ class ProfileSetupViewModel @Inject constructor(
 
     companion object {
         private const val PREF_PLAYER_NAME = "player_name"
+        private const val PREF_AGE = "age"
         private const val PREF_HEIGHT_CM = "height_cm"
         private const val PREF_WEIGHT_KG = "weight_kg"
     }
@@ -34,6 +36,7 @@ class ProfileSetupViewModel @Inject constructor(
     init {
         _uiState.value = ProfileSetupUiState(
             playerName = prefs.getString(PREF_PLAYER_NAME, "") ?: "",
+            age = prefs.getString(PREF_AGE, "") ?: "",
             heightCm = prefs.getString(PREF_HEIGHT_CM, "") ?: "",
             weightKg = prefs.getString(PREF_WEIGHT_KG, "") ?: "",
         )
@@ -42,6 +45,12 @@ class ProfileSetupViewModel @Inject constructor(
     fun updatePlayerName(name: String) {
         _uiState.value = _uiState.value.copy(playerName = name)
         prefs.edit().putString(PREF_PLAYER_NAME, name).apply()
+    }
+
+    fun updateAge(age: String) {
+        val filtered = age.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(age = filtered)
+        prefs.edit().putString(PREF_AGE, filtered).apply()
     }
 
     fun updateHeightCm(height: String) {
