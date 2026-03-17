@@ -79,6 +79,14 @@ public class RealmHub : Hub
             throw new HubException($"Realm is full ({maxClients}/{maxClients} players).");
         }
 
+        // Clear any stale step data from a previous realm so steps start fresh.
+        // On reconnect to the same realm we keep the existing offsets.
+        if (!isReconnect)
+        {
+            _lastData.TryRemove(clientId, out _);
+            _stepOffsets.TryRemove(clientId, out _);
+        }
+
         _realmManager.AddClient(realm.Id, clientId, profile);
         _connectionMap[Context.ConnectionId] = (realm.Id, clientId);
         await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
@@ -242,8 +250,9 @@ public class RealmHub : Hub
         realm.WithLock(r => r.Status = RealmStatus.Ended);
         summary.DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
 
-        // Clean up hub state for all clients that were in this realm
-        CleanupRealmHubState(realmId);
+        // Clean up hub state for all clients that were in this realm (including disconnected ones)
+        var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+        CleanupRealmHubState(realmId, knownClientIds);
 
         await Clients.Group(realmId).SendAsync("RealmEnded", summary);
     }
@@ -374,22 +383,29 @@ public class RealmHub : Hub
                 DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds,
             };
 
-            CleanupRealmHubState(realmId);
+            var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+            CleanupRealmHubState(realmId, knownClientIds);
             await Clients.Group(realmId).SendAsync("RealmEnded", summary);
         }
     }
 
     /// <summary>
     /// Removes hub-level state (_lastData, _stepOffsets) for all clients associated with a realm.
+    /// Uses the provided client ID list (from KnownClientIds) so that disconnected clients
+    /// whose entries were already removed from _connectionMap are still cleaned up.
     /// </summary>
-    private static void CleanupRealmHubState(string realmId)
+    private static void CleanupRealmHubState(string realmId, IEnumerable<string> knownClientIds)
     {
+        foreach (var clientId in knownClientIds)
+        {
+            _lastData.TryRemove(clientId, out _);
+            _stepOffsets.TryRemove(clientId, out _);
+        }
+
         foreach (var kvp in _connectionMap)
         {
             if (kvp.Value.RealmId == realmId)
             {
-                _lastData.TryRemove(kvp.Value.ClientId, out _);
-                _stepOffsets.TryRemove(kvp.Value.ClientId, out _);
                 _pendingLeaves.TryRemove(kvp.Key, out _);
             }
         }
