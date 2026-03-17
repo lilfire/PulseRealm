@@ -16,6 +16,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -55,6 +56,7 @@ fun RealmScreen(
     val sensorsAvailable by viewModel.sensorsAvailable.collectAsState()
     val realmEnded by viewModel.realmEnded.collectAsState()
     val eliminated by viewModel.eliminated.collectAsState()
+    val realmStarted by viewModel.realmStarted.collectAsState()
 
     // Keep screen on only while in the realm (active workout)
     val activity = LocalContext.current as? Activity
@@ -63,6 +65,13 @@ fun RealmScreen(
         viewModel.startStreaming()
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Reset step counter when realm starts so pre-lobby steps don't carry over
+    LaunchedEffect(realmStarted) {
+        if (realmStarted) {
+            viewModel.resetSteps()
         }
     }
 

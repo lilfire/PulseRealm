@@ -378,6 +378,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, mockProxy, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
         var data = new WearableData
         {
             ClientId = Guid.NewGuid().ToString(),
@@ -392,10 +393,33 @@ public class RealmHubTests
     }
 
     [Fact]
+    public async Task SendWearableData_RealmNotStarted_ZerosStepsAndSpeed()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        // Realm stays in Lobby status
+        var data = new WearableData
+        {
+            ClientId = Guid.NewGuid().ToString(),
+            HeartRate = 120,
+            Steps = 50
+        };
+
+        await hub.SendWearableData(realm.Id, data);
+
+        Assert.Equal(0, data.Steps);
+        Assert.Equal(0, data.SpeedKmh);
+        // Should still forward the message (for heart rate visibility)
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "WearableDataReceived", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
     public async Task SendWearableData_FirstPacket_SpeedIsZero()
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
         var data = new WearableData
         {
             ClientId = Guid.NewGuid().ToString(),
@@ -413,6 +437,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
         // Use a guaranteed-unique client ID so static state from any other test
         // cannot influence the offset accumulated here.
         var clientId = Guid.NewGuid().ToString();
@@ -433,6 +458,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
         var clientId = Guid.NewGuid().ToString();
 
         var first = new WearableData { ClientId = clientId, HeartRate = 80, Steps = 0 };
@@ -452,6 +478,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
         var clientId = Guid.NewGuid().ToString();
 
         manager.AddClient(realm.Id, clientId, new ClientProfile

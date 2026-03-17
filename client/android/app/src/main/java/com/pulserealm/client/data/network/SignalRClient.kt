@@ -78,6 +78,9 @@ class SignalRClient(
     private val _eliminated = MutableStateFlow(false)
     val eliminated: StateFlow<Boolean> = _eliminated.asStateFlow()
 
+    private val _realmStarted = MutableStateFlow(false)
+    val realmStarted: StateFlow<Boolean> = _realmStarted.asStateFlow()
+
     suspend fun connect(serverUrl: String) = withContext(Dispatchers.IO) {
         intentionalDisconnect.set(true)
         disconnectInternal()
@@ -118,6 +121,10 @@ class SignalRClient(
             on("JoinedRealm", { _ ->
                 // Dashboard join confirmation (not applicable here)
             }, String::class.java)
+
+            on("RealmStarted", { _ ->
+                _realmStarted.value = true
+            }, Any::class.java)
 
             on("ClientEliminated", { eliminatedClientId ->
                 if (eliminatedClientId == currentClientId) {
@@ -266,6 +273,7 @@ class SignalRClient(
         _connectionState.value = ConnectionState.DISCONNECTED
         _realmEnded.value = null
         _eliminated.value = false
+        _realmStarted.value = false
     }
 
     /**

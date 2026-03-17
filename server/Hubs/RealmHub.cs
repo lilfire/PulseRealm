@@ -120,6 +120,15 @@ public class RealmHub : Hub
             r.Status = RealmStatus.Started;
             r.RealmConfig = config;
         });
+
+        // Clear pre-start step data so steps begin at 0 for all clients
+        var clientIds = realm.WithLock(r => new List<string>(r.ConnectedClientIds));
+        foreach (var clientId in clientIds)
+        {
+            _lastData.TryRemove(clientId, out _);
+            _stepOffsets.TryRemove(clientId, out _);
+        }
+
         await Clients.Group(realmId).SendAsync("RealmStarted", config);
     }
 
@@ -129,6 +138,21 @@ public class RealmHub : Hub
     /// </summary>
     public async Task SendWearableData(string realmId, WearableData data)
     {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) return;
+
+        var status = realm.WithLock(r => r.Status);
+
+        // Only process steps and speed when the realm is actively running.
+        // During lobby, forward heart rate only (steps zeroed, no speed).
+        if (status != RealmStatus.Started)
+        {
+            data.Steps = 0;
+            data.SpeedKmh = 0;
+            await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
+            return;
+        }
+
         var rawSteps = data.Steps;
 
         // Detect client restart: if incoming steps are lower than the last known raw value,

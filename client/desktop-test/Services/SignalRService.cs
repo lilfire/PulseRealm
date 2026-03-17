@@ -12,6 +12,7 @@ public class SignalRService : IAsyncDisposable
     public event Action<string, string>? LogReceived; // message, css class
     public event Action<bool>? ConnectionChanged;
     public event Action<JsonElement>? RealmEnded;
+    public event Action? RealmStarted;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
     public string? RealmId => _realmId;
@@ -45,6 +46,11 @@ public class SignalRService : IAsyncDisposable
             _connection.On<JsonElement>("RealmEnded", summary =>
             {
                 RealmEnded?.Invoke(summary);
+            });
+
+            _connection.On<JsonElement>("RealmStarted", _ =>
+            {
+                RealmStarted?.Invoke();
             });
 
             _connection.On<string>("Error", msg =>

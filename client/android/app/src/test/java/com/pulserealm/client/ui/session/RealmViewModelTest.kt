@@ -39,6 +39,7 @@ class RealmViewModelTest {
         every { signalRClient.connectionState } returns MutableStateFlow(ConnectionState.CONNECTED)
         every { signalRClient.realmEnded } returns MutableStateFlow(null)
         every { signalRClient.eliminated } returns MutableStateFlow(false)
+        every { signalRClient.realmStarted } returns MutableStateFlow(false)
         every { sensorDataCollector.heartRate } returns MutableStateFlow(120)
         every { sensorDataCollector.steps } returns MutableStateFlow(500)
         every { sensorDataCollector.sensorsAvailable } returns MutableStateFlow(true)

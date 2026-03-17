@@ -73,6 +73,14 @@ public partial class MainViewModel : ObservableObject
         _signalR.RealmEnded += summary =>
             Avalonia.Threading.Dispatcher.UIThread.Post(() => OnRealmEnded(summary));
 
+        _signalR.RealmStarted += () =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                Steps = 0;
+                _prevStepsSnapshot = 0;
+                AddLog("Realm started — steps reset.", "info");
+            });
+
         // HR target update — every 1 second, recompute target from activity
         _targetHrTimer = new Timer(_ =>
         {
@@ -252,6 +260,8 @@ public partial class MainViewModel : ObservableObject
     private async Task Disconnect()
     {
         StopSendTimer();
+        Steps = 0;
+        _prevStepsSnapshot = 0;
         await _signalR.LeaveRealmAsync();
     }
 
