@@ -1,13 +1,31 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Moq;
 using PulseRealm.Server.Controllers;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Controllers;
 
 public class RealmControllerTests
 {
-    private readonly RealmManager _realmManager = new();
+    private static RealmManager CreateRealmManager()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
+            .Build();
+        var logger = new Mock<ILogger<AdminConfigService>>().Object;
+        var adminConfig = new AdminConfigService(config, logger);
+        var cfg = adminConfig.GetConfig();
+        cfg.MaxConcurrentRealms = 0;
+        adminConfig.UpdateConfig(cfg);
+        return new RealmManager(adminConfig);
+    }
+
+    private readonly RealmManager _realmManager = CreateRealmManager();
     private readonly RealmController _controller;
 
     public RealmControllerTests()

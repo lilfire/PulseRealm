@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Services;
 
@@ -21,7 +22,11 @@ public class RealmCleanupServiceTests
             .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
             .Build();
         var logger = new Mock<ILogger<AdminConfigService>>().Object;
-        return new RealmManager(new AdminConfigService(config, logger));
+        var adminConfig = new AdminConfigService(config, logger);
+        var cfg = adminConfig.GetConfig();
+        cfg.MaxConcurrentRealms = 0;
+        adminConfig.UpdateConfig(cfg);
+        return new RealmManager(adminConfig);
     }
 
     private RealmCleanupService CreateService(RealmManager? manager = null) =>
@@ -47,7 +52,7 @@ public class RealmCleanupServiceTests
             () => service.StopAsync(CancellationToken.None));
 
         Assert.Null(exception);
-        await service.DisposeAsync();
+        service.Dispose();
     }
 
     [Fact]
@@ -60,7 +65,7 @@ public class RealmCleanupServiceTests
 
         // Request graceful shutdown.
         await service.StopAsync(CancellationToken.None);
-        await service.DisposeAsync();
+        service.Dispose();
     }
 
     [Fact]
@@ -79,7 +84,7 @@ public class RealmCleanupServiceTests
             () => service.StopAsync(CancellationToken.None));
 
         Assert.Null(exception);
-        await service.DisposeAsync();
+        service.Dispose();
     }
 
     // -------------------------------------------------------------------------
@@ -196,7 +201,7 @@ public class RealmCleanupServiceTests
             Times.Once);
 
         await service.StopAsync(CancellationToken.None);
-        await service.DisposeAsync();
+        service.Dispose();
     }
 
     // -------------------------------------------------------------------------

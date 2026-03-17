@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using PulseRealm.Server.Controllers;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Controllers;
 

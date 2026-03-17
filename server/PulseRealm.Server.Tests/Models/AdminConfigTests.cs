@@ -1,4 +1,5 @@
 using PulseRealm.Server.Models;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Models;
 

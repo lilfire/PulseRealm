@@ -168,7 +168,7 @@ describe("StreetViewEditor", () => {
     // We need a controlled component to test this properly
     const onChange = vi.fn();
     const user = userEvent.setup();
-    const { rerender } = render(
+    render(
       <StreetViewEditor locations={sampleLocations} onChange={onChange} />
     );
 

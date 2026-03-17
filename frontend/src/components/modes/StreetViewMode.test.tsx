@@ -28,11 +28,12 @@ beforeAll(() => {
     getPano = vi.fn(() => "test-pano");
     getPosition = vi.fn(() => new MockLatLng(0, 0));
     setVisible = vi.fn();
-    constructor(_el: unknown, _opts?: unknown) {}
   }
 
+  type PanoramaCallback = (result: unknown, status: string) => void;
+
   class MockStreetViewService {
-    getPanorama = vi.fn((_req: unknown, cb: Function) => {
+    getPanorama = vi.fn((_req: unknown, cb: PanoramaCallback) => {
       cb(
         {
           location: {
@@ -45,7 +46,7 @@ beforeAll(() => {
     });
   }
 
-  (window as any).google = {
+  (window as unknown as Record<string, unknown>).google = {
     maps: {
       StreetViewPanorama: MockStreetViewPanorama,
       StreetViewService: MockStreetViewService,
@@ -56,7 +57,7 @@ beforeAll(() => {
         spherical: {
           computeDistanceBetween: vi.fn(() => 10),
           computeHeading: vi.fn(() => 0),
-          computeOffset: vi.fn((_pos: any, _dist: number, _heading: number) => new MockLatLng(0.001, 0.001)),
+          computeOffset: vi.fn(() => new MockLatLng(0.001, 0.001)),
         },
       },
       event: {
@@ -246,9 +247,13 @@ describe("StreetViewMode", () => {
    * Returns the two panorama instances created during component mount so tests
    * can reach directly into their state.
    */
+  type EventCallback = () => void;
+  type GoogleWindow = { google: { maps: Record<string, unknown> & { geometry: { spherical: { computeDistanceBetween: ReturnType<typeof vi.fn>; computeHeading: ReturnType<typeof vi.fn>; computeOffset: ReturnType<typeof vi.fn> } } } } };
+  const gw = () => (window as unknown as GoogleWindow).google;
+
   function makePanoramaWithListeners(links: google.maps.StreetViewLink[]) {
     const instances: Array<{
-      _listeners: Record<string, Function[]>;
+      _listeners: Record<string, EventCallback[]>;
       setPano: ReturnType<typeof vi.fn>;
       setPov: ReturnType<typeof vi.fn>;
       getPov: ReturnType<typeof vi.fn>;
@@ -261,17 +266,19 @@ describe("StreetViewMode", () => {
       fire: (event: string) => void;
     }> = [];
 
+    type LatLngCtor = new (lat: number, lng: number) => unknown;
+
     class PanoWithListeners {
-      _listeners: Record<string, Function[]> = {};
+      _listeners: Record<string, EventCallback[]> = {};
       setPano = vi.fn();
       setPov = vi.fn();
       getPov = vi.fn(() => ({ heading: 0, pitch: 0 }));
       getLinks = vi.fn(() => links);
       getPano = vi.fn(() => "test-pano");
-      getPosition = vi.fn(() => new (window as any).google.maps.LatLng(0, 0));
+      getPosition = vi.fn(() => new (gw().maps.LatLng as LatLngCtor)(0, 0));
       setVisible = vi.fn();
       removeListener = vi.fn();
-      addListener = vi.fn((event: string, cb: Function) => {
+      addListener = vi.fn((event: string, cb: EventCallback) => {
         if (!this._listeners[event]) this._listeners[event] = [];
         this._listeners[event].push(cb);
         return { remove: vi.fn(() => {
@@ -281,12 +288,12 @@ describe("StreetViewMode", () => {
       fire(event: string) {
         (this._listeners[event] || []).forEach(cb => cb());
       }
-      constructor(_el: any, _opts?: any) {
-        instances.push(this as any);
+      constructor() {
+        instances.push(this as unknown as typeof instances[0]);
       }
     }
 
-    (window as any).google.maps.StreetViewPanorama = PanoWithListeners;
+    gw().maps.StreetViewPanorama = PanoWithListeners;
     return instances;
   }
 
@@ -481,18 +488,18 @@ describe("StreetViewMode", () => {
   it("searchAhead is triggered when getLinks returns empty and forward is clicked", async () => {
     // Empty links → moveInDirection(0) → searchAhead() → svService.getPanorama
     // Save the current working service so we can restore it afterwards
-    const OriginalStreetViewService = (window as any).google.maps.StreetViewService;
+    const OriginalStreetViewService = gw().maps.StreetViewService;
 
     makePanoramaWithListeners([]);
 
-    const svGetPanoramaSpy = vi.fn((_req: any, cb: Function) => {
+    const svGetPanoramaSpy = vi.fn((_req: unknown, cb: (result: unknown, status: string) => void) => {
       cb(null, "ZERO_RESULTS");
     });
 
     class FailingStreetViewService {
       getPanorama = svGetPanoramaSpy;
     }
-    (window as any).google.maps.StreetViewService = FailingStreetViewService;
+    gw().maps.StreetViewService = FailingStreetViewService;
 
     await act(async () => {
       render(<StreetViewMode {...defaultProps} />);
@@ -507,12 +514,12 @@ describe("StreetViewMode", () => {
     expect(svGetPanoramaSpy).toHaveBeenCalled();
 
     // Restore the working service for subsequent tests
-    (window as any).google.maps.StreetViewService = OriginalStreetViewService;
+    gw().maps.StreetViewService = OriginalStreetViewService;
   });
 
   it("position_changed listener updates panoSpacing when distance is valid", async () => {
     // Make computeDistanceBetween return a valid spacing distance
-    (window as any).google.maps.geometry.spherical.computeDistanceBetween.mockReturnValue(15);
+    gw().maps.geometry.spherical.computeDistanceBetween.mockReturnValue(15);
 
     const links: google.maps.StreetViewLink[] = [
       { heading: 0, description: "North", pano: "pano-north" },
@@ -534,7 +541,7 @@ describe("StreetViewMode", () => {
     expect(screen.getByTitle("Forward")).toBeInTheDocument();
 
     // Restore mock
-    (window as any).google.maps.geometry.spherical.computeDistanceBetween.mockReturnValue(10);
+    gw().maps.geometry.spherical.computeDistanceBetween.mockReturnValue(10);
   });
 
   it("links_changed listener on active pano triggers preloading of upcoming panoramas", async () => {

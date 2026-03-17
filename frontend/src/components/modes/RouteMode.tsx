@@ -46,6 +46,8 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
 
   const [routeInfo, setRouteInfo] = useState<{ distanceText: string; durationText: string } | null>(null);
   const [finished, setFinished] = useState(false);
+  const [progressPct, setProgressPct] = useState(0);
+  const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
 
   // Track speed
   useEffect(() => {
@@ -233,6 +235,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
       const distanceDelta = speedMs * (INTERVAL_MS / 1000);
       totalDistanceRef.current += distanceDelta;
       travelledRef.current += distanceDelta;
+      setTotalDistanceDisplay(Math.round(totalDistanceRef.current));
 
       const totalLength = totalRouteLengthRef.current;
       if (totalLength <= 0) return;
@@ -244,6 +247,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
       // Clamp to route length
       if (travelledRef.current >= totalLength) {
         travelledRef.current = totalLength;
+        setProgressPct(100);
         setFinished(true);
         if (markerRef.current) {
           markerRef.current.setPosition(path[path.length - 1]);
@@ -255,6 +259,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
       }
 
       const travelled = travelledRef.current;
+      setProgressPct(Math.min(100, (travelled / totalLength) * 100));
 
       // Binary search for the segment we're on
       let lo = 0;
@@ -300,9 +305,6 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
 
   const clientId = clients[0];
   const profile = clientId ? clientProfiles[clientId] : null;
-  const progressPct = totalRouteLengthRef.current > 0
-    ? Math.min(100, (travelledRef.current / totalRouteLengthRef.current) * 100)
-    : 0;
 
   return (
     <div style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 100, background: "#000" }}>
@@ -372,7 +374,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
         >
           <div style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Route Complete!</div>
           <div style={{ color: "#aaa" }}>
-            {totalDistanceRef.current.toFixed(0)} m walked
+            {totalDistanceDisplay} m walked
           </div>
         </div>
       )}
@@ -417,7 +419,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
             </div>
             <div>{latestData.steps} steps</div>
             {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
-            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceRef.current.toFixed(0)} m</div>
+            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay} m</div>
           </>
         ) : (
           <div style={{ color: "#888" }}>No data yet</div>

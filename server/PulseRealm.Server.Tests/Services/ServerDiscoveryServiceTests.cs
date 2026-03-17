@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PulseRealm.Server.Services;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Services;
 
@@ -88,7 +89,7 @@ public class ServerDiscoveryServiceTests
     public void IsDiscoveryRequest_InvalidJson_DoesNotParse()
     {
         var invalidJson = "not json at all";
-        Assert.Throws<JsonException>(() => JsonDocument.Parse(invalidJson));
+        Assert.ThrowsAny<JsonException>(() => JsonDocument.Parse(invalidJson));
     }
 
     [Fact]

@@ -205,13 +205,6 @@ function mockConfigFetch(overrides: Record<string, unknown> = {}) {
   } as unknown as Response);
 }
 
-function mockCreateRealmFetch(mode = "competition") {
-  (globalThis.fetch as Mock).mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({ id: "realm-123", joinCode: "123456", mode }),
-  } as unknown as Response);
-}
-
 async function renderApp() {
   // Lazy-import App after mocks are in place so module-level code picks up the mocks.
   const { default: App } = await import("./App");

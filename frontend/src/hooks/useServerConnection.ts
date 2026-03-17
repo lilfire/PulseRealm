@@ -384,7 +384,7 @@ export function useServerConnection() {
       localStorage.setItem(STORAGE_KEY, cleanUrl);
     }
     return ok;
-  }, []);
+  }, [verifyServer]);
 
   const connectRemote = useCallback(async (url: string) => {
     let cleanUrl = url.replace(/\/+$/, "");
@@ -399,7 +399,7 @@ export function useServerConnection() {
       localStorage.setItem(STORAGE_KEY, cleanUrl);
     }
     return ok;
-  }, [setRemoteUrl, setConnectionMode]);
+  }, [verifyServer, setRemoteUrl, setConnectionMode]);
 
   const switchToLocal = useCallback(() => {
     setConnectionMode("local");

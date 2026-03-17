@@ -5,6 +5,7 @@ using Moq;
 using PulseRealm.Server.Controllers;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Controllers;
 

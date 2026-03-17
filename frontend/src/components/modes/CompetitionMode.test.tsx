@@ -581,7 +581,6 @@ describe("CompetitionMode — HeartZone points accumulation and timer expiry", (
     const ptsCells = screen.getAllByText("pts");
     expect(ptsCells.length).toBeGreaterThan(0);
     // The first numeric pts value should be >= 5 (one per tick for client-1)
-    const pointValues = document.querySelectorAll("[style*='fontFamily']");
     // Just verify the component hasn't crashed and pts label is still visible
     expect(screen.getAllByText("pts").length).toBeGreaterThan(0);
   });

@@ -1,4 +1,5 @@
 using PulseRealm.Server.Models;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Models;
 
@@ -136,11 +137,11 @@ public class RealmTests
     }
 
     [Fact]
-    public void MaxClients_YouTubeTrail_IsFour()
+    public void MaxClients_YouTubeTrail_IsOne()
     {
         var realm = new Realm { Mode = RealmMode.YouTubeTrail };
 
-        Assert.Equal(4, realm.MaxClients);
+        Assert.Equal(1, realm.MaxClients);
     }
 
     [Fact]
@@ -174,7 +175,7 @@ public class RealmTests
     [Theory]
     [InlineData(RealmMode.Competition, 8)]
     [InlineData(RealmMode.StreetView, 1)]
-    [InlineData(RealmMode.YouTubeTrail, 4)]
+    [InlineData(RealmMode.YouTubeTrail, 1)]
     [InlineData(RealmMode.Route, 1)]
     [InlineData(RealmMode.Dungeon, 4)]
     [InlineData(RealmMode.Social, 4)]

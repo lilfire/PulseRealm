@@ -963,7 +963,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     }, TICK_MS);
 
     return () => clearInterval(timer);
-  }, [clients, enterRoom, advanceRoom, getTracker, initBossPhase, getTeamCadence, updateDisplay]);
+  }, [clients, clientProfiles, enterRoom, advanceRoom, getTracker, initBossPhase, getTeamCadence, updateDisplay]);
 
   const handleEnd = useCallback(() => {
     const allTrackers = trackers.current;

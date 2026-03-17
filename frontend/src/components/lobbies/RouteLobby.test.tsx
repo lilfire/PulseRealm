@@ -1,5 +1,4 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import type { ClientProfile } from "../../types/session";
 
@@ -7,24 +6,32 @@ vi.mock("../../hooks/useGoogleMaps", () => ({
   useGoogleMaps: () => ({ loaded: true, error: null }),
 }));
 
+interface AutocompleteInstance {
+  getPlacePredictions: ReturnType<typeof vi.fn>;
+}
+
+interface PlacesInstance {
+  getDetails: ReturnType<typeof vi.fn>;
+}
+
 // Capture instances so tests can exercise callbacks
-let autocompleteInstances: any[] = [];
-let placesInstances: any[] = [];
+let autocompleteInstances: AutocompleteInstance[] = [];
+let placesInstances: PlacesInstance[] = [];
 
 // Mock google.maps for the autocomplete features
 beforeAll(() => {
-  (window as any).google = {
+  (window as unknown as Record<string, unknown>).google = {
     maps: {
       places: {
         AutocompleteService: class {
           constructor() {
-            autocompleteInstances.push(this);
+            autocompleteInstances.push(this as unknown as AutocompleteInstance);
           }
           getPlacePredictions = vi.fn();
         },
         PlacesService: class {
           constructor() {
-            placesInstances.push(this);
+            placesInstances.push(this as unknown as PlacesInstance);
           }
           getDetails = vi.fn();
         },
@@ -152,7 +159,7 @@ describe("RouteLobby (maps loaded)", () => {
       // Set up autocomplete to call back immediately
       if (autocompleteInstances[0]) {
         autocompleteInstances[0].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb([{ place_id: "p1", description: "Oslo, Norway" }], "OK");
           },
         );
@@ -170,7 +177,7 @@ describe("RouteLobby (maps loaded)", () => {
 
       if (autocompleteInstances[0]) {
         autocompleteInstances[0].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb(null, "ZERO_RESULTS");
           },
         );
@@ -205,7 +212,7 @@ describe("RouteLobby (maps loaded)", () => {
       // Make autocomplete return a suggestion immediately
       if (autocompleteInstances[0]) {
         autocompleteInstances[0].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb([{ place_id: "p1", description: "Oslo, Norway" }], "OK");
           },
         );
@@ -213,7 +220,7 @@ describe("RouteLobby (maps loaded)", () => {
 
       // Make getDetails return a valid place
       if (placesInstances[0]) {
-        placesInstances[0].getDetails.mockImplementation((_opts: any, cb: any) => {
+        placesInstances[0].getDetails.mockImplementation((_opts: unknown, cb: (result: unknown, status: string) => void) => {
           cb(
             {
               geometry: { location: { lat: () => 59.9139, lng: () => 10.7522 } },
@@ -257,13 +264,13 @@ describe("RouteLobby (maps loaded)", () => {
       // Setup From input autocomplete + details
       if (autocompleteInstances[0]) {
         autocompleteInstances[0].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb([{ place_id: "p1", description: "Oslo, Norway" }], "OK");
           },
         );
       }
       if (placesInstances[0]) {
-        placesInstances[0].getDetails.mockImplementation((_opts: any, cb: any) => {
+        placesInstances[0].getDetails.mockImplementation((_opts: unknown, cb: (result: unknown, status: string) => void) => {
           cb(
             {
               geometry: { location: { lat: () => 59.9139, lng: () => 10.7522 } },
@@ -286,13 +293,13 @@ describe("RouteLobby (maps loaded)", () => {
       // Setup To input autocomplete + details
       if (autocompleteInstances[1]) {
         autocompleteInstances[1].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb([{ place_id: "p2", description: "Bergen, Norway" }], "OK");
           },
         );
       }
       if (placesInstances[1]) {
-        placesInstances[1].getDetails.mockImplementation((_opts: any, cb: any) => {
+        placesInstances[1].getDetails.mockImplementation((_opts: unknown, cb: (result: unknown, status: string) => void) => {
           cb(
             {
               geometry: { location: { lat: () => 60.3913, lng: () => 5.3221 } },
@@ -321,7 +328,7 @@ describe("RouteLobby (maps loaded)", () => {
 
       if (autocompleteInstances[0]) {
         autocompleteInstances[0].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb([{ place_id: "p1", description: "Oslo, Norway" }], "OK");
           },
         );
@@ -346,13 +353,13 @@ describe("RouteLobby (maps loaded)", () => {
 
       if (autocompleteInstances[0]) {
         autocompleteInstances[0].getPlacePredictions.mockImplementation(
-          (_opts: any, cb: any) => {
+          (_opts: unknown, cb: (results: unknown, status: string) => void) => {
             cb([{ place_id: "p1", description: "Oslo, Norway" }], "OK");
           },
         );
       }
       if (placesInstances[0]) {
-        placesInstances[0].getDetails.mockImplementation((_opts: any, cb: any) => {
+        placesInstances[0].getDetails.mockImplementation((_opts: unknown, cb: (result: unknown, status: string) => void) => {
           cb(null, "NOT_FOUND");
         });
       }

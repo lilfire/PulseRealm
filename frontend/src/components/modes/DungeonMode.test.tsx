@@ -286,63 +286,6 @@ describe("DungeonMode — room sub-views via force progression", () => {
     vi.clearAllMocks();
   });
 
-  // The corridor target for 1 client with easy/15min is: max(1, round(2*0.5*0.7))=1 tile * 10 * 1 = 10 steps
-  // We provide 10+ steps delta to traverse corridor quickly
-
-  function renderAndAdvanceToRoom(roomTypeIndex: number) {
-    // Use single client + easy/15 so corridors are short (10 steps each)
-    const singleClient = ["client-1"];
-    const singleProfiles = { "client-1": makeProfile("client-1", "Alice") };
-
-    const utils = render(
-      <DungeonMode
-        clients={singleClient}
-        clientProfiles={singleProfiles}
-        latestData={null}
-        config={easyConfig}
-        onEnd={vi.fn()}
-      />
-    );
-
-    act(() => { vi.advanceTimersByTime(600); });
-
-    // Set baseline
-    let steps = 0;
-    const { rerender } = utils;
-
-    const makeStepData = (s: number) => makeData("client-1", 140, s);
-
-    rerender(
-      <DungeonMode
-        clients={singleClient}
-        clientProfiles={singleProfiles}
-        latestData={makeStepData(0)}
-        config={easyConfig}
-        onEnd={vi.fn()}
-      />
-    );
-    act(() => { vi.advanceTimersByTime(600); });
-
-    // Pass through (roomTypeIndex + 1) corridors worth of steps to get to specific room
-    // Each corridor needs ~10 step delta, each room auto-advances for "empty" in 1 tick
-    // We send large step deltas and many ticks to progress through rooms
-    for (let i = 0; i <= roomTypeIndex + 1; i++) {
-      steps += 1000; // large delta to overcome any corridor/room threshold
-      rerender(
-        <DungeonMode
-          clients={singleClient}
-          clientProfiles={singleProfiles}
-          latestData={makeStepData(steps)}
-          config={easyConfig}
-          onEnd={vi.fn()}
-        />
-      );
-      act(() => { vi.advanceTimersByTime(3000); });
-    }
-
-    return utils;
-  }
-
   it("enemy room shows Enemy HP bar label when entered", () => {
     // Force enter by sending massive steps - eventually a non-empty room will be entered
     const singleClient = ["client-1"];

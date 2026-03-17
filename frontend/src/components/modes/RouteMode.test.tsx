@@ -22,7 +22,6 @@ beforeAll(() => {
     fitBounds = vi.fn();
     panTo = vi.fn();
     setCenter = vi.fn();
-    constructor(_el: unknown, _opts?: unknown) {}
   }
 
   class MockMarker {
@@ -37,12 +36,10 @@ beforeAll(() => {
       strokeWeight: 2,
       rotation: 0,
     }));
-    constructor(_opts?: unknown) {}
   }
 
   class MockPolyline {
     setPath = vi.fn();
-    constructor(_opts?: unknown) {}
   }
 
   class MockLatLngBounds {
@@ -51,7 +48,7 @@ beforeAll(() => {
   }
 
   class MockDirectionsService {
-    route = vi.fn((_req: unknown, cb: Function) => {
+    route = vi.fn((_req: unknown, cb: (result: unknown, status: string) => void) => {
       cb(
         {
           routes: [
@@ -276,10 +273,9 @@ describe("RouteMode", () => {
     const OriginalDirectionsService = (window as unknown as Record<string, Record<string, Record<string, unknown>>>).google.maps.DirectionsService;
 
     class FailingDirectionsService {
-      route = vi.fn((_req: unknown, cb: Function) => {
+      route = vi.fn((_req: unknown, cb: (result: unknown, status: string) => void) => {
         cb(null, "NOT_FOUND");
       });
-      constructor() {}
     }
     (window as unknown as Record<string, Record<string, Record<string, unknown>>>).google.maps.DirectionsService = FailingDirectionsService;
 

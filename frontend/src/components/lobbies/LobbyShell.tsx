@@ -26,7 +26,7 @@ interface Props {
   children?: ReactNode;
 }
 
-export function LobbyShell({ joinCode, mode, clients, clientProfiles, connected: _connected, canStart, onStart, onLeave, onEnd, onKick, role = "host", hostSecret, minPlayers, children }: Props) {
+export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, onStart, onLeave, onEnd, onKick, role = "host", hostSecret, minPlayers, children }: Props) {
   const isGuest = role === "guest";
   const canControl = role === "host" || role === "admin";
   const rs = ROLE_STYLES[role];

@@ -218,7 +218,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [clients]);
+  }, [clients, clientProfiles]);
 
   // Sync detection
   useEffect(() => {
@@ -253,7 +253,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         setSyncDuration(0);
       }
     }
-  }, [latestData, clients, syncZone]);
+  }, [latestData, clients, clientProfiles, syncZone]);
 
   // ── Derived values ───────────────────────────────────────────────────────
 

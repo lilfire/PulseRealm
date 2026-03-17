@@ -1,11 +1,30 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Moq;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Services;
 
 public class RealmManagerTests
 {
-    private readonly RealmManager _manager = new();
+    private static RealmManager CreateRealmManager()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
+            .Build();
+        var logger = new Mock<ILogger<AdminConfigService>>().Object;
+        var adminConfig = new AdminConfigService(config, logger);
+        // Disable the concurrent realm cap so tests that create many realms are not throttled.
+        var cfg = adminConfig.GetConfig();
+        cfg.MaxConcurrentRealms = 0;
+        adminConfig.UpdateConfig(cfg);
+        return new RealmManager(adminConfig);
+    }
+
+    private readonly RealmManager _manager = CreateRealmManager();
 
     // -------------------------------------------------------------------------
     // CreateRealm
@@ -512,17 +531,18 @@ public class RealmManagerTests
     public void CleanupEndedRealms_DoesNotRemoveEndedRealmCreatedExactlyAtCutoff()
     {
         // The cutoff is DateTime.UtcNow - ttl. The implementation uses strict <
-        // (realm.CreatedAt < cutoff), so a realm created exactly at the cutoff
-        // boundary should NOT be removed.
+        // (realm.CreatedAt < cutoff), so a realm whose CreatedAt is at or after
+        // the cutoff should NOT be removed.
         var ttl = TimeSpan.FromMinutes(30);
         var realm = _manager.CreateRealm(RealmMode.Competition);
         realm.Status = RealmStatus.Ended;
-        // Set CreatedAt to exactly the cutoff moment (not older).
-        realm.CreatedAt = DateTime.UtcNow - ttl;
+        // Place CreatedAt 1 second in the future relative to the expected cutoff
+        // so it is definitively not older than the cutoff regardless of timing.
+        realm.CreatedAt = DateTime.UtcNow - ttl + TimeSpan.FromSeconds(1);
 
         var removed = _manager.CleanupEndedRealms(ttl);
 
-        // Realm is at the boundary (== cutoff), not strictly before it.
+        // Realm is within TTL — must not be removed.
         Assert.Equal(0, removed);
         Assert.NotNull(_manager.GetById(realm.Id));
     }

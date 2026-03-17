@@ -5,6 +5,7 @@ using Moq;
 using PulseRealm.Server.Hubs;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
+using Xunit;
 
 namespace PulseRealm.Server.Tests.Hubs;
 
@@ -35,14 +36,19 @@ public class RealmHubTests
             .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
             .Build();
         var logger = new Mock<Microsoft.Extensions.Logging.ILogger<AdminConfigService>>().Object;
-        return new AdminConfigService(config, logger);
+        var adminConfig = new AdminConfigService(config, logger);
+        var cfg = adminConfig.GetConfig();
+        cfg.MaxConcurrentRealms = 0;
+        cfg.MaxWearableMessagesPerSecond = 0;
+        adminConfig.UpdateConfig(cfg);
+        return adminConfig;
     }
 
     private static (
         RealmHub Hub,
         RealmManager Manager,
         Mock<IHubCallerClients> MockClients,
-        Mock<IClientProxy> MockProxy,
+        Mock<ISingleClientProxy> MockProxy,
         Mock<IGroupManager> MockGroups)
         CreateHub(string? connectionId = null)
     {
@@ -51,7 +57,7 @@ public class RealmHubTests
         var hub = new RealmHub(manager, adminConfig);
 
         var mockClients = new Mock<IHubCallerClients>();
-        var mockProxy = new Mock<IClientProxy>();
+        var mockProxy = new Mock<ISingleClientProxy>();
         var mockGroups = new Mock<IGroupManager>();
         var mockContext = new Mock<HubCallerContext>();
 
@@ -147,7 +153,7 @@ public class RealmHubTests
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
         var clientId = Guid.NewGuid().ToString();
-        var profile = new ClientProfile { Name = "Alice", HeightCm = 170, WeightKg = 60 };
+        var profile = new ClientProfile { Name = "Alice", Age = 25, HeightCm = 170, WeightKg = 60 };
 
         await hub.JoinRealm(realm.JoinCode, clientId, profile);
 
@@ -220,7 +226,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = name, HeightCm = 170, WeightKg = 60 };
+        var profile = new ClientProfile { Name = name, Age = 25, HeightCm = 170, WeightKg = 60 };
 
         var ex = await Assert.ThrowsAsync<HubException>(
             () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
@@ -233,7 +239,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = new string('X', 51), HeightCm = 170, WeightKg = 60 };
+        var profile = new ClientProfile { Name = new string('X', 51), Age = 25, HeightCm = 170, WeightKg = 60 };
 
         var ex = await Assert.ThrowsAsync<HubException>(
             () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
@@ -248,7 +254,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = height, WeightKg = 70 };
+        var profile = new ClientProfile { Name = "Test", Age = 25, HeightCm = height, WeightKg = 70 };
 
         var ex = await Assert.ThrowsAsync<HubException>(
             () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
@@ -263,7 +269,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = 170, WeightKg = weight };
+        var profile = new ClientProfile { Name = "Test", Age = 25, HeightCm = 170, WeightKg = weight };
 
         var ex = await Assert.ThrowsAsync<HubException>(
             () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
@@ -277,7 +283,7 @@ public class RealmHubTests
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
         // 50-character name is the maximum allowed — must not throw.
-        var profile = new ClientProfile { Name = new string('A', 50), HeightCm = 170, WeightKg = 60 };
+        var profile = new ClientProfile { Name = new string('A', 50), Age = 25, HeightCm = 170, WeightKg = 60 };
         var clientId = Guid.NewGuid().ToString();
 
         var ex = await Record.ExceptionAsync(
@@ -293,7 +299,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = height, WeightKg = 70 };
+        var profile = new ClientProfile { Name = "Test", Age = 25, HeightCm = height, WeightKg = 70 };
 
         var ex = await Record.ExceptionAsync(
             () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
@@ -308,7 +314,7 @@ public class RealmHubTests
     {
         var (hub, manager, _, _, _) = CreateHub();
         var realm = manager.CreateRealm(RealmMode.Competition);
-        var profile = new ClientProfile { Name = "Test", HeightCm = 170, WeightKg = weight };
+        var profile = new ClientProfile { Name = "Test", Age = 25, HeightCm = 170, WeightKg = weight };
 
         var ex = await Record.ExceptionAsync(
             () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
@@ -702,7 +708,7 @@ public class RealmHubTests
 
         // The JoinRealm call seeds _connectionMap[connId] inside the hub's static state.
         await hub.JoinRealm(realm.JoinCode, clientId,
-            new ClientProfile { Name = "Bob", HeightCm = 175, WeightKg = 70 });
+            new ClientProfile { Name = "Bob", Age = 25, HeightCm = 175, WeightKg = 70 });
 
         // Realm stays in Lobby — disconnect must fully clean up.
         await hub.OnDisconnectedAsync(null);
@@ -721,7 +727,7 @@ public class RealmHubTests
 
         // Join while still in Lobby to register the connection mapping.
         await hub.JoinRealm(realm.JoinCode, clientId,
-            new ClientProfile { Name = "Alice", HeightCm = 170, WeightKg = 60 });
+            new ClientProfile { Name = "Alice", Age = 25, HeightCm = 170, WeightKg = 60 });
 
         // Transition to Started before disconnecting.
         realm.WithLock(r => r.Status = RealmStatus.Started);
@@ -745,7 +751,7 @@ public class RealmHubTests
         var clientId = Guid.NewGuid().ToString();
 
         await hub.JoinRealm(realm.JoinCode, clientId,
-            new ClientProfile { Name = "Charlie", HeightCm = 180, WeightKg = 80 });
+            new ClientProfile { Name = "Charlie", Age = 25, HeightCm = 180, WeightKg = 80 });
 
         await hub.OnDisconnectedAsync(null);
 
@@ -764,7 +770,7 @@ public class RealmHubTests
         var clientId = Guid.NewGuid().ToString();
 
         await hub.JoinRealm(realm.JoinCode, clientId,
-            new ClientProfile { Name = "Dave", HeightCm = 175, WeightKg = 70 });
+            new ClientProfile { Name = "Dave", Age = 25, HeightCm = 175, WeightKg = 70 });
 
         await hub.LeaveRealm();
 
@@ -785,7 +791,7 @@ public class RealmHubTests
         var clientId = Guid.NewGuid().ToString();
 
         await hub.JoinRealm(realm.JoinCode, clientId,
-            new ClientProfile { Name = "Eve", HeightCm = 165, WeightKg = 55 });
+            new ClientProfile { Name = "Eve", Age = 25, HeightCm = 165, WeightKg = 55 });
 
         await hub.LeaveRealm();
         await hub.OnDisconnectedAsync(null);
