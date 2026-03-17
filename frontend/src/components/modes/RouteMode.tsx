@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { RouteConfig } from "../lobbies/RouteLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 
 interface Props {
   clients: string[];
@@ -31,6 +32,8 @@ function extractDetailedPath(result: google.maps.DirectionsResult): google.maps.
 }
 
 export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, role = "host" }: Props) {
+  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
@@ -70,7 +73,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
 
   // Initialize map and directions
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!mapsLoaded || !mapContainerRef.current) return;
 
     const map = new google.maps.Map(mapContainerRef.current, {
       zoom: 14,
@@ -220,7 +223,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
       },
     );
 
-  }, [route]);
+  }, [route, mapsLoaded]);
 
   // Progress along route based on speed
   useEffect(() => {
@@ -305,6 +308,14 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
 
   const clientId = clients[0];
   const profile = clientId ? clientProfiles[clientId] : null;
+
+  if (!mapsLoaded) {
+    return (
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+        {mapsError ? <div style={{ color: "#FF5C75" }}>Failed to load Google Maps: {mapsError}</div> : <div>Loading Google Maps…</div>}
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#000" }}>
