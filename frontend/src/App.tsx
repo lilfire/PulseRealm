@@ -639,7 +639,7 @@ function App() {
         clientProfiles={clientProfiles}
         latestData={latestData}
         config={effectiveDungeonConfig}
-        onEnd={isGuest ? noOpEnd : onEndSimple}
+        onEnd={isGuest ? noOpEnd : onEndWithOverrides}
         role={role}
       />
     );

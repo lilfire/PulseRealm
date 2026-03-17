@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
-import { CADENCE_WINDOW_MS } from "../../utils/wearable";
+import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
+import { CADENCE_WINDOW_MS, STRIDE_FACTOR, getZoneForHr } from "../../utils/wearable";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,16 @@ interface ClientTracker {
   restReady: boolean;
   enduranceHrAboveSince: number | null;
   enduranceReady: boolean;
+  // Summary tracking
+  steps: number;
+  hrSum: number;
+  hrCount: number;
+  maxHr: number;
+  distanceMeters: number;
+  timeInZone: Record<string, number>;
+  cadenceSum: number;
+  cadenceCount: number;
+  lastDataTime: number;
 }
 
 interface GameState {
@@ -245,7 +256,7 @@ interface Props {
   clientProfiles: Record<string, ClientProfile>;
   latestData: WearableData | null;
   config: DungeonConfig;
-  onEnd: (totalDistanceMeters: number) => void;
+  onEnd: (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
   role?: RealmRole;
 }
 
@@ -268,6 +279,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
   const trackers = useRef<Map<string, ClientTracker>>(new Map());
   const [display, setDisplay] = useState<Display | null>(null);
   const initRef = useRef(false);
+  const startTimeRef = useRef(Date.now());
 
   // Initialize dungeon on mount
   useEffect(() => {
@@ -334,6 +346,15 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         restReady: false,
         enduranceHrAboveSince: null,
         enduranceReady: false,
+        steps: 0,
+        hrSum: 0,
+        hrCount: 0,
+        maxHr: 0,
+        distanceMeters: 0,
+        timeInZone: {},
+        cadenceSum: 0,
+        cadenceCount: 0,
+        lastDataTime: 0,
       };
       trackers.current.set(clientId, t);
     }
@@ -452,6 +473,16 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     t.heartRate = latestData.heartRate;
 
     const now = Date.now();
+    t.lastDataTime = now;
+
+    // Track heart-rate summary metrics on every data point
+    if (latestData.heartRate > 0) {
+      t.hrSum += latestData.heartRate;
+      t.hrCount++;
+      t.maxHr = Math.max(t.maxHr, latestData.heartRate);
+      const zone = getZoneForHr(latestData.heartRate);
+      t.timeInZone[zone] = (t.timeInZone[zone] ?? 0) + 1;
+    }
 
     // First data point for this client — just record baseline
     if (t.prevSteps < 0) {
@@ -474,6 +505,17 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       const dt = (newest.time - oldest.time) / 1000;
       const ds = newest.steps - oldest.steps;
       t.cadence = dt > 0 ? (ds / dt) * 60 : 0;
+    }
+
+    // Track per-player step/distance/cadence summary
+    t.steps += stepDelta;
+    if (stepDelta > 0) {
+      const height = clientProfiles[latestData.clientId]?.heightCm ?? 170;
+      t.distanceMeters += stepDelta * height * STRIDE_FACTOR;
+    }
+    if (t.cadence > 0) {
+      t.cadenceSum += t.cadence;
+      t.cadenceCount++;
     }
 
     g.totalPooledSteps += stepDelta;
@@ -519,7 +561,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           break;
       }
     }
-  }, [latestData, getTracker]);
+  }, [latestData, getTracker, clientProfiles]);
 
   const getTeamCadence = useCallback((): number => {
     let total = 0;
@@ -835,6 +877,71 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     return () => clearInterval(timer);
   }, [clients, enterRoom, advanceRoom, getTracker, initBossPhase, getTeamCadence, updateDisplay]);
 
+  const handleEnd = useCallback(() => {
+    const allTrackers = trackers.current;
+
+    const clientSummaries: ClientSummary[] = clients.map((cid) => {
+      const t = allTrackers.get(cid);
+      const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {} };
+      return {
+        clientId: cid,
+        name,
+        steps: t.steps,
+        distanceMeters: Math.round(t.distanceMeters),
+        averageHeartRate: t.hrCount > 0 ? Math.round(t.hrSum / t.hrCount) : 0,
+        maxHeartRate: t.maxHr,
+        avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
+        timeInZone: { ...t.timeInZone },
+      };
+    });
+
+    let groupSteps = 0;
+    let groupHrSum = 0;
+    let groupHrCount = 0;
+    let groupMaxHr = 0;
+    let groupCadenceSum = 0;
+    let groupCadenceCount = 0;
+    let totalDist = 0;
+    const groupTimeInZone: Record<string, number> = {};
+    for (const cs of clientSummaries) {
+      groupSteps += cs.steps;
+      totalDist += cs.distanceMeters;
+      if (cs.averageHeartRate > 0) { groupHrSum += cs.averageHeartRate; groupHrCount++; }
+      groupMaxHr = Math.max(groupMaxHr, cs.maxHeartRate);
+      if (cs.avgCadenceSpm > 0) { groupCadenceSum += cs.avgCadenceSpm; groupCadenceCount++; }
+      for (const [zone, secs] of Object.entries(cs.timeInZone)) {
+        groupTimeInZone[zone] = (groupTimeInZone[zone] ?? 0) + secs;
+      }
+    }
+
+    // Approximate active period from tracker data
+    const startTime = startTimeRef.current;
+    const perSecondActive = new Set<number>();
+    const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
+    for (const cid of clients) {
+      const t = allTrackers.get(cid);
+      if (t && t.lastDataTime > 0) {
+        const clientActiveSecs = Math.min(
+          Math.floor((t.lastDataTime - startTime) / 1000),
+          elapsedSecs
+        );
+        for (let s = 0; s <= clientActiveSecs; s++) perSecondActive.add(s);
+      }
+    }
+
+    onEnd(Math.round(totalDist), {
+      totalSteps: groupSteps,
+      averageHeartRate: groupHrCount > 0 ? Math.round(groupHrSum / groupHrCount) : 0,
+      maxHeartRate: groupMaxHr,
+      avgCadenceSpm: groupCadenceCount > 0 ? Math.round(groupCadenceSum / groupCadenceCount) : 0,
+      timeInZone: groupTimeInZone,
+      activePeriodSeconds: perSecondActive.size,
+      participantCount: clients.length,
+      clientSummaries,
+    });
+  }, [onEnd, clients, clientProfiles]);
+
   if (!display) return null;
 
   const currentRoomObj = display.rooms[display.currentRoom];
@@ -903,7 +1010,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
 
       {/* Main content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1rem", overflow: "auto" }}>
-        {display.phase === "complete" && <CompleteView display={display} onEnd={onEnd} role={role} />}
+        {display.phase === "complete" && <CompleteView display={display} onEnd={handleEnd} role={role} />}
         {display.phase === "corridor" && <CorridorView display={display} />}
         {display.phase === "room" && currentRoomObj && (
           <RoomView display={display} roomType={currentRoomObj.type} roomLabel={currentRoomObj.label} />
@@ -970,7 +1077,7 @@ function CorridorView({ display }: { display: Display }) {
   );
 }
 
-function CompleteView({ display, onEnd, role = "host" }: { display: Display; onEnd: (d: number) => void; role?: RealmRole }) {
+function CompleteView({ display, onEnd, role = "host" }: { display: Display; onEnd: () => void; role?: RealmRole }) {
   return (
     <div style={{ textAlign: "center" }}>
       <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>&#127942;</div>
@@ -982,7 +1089,7 @@ function CompleteView({ display, onEnd, role = "host" }: { display: Display; onE
       </div>
       {role !== "guest" && (
         <button
-          onClick={() => onEnd(0)}
+          onClick={onEnd}
           style={{
             padding: "0.8rem 2rem", fontSize: "1.1rem", borderRadius: "8px", cursor: "pointer",
             background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid #22c55e",
