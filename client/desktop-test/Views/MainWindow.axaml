@@ -105,6 +105,11 @@
             <Slider Value="{Binding SendIntervalMs}" Minimum="200" Maximum="5000" Width="100"
                     VerticalAlignment="Center" TickFrequency="100" IsSnapToTickEnabled="True" />
           </StackPanel>
+          <Button Command="{Binding ToggleSimulationCommand}" IsVisible="{Binding IsConnected}"
+                  Content="{Binding IsSimulating, Converter={x:Static vm:MainViewModel.SimTextConverter}}"
+                  Background="{Binding IsSimulating, Converter={x:Static vm:MainViewModel.SimBgConverter}}"
+                  Foreground="{Binding IsSimulating, Converter={x:Static vm:MainViewModel.SimFgConverter}}"
+                  VerticalAlignment="Center" FontWeight="Bold" />
         </StackPanel>
       </Border>
 

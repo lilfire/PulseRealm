@@ -17,11 +17,13 @@ public partial class MainViewModel : ObservableObject
     private Timer? _sendTimer;
     private Timer? _targetHrTimer;
     private Timer? _smoothHrTimer;
+    private Timer? _simulationTimer;
     private double _lastMouseX = double.NaN;
     private double _lastMouseY = double.NaN;
     private double _mouseDistAccum;
     private int _prevStepsSnapshot;
     private int _targetHr = 65;
+    private double _simPhase;
 
     [ObservableProperty] private string _clientId = $"desktop-test-{Random.Shared.Next(0x100000, 0xFFFFFF):x6}";
 
@@ -38,6 +40,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _steps;
     [ObservableProperty] private int _sendCount;
     [ObservableProperty] private int _sendIntervalMs = 1000;
+    [ObservableProperty] private bool _isSimulating;
 
     // Discovery state
     [ObservableProperty] private bool _isSearching;
@@ -259,6 +262,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task Disconnect()
     {
+        StopSimulation();
         StopSendTimer();
         Steps = 0;
         _prevStepsSnapshot = 0;
@@ -268,12 +272,56 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task SimulateConnectionLost()
     {
+        StopSimulation();
         StopSendTimer();
         await _signalR.SimulateConnectionLostAsync();
     }
 
+    [RelayCommand]
+    private void ToggleSimulation()
+    {
+        if (IsSimulating)
+        {
+            StopSimulation();
+        }
+        else
+        {
+            _simPhase = 0;
+            IsSimulating = true;
+            _simulationTimer = new Timer(_ =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(SimulationTick);
+            }, null, 0, 500);
+            AddLog("Auto-simulation started.", "info");
+        }
+    }
+
+    private void SimulationTick()
+    {
+        // Steps: 1–3 per tick (500ms), simulating ~120–360 spm
+        Steps += Random.Shared.Next(1, 4);
+
+        // HR: sine wave between 90–160 bpm with slight random jitter
+        _simPhase += 0.05;
+        var base_hr = 125 + 35 * Math.Sin(_simPhase);
+        _targetHr = (int)(base_hr + Random.Shared.Next(-3, 4));
+        _targetHr = Math.Clamp(_targetHr, 90, 160);
+    }
+
+    private void StopSimulation()
+    {
+        _simulationTimer?.Dispose();
+        _simulationTimer = null;
+        if (IsSimulating)
+        {
+            IsSimulating = false;
+            AddLog("Auto-simulation stopped.", "info");
+        }
+    }
+
     private void OnRealmEnded(JsonElement summary)
     {
+        StopSimulation();
         StopSendTimer();
 
         var duration = summary.TryGetProperty("durationSeconds", out var d) ? d.GetDouble() : 0;
@@ -517,6 +565,15 @@ public partial class MainViewModel
 
     public static readonly IValueConverter IntervalTextConverter =
         new FuncValueConverter<int, string>(v => v >= 1000 ? $"{v / 1000.0:0.#}s" : $"{v}ms");
+
+    public static readonly IValueConverter SimBgConverter =
+        new FuncValueConverter<bool, IBrush>(v => new SolidColorBrush(v ? Color.Parse("#34d399") : Color.Parse("#38bdf8")));
+
+    public static readonly IValueConverter SimFgConverter =
+        new FuncValueConverter<bool, IBrush>(v => new SolidColorBrush(v ? Color.Parse("#0f172a") : Color.Parse("#0f172a")));
+
+    public static readonly IValueConverter SimTextConverter =
+        new FuncValueConverter<bool, string>(v => v ? "Stop Sim" : "Simulate");
 
     public static readonly IValueConverter LogColorConverter =
         new FuncValueConverter<string, IBrush>(level => new SolidColorBrush(level switch
