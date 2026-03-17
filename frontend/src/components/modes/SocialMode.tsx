@@ -381,7 +381,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         display: "grid",
         gridTemplateColumns: `repeat(${Math.min(clients.length, 4)}, 1fr)`,
         gap: 16, padding: "24px 32px",
-        alignContent: "start",
+        alignContent: "stretch",
       }}>
         {clients.map((cid, idx) => {
           const t = trackers[cid];
