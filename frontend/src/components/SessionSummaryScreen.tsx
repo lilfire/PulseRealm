@@ -40,9 +40,9 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
   const clientNames = Object.values(clientProfiles).map((p) => p.name).filter(Boolean);
 
   return (
-    <div style={{
-      height: "100vh",
-      width: "100vw",
+    <div className="realm-summary" style={{
+      minHeight: "100vh",
+      width: "100%",
       overflow: "hidden",
       display: "flex",
       flexDirection: "column",
@@ -58,6 +58,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
         justifyContent: "space-between",
         marginBottom: "1rem",
         flexShrink: 0,
+        flexWrap: "wrap",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <img src="/logo.png" alt="PulseRealm" style={{ height: 36 }} />
@@ -77,6 +78,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
         gap: "1rem",
         marginBottom: "1rem",
         flexShrink: 0,
+        flexWrap: "wrap",
       }}>
         <StatCard label="Duration" value={formatDuration(summary.durationSeconds)} />
         <StatCard label="Active Time" value={formatDuration(summary.activePeriodSeconds ?? 0)} />
@@ -220,6 +222,7 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
         gap: "1.5rem",
         maxWidth: 900,
         width: "100%",
+        flexWrap: "wrap",
       }}>
         {/* Left: stat grid + zone bar */}
         <div style={{ flex: 3, display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -318,7 +321,7 @@ function FewClientView({ summary, clients }: { summary: RealmSummary; clients: C
 
       {/* Comparison bars (only if 2+ clients) */}
       {clients.length >= 2 && (
-        <div style={{ display: "flex", gap: "0.75rem", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: "0.75rem", flexShrink: 0, flexWrap: "wrap" }}>
           <div style={{ flex: 1 }}>
             <ComparisonBars clients={clients} metric="distanceMeters" label="Distance" formatter={formatDistance} />
           </div>
@@ -332,7 +335,7 @@ function FewClientView({ summary, clients }: { summary: RealmSummary; clients: C
       )}
 
       {/* Client cards */}
-      <div style={{
+      <div className="summary-clients" style={{
         display: "grid",
         gridTemplateColumns: `repeat(${clients.length}, 1fr)`,
         gap: "1rem",
@@ -407,6 +410,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
         flex: 1,
         minHeight: 0,
         overflowY: "auto",
+        overflowX: "auto",
         background: "rgba(255,255,255,0.02)",
         borderRadius: 10,
         border: "1px solid var(--border)",

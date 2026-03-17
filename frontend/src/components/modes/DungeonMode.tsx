@@ -1051,7 +1051,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
 
   return (
     <div style={{
-      position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 100,
+      position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100,
       background: "#0d0d0d", color: "#e0e0e0", display: "flex", flexDirection: "column",
       fontFamily: "'Segoe UI', system-ui, sans-serif",
     }}>

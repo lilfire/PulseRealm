@@ -307,9 +307,9 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   const profile = clientId ? clientProfiles[clientId] : null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 100, background: "#000" }}>
+    <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#000" }}>
       {/* Map container */}
-      <div ref={mapContainerRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      <div ref={mapContainerRef} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%" }} />
 
       {/* End realm button */}
       {role !== "guest" && (

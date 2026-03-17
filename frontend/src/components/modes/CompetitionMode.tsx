@@ -741,7 +741,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
   return (
     <div style={{
-      position: "fixed", inset: 0,
+      position: "fixed", top: 0, right: 0, bottom: 0, left: 0,
       background: "var(--bg)",
       display: "flex", flexDirection: "column",
       fontFamily: "var(--sans)",

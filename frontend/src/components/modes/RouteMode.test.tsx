@@ -147,7 +147,7 @@ describe("RouteMode", () => {
 
   it("renders map container", () => {
     render(<RouteMode {...defaultProps} />);
-    const mapContainer = document.querySelector('[style*="position: absolute"][style*="inset: 0"]');
+    const mapContainer = document.querySelector('[style*="position: absolute"][style*="top: 0"]');
     expect(mapContainer).toBeInTheDocument();
   });
 

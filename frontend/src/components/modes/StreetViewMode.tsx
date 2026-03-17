@@ -542,13 +542,13 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
   return (
     <>
-    <div style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 100 }}>
+    <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100 }}>
       {/* Panorama A */}
       <div
         ref={containerARef}
         style={{
           position: "absolute",
-          inset: 0,
+          top: 0, right: 0, bottom: 0, left: 0,
           width: "100%",
           height: "100%",
           zIndex: activePano === "A" ? 2 : 1,
@@ -560,7 +560,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         ref={containerBRef}
         style={{
           position: "absolute",
-          inset: 0,
+          top: 0, right: 0, bottom: 0, left: 0,
           width: "100%",
           height: "100%",
           zIndex: activePano === "B" ? 2 : 1,

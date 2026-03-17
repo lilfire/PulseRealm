@@ -38,22 +38,22 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       </div>
 
       <div className="lobby-header">
+        <p style={{ margin: "0 0 0.25rem", fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.1em" }}>Join Code</p>
+        <p style={{ margin: 0 }}><strong style={{ fontSize: "3rem", letterSpacing: "0.2em", lineHeight: 1 }}>{joinCode}</strong></p>
         <div style={{
           display: "inline-block",
-          padding: "0.3rem 1rem",
-          borderRadius: "6px",
+          padding: "0.15rem 0.6rem",
+          borderRadius: "4px",
           background: rs.bg,
           border: `1px solid ${rs.border}`,
           color: rs.color,
-          fontSize: "0.85rem",
+          fontSize: "0.65rem",
           fontWeight: 600,
           letterSpacing: "0.05em",
-          marginBottom: "0.5rem",
+          marginTop: "0.5rem",
         }}>
           {role.toUpperCase()}
         </div>
-        <p style={{ margin: 0 }}>Join Code</p>
-        <p style={{ margin: 0 }}><strong style={{ fontSize: "2rem", letterSpacing: "0.15em" }}>{joinCode}</strong></p>
         {hostSecret && canControl && <HostKeyToggle hostSecret={hostSecret} />}
       </div>
 

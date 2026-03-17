@@ -135,7 +135,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       {/* Player format */}
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Player Format</h3>
-        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", marginTop: "0.75rem" }}>
+        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", marginTop: "0.75rem", flexWrap: "wrap" }}>
           {(["individual", "team"] as const).map((f) => (
             <button key={f} onClick={() => setPlayerFormat(f)} style={btnStyle(playerFormat === f)}>
               {f === "individual" ? "Individual" : "Team"}
@@ -156,7 +156,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
               step={0.1}
               value={targetDistanceKm}
               onChange={(e) => setTargetDistanceKm(Number(e.target.value))}
-              style={{ width: "200px" }}
+              style={{ width: "100%", maxWidth: "200px" }}
             />
             <span style={{ fontSize: "1.3rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 60 }}>
               {targetDistanceKm.toFixed(1)} km
@@ -202,7 +202,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
               step={5}
               value={hzDuration}
               onChange={(e) => setHzDuration(Number(e.target.value))}
-              style={{ width: "200px" }}
+              style={{ width: "100%", maxWidth: "200px" }}
             />
             <span style={{ fontSize: "1.3rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 70 }}>
               {hzDuration} min
@@ -222,7 +222,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
               step={5}
               value={kingDuration}
               onChange={(e) => setKingDuration(Number(e.target.value))}
-              style={{ width: "200px" }}
+              style={{ width: "100%", maxWidth: "200px" }}
             />
             <span style={{ fontSize: "1.3rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 70 }}>
               {kingDuration} min

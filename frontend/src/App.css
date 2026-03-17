@@ -43,7 +43,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
   padding: 2rem 1.5rem;
   margin: 0;
   background: var(--code-bg, #1f2028);
@@ -51,6 +50,10 @@
   border-radius: 12px;
   cursor: pointer;
   transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+
+.mode-card > * + * {
+  margin-top: 0.5rem;
 }
 
 .mode-card:hover:not(:disabled) {
@@ -164,12 +167,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
   padding: 0.75rem 1rem;
   font-size: 0.8rem;
   color: var(--text, #9ca3af);
   opacity: 0.6;
   border-top: 1px solid var(--border, #2e303a);
+}
+
+.server-footer > * + * {
+  margin-left: 0.5rem;
 }
 
 .server-footer:hover {
@@ -316,7 +322,10 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+}
+
+.search-container > * + * {
+  margin-top: 0.75rem;
 }
 
 .search-spinner {
@@ -370,8 +379,11 @@ button:disabled {
 
 .search-actions {
   display: flex;
-  gap: 0.75rem;
   margin-top: 0.5rem;
+}
+
+.search-actions > * + * {
+  margin-left: 0.75rem;
 }
 
 .btn-retry {
@@ -402,7 +414,10 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+}
+
+.manual-container > * + * {
+  margin-top: 0.5rem;
 }
 
 .btn-back {
@@ -425,14 +440,16 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+}
+
+.manual-form > * + * {
+  margin-top: 1rem;
 }
 
 .manual-form label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.4rem;
   font-size: 0.9rem;
   color: var(--text, #888);
 }
@@ -529,11 +546,14 @@ button:disabled {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
   padding: 1rem;
   background: var(--bg, #14151a);
   border-top: 1px solid var(--border, #2e303a);
   z-index: 100;
+}
+
+.lobby-footer > * + * {
+  margin-left: 1rem;
 }
 
 /* --- Pulse dot animation (SocialMode runner cards) --- */
@@ -541,4 +561,112 @@ button:disabled {
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* --- Tablet (<=768px) --- */
+
+@media (max-width: 768px) {
+  .app {
+    padding: 1rem;
+  }
+
+  .lobby-app {
+    width: 100%;
+    padding: 0 1rem 100px;
+  }
+
+  .lobby-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .lobby-col-players {
+    max-height: none;
+  }
+
+  button {
+    min-height: 44px;
+  }
+
+  .lobby-footer button {
+    font-size: 0.95rem !important;
+    padding: 0.7rem 1.2rem !important;
+  }
+
+  .brand-header {
+    position: static;
+    margin-bottom: 0.5rem;
+  }
+
+  .logo {
+    width: 80px;
+  }
+
+  .brand-title {
+    font-size: 2rem;
+  }
+
+  /* Summary screen */
+  .realm-summary {
+    padding: 1rem 1.25rem !important;
+  }
+
+  .summary-clients {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* --- Mobile (<=480px) --- */
+
+@media (max-width: 480px) {
+  .app {
+    padding: 0.75rem;
+  }
+
+  .home-content {
+    padding: 1rem;
+  }
+
+  .mode-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .mode-card {
+    padding: 1.25rem 1rem;
+  }
+
+  .brand-title {
+    font-size: 1.6rem;
+    letter-spacing: 1px;
+  }
+
+  .input-url {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .lobby-app {
+    padding: 0 0.75rem 100px;
+  }
+
+  .lobby-footer {
+    flex-wrap: wrap;
+    padding: 0.75rem;
+  }
+
+  .lobby-footer > * + * {
+    margin-left: 0.5rem;
+  }
+
+  /* Summary screen */
+  .realm-summary {
+    padding: 0.75rem !important;
+  }
+
+  .realm-summary h1 {
+    font-size: 1.1rem !important;
+  }
 }
