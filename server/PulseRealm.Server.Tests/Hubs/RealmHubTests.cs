@@ -323,27 +323,78 @@ public class RealmHubTests
     }
 
     // -------------------------------------------------------------------------
+    // AuthenticateAsHost
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AuthenticateAsHost_ValidSecret_SetsHostConnectionId()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        Assert.Equal(connId, realm.HostConnectionId);
+    }
+
+    [Fact]
+    public async Task AuthenticateAsHost_WrongSecret_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.AuthenticateAsHost(realm.Id, "WRONGKEY"));
+
+        Assert.Contains("Invalid host secret", ex.Message);
+    }
+
+    [Fact]
+    public async Task AuthenticateAsHost_InvalidRealm_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.AuthenticateAsHost(Guid.NewGuid().ToString(), "ANY"));
+
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // -------------------------------------------------------------------------
     // StartRealm
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task StartRealm_InvalidRealm_SendsErrorToCaller()
+    public async Task StartRealm_InvalidRealm_ThrowsHubException()
     {
-        var (hub, _, _, mockProxy, _) = CreateHub();
+        var (hub, _, _, _, _) = CreateHub();
 
-        await hub.StartRealm(Guid.NewGuid().ToString());
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.StartRealm(Guid.NewGuid().ToString()));
 
-        mockProxy.Verify(p => p.SendCoreAsync(
-            "Error",
-            It.Is<object?[]>(a => a.Length > 0 && a[0]!.ToString()!.Contains("not found")),
-            default), Times.Once);
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task StartRealm_NotHost_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.StartRealm(realm.Id));
+
+        Assert.Contains("Not authorized", ex.Message);
     }
 
     [Fact]
     public async Task StartRealm_ValidRealm_SetsStatusToStarted()
     {
-        var (hub, manager, _, _, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
 
         await hub.StartRealm(realm.Id, """{"mode":"race"}""");
 
@@ -353,8 +404,10 @@ public class RealmHubTests
     [Fact]
     public async Task StartRealm_ValidRealm_StoresConfig()
     {
-        var (hub, manager, _, _, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
         const string config = """{"mode":"race"}""";
 
         await hub.StartRealm(realm.Id, config);
@@ -365,8 +418,10 @@ public class RealmHubTests
     [Fact]
     public async Task StartRealm_ValidRealm_SendsRealmStartedToGroup()
     {
-        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
 
         await hub.StartRealm(realm.Id, """{"mode":"race"}""");
 
@@ -377,8 +432,10 @@ public class RealmHubTests
     [Fact]
     public async Task StartRealm_NullConfig_SetsStatusAndSendsEvent()
     {
-        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Social);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
 
         await hub.StartRealm(realm.Id, null);
 
@@ -526,8 +583,10 @@ public class RealmHubTests
     [Fact]
     public async Task NotifyEliminated_BroadcastsClientEliminatedToGroup()
     {
-        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
         var clientId = Guid.NewGuid().ToString();
 
         await hub.NotifyEliminated(realm.Id, clientId);
@@ -538,28 +597,52 @@ public class RealmHubTests
             default), Times.Once);
     }
 
+    [Fact]
+    public async Task NotifyEliminated_NotHost_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.NotifyEliminated(realm.Id, Guid.NewGuid().ToString()));
+
+        Assert.Contains("Not authorized", ex.Message);
+    }
+
     // -------------------------------------------------------------------------
     // EndRealm
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task EndRealm_InvalidRealm_SendsErrorToCaller()
+    public async Task EndRealm_InvalidRealm_ThrowsHubException()
     {
-        var (hub, _, _, mockProxy, _) = CreateHub();
+        var (hub, _, _, _, _) = CreateHub();
 
-        await hub.EndRealm(Guid.NewGuid().ToString(), new RealmSummary());
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.EndRealm(Guid.NewGuid().ToString(), new RealmSummary()));
 
-        mockProxy.Verify(p => p.SendCoreAsync(
-            "Error",
-            It.Is<object?[]>(a => a.Length > 0 && a[0]!.ToString()!.Contains("not found")),
-            default), Times.Once);
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EndRealm_NotHost_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.EndRealm(realm.Id, new RealmSummary()));
+
+        Assert.Contains("Not authorized", ex.Message);
     }
 
     [Fact]
     public async Task EndRealm_ValidRealm_SetsStatusToEnded()
     {
-        var (hub, manager, _, _, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
         realm.WithLock(r => r.Status = RealmStatus.Started);
 
         await hub.EndRealm(realm.Id, new RealmSummary());
@@ -570,8 +653,10 @@ public class RealmHubTests
     [Fact]
     public async Task EndRealm_ValidRealm_SendsRealmEndedToGroup()
     {
-        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
 
         await hub.EndRealm(realm.Id, new RealmSummary { TotalSteps = 500 });
 
@@ -582,8 +667,10 @@ public class RealmHubTests
     [Fact]
     public async Task EndRealm_ValidRealm_PopulatesDurationSeconds()
     {
-        var (hub, manager, _, _, _) = CreateHub();
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
         // Back-date so the duration is measurably > 0.
         realm.CreatedAt = DateTime.UtcNow.AddMinutes(-5);
         var summary = new RealmSummary();
@@ -592,6 +679,18 @@ public class RealmHubTests
 
         Assert.True(summary.DurationSeconds > 0,
             $"Expected DurationSeconds > 0, got {summary.DurationSeconds}");
+    }
+
+    [Fact]
+    public async Task KickClient_NotHost_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.KickClient(realm.Id, Guid.NewGuid().ToString()));
+
+        Assert.Contains("Not authorized", ex.Message);
     }
 
     // -------------------------------------------------------------------------

@@ -22,6 +22,9 @@ public class RealmHub : Hub
     /// <summary>Connection IDs of clients that explicitly called LeaveRealm (intentional leave, not connection loss).</summary>
     private static readonly ConcurrentDictionary<string, bool> _pendingLeaves = new();
 
+    /// <summary>Maps host connection IDs to realm IDs for disconnect cleanup.</summary>
+    private static readonly ConcurrentDictionary<string, string> _hostConnectionMap = new();
+
     /// <summary>Tracks the last accepted wearable message time per client for rate limiting.</summary>
     private static readonly ConcurrentDictionary<string, DateTime> _lastAcceptedTime = new();
 
@@ -32,6 +35,33 @@ public class RealmHub : Hub
     {
         _realmManager = realmManager;
         _adminConfig = adminConfig;
+    }
+
+    /// <summary>
+    /// Called by the dashboard to authenticate as the host of a realm.
+    /// Must be called before any privileged operations (StartRealm, EndRealm, etc.).
+    /// </summary>
+    public Task AuthenticateAsHost(string realmId, string hostSecret)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            throw new HubException("Realm not found.");
+        if (realm.HostSecret != hostSecret)
+            throw new HubException("Invalid host secret.");
+
+        realm.WithLock(r => r.HostConnectionId = Context.ConnectionId);
+        _hostConnectionMap[Context.ConnectionId] = realmId;
+        return Task.CompletedTask;
+    }
+
+    private Realm GetRealmAsHost(string realmId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            throw new HubException("Realm not found.");
+        if (realm.HostConnectionId != Context.ConnectionId)
+            throw new HubException("Not authorized. Only the host can perform this action.");
+        return realm;
     }
 
     /// <summary>
@@ -122,12 +152,7 @@ public class RealmHub : Hub
     /// </summary>
     public async Task StartRealm(string realmId, string? config = null)
     {
-        var realm = _realmManager.GetById(realmId);
-        if (realm is null)
-        {
-            await Clients.Caller.SendAsync("Error", "Realm not found.");
-            return;
-        }
+        var realm = GetRealmAsHost(realmId);
 
         realm.WithLock(r =>
         {
@@ -237,6 +262,7 @@ public class RealmHub : Hub
     /// </summary>
     public async Task NotifyEliminated(string realmId, string clientId)
     {
+        GetRealmAsHost(realmId);
         await Clients.Group(realmId).SendAsync("ClientEliminated", clientId);
     }
 
@@ -246,12 +272,7 @@ public class RealmHub : Hub
     /// </summary>
     public async Task KickClient(string realmId, string clientId)
     {
-        var realm = _realmManager.GetById(realmId);
-        if (realm is null)
-        {
-            await Clients.Caller.SendAsync("Error", "Realm not found.");
-            return;
-        }
+        var realm = GetRealmAsHost(realmId);
 
         // Find the kicked client's connection ID so we can remove them from the SignalR group
         string? kickedConnectionId = null;
@@ -292,12 +313,7 @@ public class RealmHub : Hub
     /// </summary>
     public async Task EndRealm(string realmId, RealmSummary summary)
     {
-        var realm = _realmManager.GetById(realmId);
-        if (realm is null)
-        {
-            await Clients.Caller.SendAsync("Error", "Realm not found.");
-            return;
-        }
+        var realm = GetRealmAsHost(realmId);
 
         realm.WithLock(r => r.Status = RealmStatus.Ended);
         summary.DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
@@ -384,6 +400,17 @@ public class RealmHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        // Clear host association if this was a host connection
+        if (_hostConnectionMap.TryRemove(Context.ConnectionId, out var hostRealmId))
+        {
+            var hostRealm = _realmManager.GetById(hostRealmId);
+            hostRealm?.WithLock(r =>
+            {
+                if (r.HostConnectionId == Context.ConnectionId)
+                    r.HostConnectionId = null;
+            });
+        }
+
         // If the client already called LeaveRealm, cleanup is done — just clear the flag.
         if (_pendingLeaves.TryRemove(Context.ConnectionId, out _))
         {

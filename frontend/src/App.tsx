@@ -89,7 +89,8 @@ function App() {
 
   const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, startRealm, endRealm, notifyEliminated, kickClient } = useRealmHub(
     realm?.id ?? null,
-    hubUrl
+    hubUrl,
+    hostSecret ?? undefined
   );
 
   // Fetch lobby defaults and admin status from server config

@@ -42,7 +42,7 @@ export interface RealmSummary {
 
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 
-export function useRealmHub(realmId: string | null, hubUrl?: string) {
+export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [connected, setConnected] = useState(false);
@@ -265,7 +265,8 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       .then(() => {
         if (!active) return;
         setConnected(true);
-        return connection.invoke("JoinRealmAsDashboard", realmId);
+        return connection.invoke("JoinRealmAsDashboard", realmId)
+          .then(() => hostSecret ? connection.invoke("AuthenticateAsHost", realmId, hostSecret) : undefined);
       })
       .catch((err) => {
         if (active) console.error(err);
@@ -281,7 +282,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       }
       connection.stop();
     };
-  }, [realmId, resolvedUrl]);
+  }, [realmId, resolvedUrl, hostSecret]);
 
   const startRealm = useCallback((config?: object) => {
     const configJson = config ? JSON.stringify(config) : null;

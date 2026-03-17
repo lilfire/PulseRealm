@@ -153,6 +153,41 @@ describe("useRealmHub", () => {
       });
     });
 
+    it("invokes AuthenticateAsHost after JoinRealmAsDashboard when hostSecret is provided", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      renderHook(() =>
+        useRealmHub("realm-auth", "http://localhost:5062/hubs/realm", "SECRET01")
+      );
+
+      await waitFor(() => {
+        expect(mockConnectionInstance.invoke).toHaveBeenCalledWith(
+          "AuthenticateAsHost",
+          "realm-auth",
+          "SECRET01"
+        );
+      });
+    });
+
+    it("does not invoke AuthenticateAsHost when hostSecret is not provided", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      renderHook(() =>
+        useRealmHub("realm-noauth", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => {
+        expect(mockConnectionInstance.invoke).toHaveBeenCalledWith(
+          "JoinRealmAsDashboard",
+          "realm-noauth"
+        );
+      });
+
+      expect(mockConnectionInstance.invoke).not.toHaveBeenCalledWith(
+        "AuthenticateAsHost",
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
     it("sets connected to true after connection.start() resolves", async () => {
       const { useRealmHub } = await import("./useSessionHub");
       const { result } = renderHook(() =>

@@ -7,6 +7,7 @@ public class Realm
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string JoinCode { get; set; } = string.Empty;
     public string HostSecret { get; set; } = string.Empty;
+    public string? HostConnectionId { get; set; }
     public RealmMode Mode { get; set; }
     public RealmStatus Status { get; set; } = RealmStatus.Lobby;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
