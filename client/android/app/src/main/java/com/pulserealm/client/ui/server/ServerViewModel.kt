@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulserealm.client.data.network.DiscoveredServer
 import com.pulserealm.client.data.network.ServerDiscoveryClient
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,8 +32,11 @@ data class ServerUiState(
 @HiltViewModel
 class ServerViewModel @Inject constructor(
     private val prefs: SharedPreferences,
-    private val discoveryClient: ServerDiscoveryClient
+    private val discoveryClient: ServerDiscoveryClient,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    private val skipAutoConnect: Boolean = savedStateHandle.get<Boolean>("skipAutoConnect") ?: false
 
     companion object {
         private const val PREF_SERVER_URL = "cached_server_url"
@@ -61,7 +65,17 @@ class ServerViewModel @Inject constructor(
             remoteUrl = savedRemoteUrl
         )
 
-        if (savedMode == ConnectionMode.REMOTE && savedRemoteUrl.isNotBlank()) {
+        if (skipAutoConnect) {
+            // User explicitly chose "Change Server" — show config, don't auto-connect
+            if (savedMode == ConnectionMode.REMOTE) {
+                _uiState.value = _uiState.value.copy(
+                    serverUrl = savedRemoteUrl,
+                    showManualEntry = true
+                )
+            } else {
+                scanForServers()
+            }
+        } else if (savedMode == ConnectionMode.REMOTE && savedRemoteUrl.isNotBlank()) {
             _uiState.value = _uiState.value.copy(
                 serverUrl = savedRemoteUrl,
                 showManualEntry = true,

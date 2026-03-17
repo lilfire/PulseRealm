@@ -51,19 +51,27 @@ class MainActivity : ComponentActivity() {
                 composable("profile_setup") {
                     ProfileSetupScreen(
                         onComplete = {
-                            navController.navigate("server") {
+                            navController.navigate("server?skipAutoConnect=false") {
                                 popUpTo("profile_setup") { inclusive = true }
                             }
                         }
                     )
                 }
 
-                composable("server") {
+                composable(
+                    route = "server?skipAutoConnect={skipAutoConnect}",
+                    arguments = listOf(
+                        navArgument("skipAutoConnect") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        }
+                    )
+                ) {
                     ServerScreen(
                         onConnected = { serverUrl ->
                             val encodedUrl = java.net.URLEncoder.encode(serverUrl, "UTF-8")
                             navController.navigate("join?serverUrl=$encodedUrl") {
-                                popUpTo("server") { inclusive = true }
+                                popUpTo("server?skipAutoConnect={skipAutoConnect}") { inclusive = true }
                             }
                         }
                     )
@@ -85,7 +93,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onChangeServer = {
-                            navController.navigate("server") {
+                            navController.navigate("server?skipAutoConnect=true") {
                                 popUpTo("join?serverUrl={serverUrl}") { inclusive = true }
                             }
                         }
@@ -102,7 +110,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     RealmScreen(
                         onDisconnected = {
-                            navController.navigate("server") {
+                            navController.navigate("server?skipAutoConnect=false") {
                                 popUpTo("realm?realmId={realmId}&clientId={clientId}&serverUrl={serverUrl}") {
                                     inclusive = true
                                 }
