@@ -44,6 +44,9 @@ interface ClientTracker {
   cadenceSum: number;
   cadenceCount: number;
   caloriesBurned: number;
+  speedSum: number;
+  speedCount: number;
+  peakSpeedKmh: number;
 }
 
 function newTracker(): ClientTracker {
@@ -63,6 +66,9 @@ function newTracker(): ClientTracker {
     cadenceSum: 0,
     cadenceCount: 0,
     caloriesBurned: 0,
+    speedSum: 0,
+    speedCount: 0,
+    peakSpeedKmh: 0,
   };
 }
 
@@ -149,6 +155,13 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     }
     if (steps > 0) t.prevSteps = steps;
     t.steps = steps;
+
+    // Speed tracking
+    if (latestData.speedKmh > 0) {
+      t.speedSum += latestData.speedKmh;
+      t.speedCount++;
+      if (latestData.speedKmh > t.peakSpeedKmh) t.peakSpeedKmh = latestData.speedKmh;
+    }
 
     // Cadence (steps per minute over a rolling window)
     t.stepWindow.push({ time: now, steps });
@@ -286,7 +299,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     const clientSummaries: ClientSummary[] = clients.map((cid) => {
       const t = trackers[cid];
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
-      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0 };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0, averageSpeedKmh: 0, peakSpeedKmh: 0 };
       return {
         clientId: cid,
         name,
@@ -297,6 +310,8 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
         timeInZone: { ...t.timeInZone },
         caloriesBurned: Math.round(t.caloriesBurned),
+        averageSpeedKmh: t.speedCount > 0 ? Math.round((t.speedSum / t.speedCount) * 10) / 10 : 0,
+        peakSpeedKmh: Math.round(t.peakSpeedKmh * 10) / 10,
       };
     });
 
@@ -318,6 +333,13 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         groupTimeInZone[zone] = (groupTimeInZone[zone] ?? 0) + secs;
       }
     }
+    let groupSpeedSum = 0;
+    let groupSpeedCount = 0;
+    let groupPeakSpeed = 0;
+    for (const cs of clientSummaries) {
+      if (cs.averageSpeedKmh > 0) { groupSpeedSum += cs.averageSpeedKmh; groupSpeedCount++; }
+      groupPeakSpeed = Math.max(groupPeakSpeed, cs.peakSpeedKmh);
+    }
 
     onEnd(Math.round(totalDistRef.current), {
       totalSteps: groupSteps,
@@ -328,6 +350,8 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       activePeriodSeconds: perSecondActive.size,
       participantCount: clients.length,
       caloriesBurned: groupCalories,
+      averageSpeedKmh: groupSpeedCount > 0 ? Math.round((groupSpeedSum / groupSpeedCount) * 10) / 10 : 0,
+      peakSpeedKmh: Math.round(groupPeakSpeed * 10) / 10,
       clientSummaries,
     });
   }, [onEnd, clients, clientProfiles]);

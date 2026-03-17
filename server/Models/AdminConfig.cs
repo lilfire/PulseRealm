@@ -14,6 +14,10 @@ public class AdminConfig
     public string DungeonDifficulty { get; set; } = "normal";
     public int DungeonTimeframeMinutes { get; set; } = 30;
 
+    // Protection / rate limiting
+    public int MaxWearableMessagesPerSecond { get; set; } = 5;
+    public int MaxConcurrentRealms { get; set; } = 20;
+
     // Curated lists
     public List<StreetViewLocationDto> StreetViewLocations { get; set; } = DefaultStreetViewLocations();
     public List<YouTubeVideoDto> YouTubeVideos { get; set; } = DefaultYouTubeVideos();

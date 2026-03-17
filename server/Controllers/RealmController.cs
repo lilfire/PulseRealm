@@ -18,8 +18,15 @@ public class RealmController : ControllerBase
     [HttpPost]
     public IActionResult Create([FromBody] CreateRealmRequest request)
     {
-        var realm = _realmManager.CreateRealm(request.Mode);
-        return Ok(new { realm.Id, realm.JoinCode, realm.Mode, realm.HostSecret });
+        try
+        {
+            var realm = _realmManager.CreateRealm(request.Mode);
+            return Ok(new { realm.Id, realm.JoinCode, realm.Mode, realm.HostSecret });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(429, new { error = ex.Message });
+        }
     }
 
     [HttpGet("{joinCode}")]

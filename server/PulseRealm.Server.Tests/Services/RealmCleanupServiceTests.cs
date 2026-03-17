@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PulseRealm.Server.Models;
@@ -13,8 +14,18 @@ public class RealmCleanupServiceTests
     // Helpers
     // -------------------------------------------------------------------------
 
+    private static RealmManager CreateRealmManager()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
+            .Build();
+        var logger = new Mock<ILogger<AdminConfigService>>().Object;
+        return new RealmManager(new AdminConfigService(config, logger));
+    }
+
     private RealmCleanupService CreateService(RealmManager? manager = null) =>
-        new(manager ?? new RealmManager(), _loggerMock.Object);
+        new(manager ?? CreateRealmManager(), _loggerMock.Object);
 
     // -------------------------------------------------------------------------
     // Lifecycle: start and cancel
@@ -81,7 +92,7 @@ public class RealmCleanupServiceTests
         // This test drives RealmManager directly (the same object the service uses)
         // to verify the end-to-end cleanup path without waiting 5 minutes for the
         // timer to fire.  It mirrors the exact logic that ExecuteAsync calls.
-        var manager = new RealmManager();
+        var manager = CreateRealmManager();
         var realm = manager.CreateRealm(RealmMode.Competition);
 
         realm.Status = RealmStatus.Ended;
@@ -97,7 +108,7 @@ public class RealmCleanupServiceTests
     [Fact]
     public void CleanupEndedRealms_Integration_DoesNotRemoveActiveRealm()
     {
-        var manager = new RealmManager();
+        var manager = CreateRealmManager();
         _ = CreateService(manager); // service shares the same manager
 
         var realm = manager.CreateRealm(RealmMode.Dungeon);
@@ -113,7 +124,7 @@ public class RealmCleanupServiceTests
     [Fact]
     public void CleanupEndedRealms_Integration_DoesNotRemoveRealmWithinTtl()
     {
-        var manager = new RealmManager();
+        var manager = CreateRealmManager();
         var realm = manager.CreateRealm(RealmMode.Social);
 
         realm.Status = RealmStatus.Ended;
@@ -129,7 +140,7 @@ public class RealmCleanupServiceTests
     [Fact]
     public void CleanupEndedRealms_Integration_RemovesMultipleExpiredRealms()
     {
-        var manager = new RealmManager();
+        var manager = CreateRealmManager();
 
         var expired1 = manager.CreateRealm(RealmMode.Competition);
         expired1.Status = RealmStatus.Ended;
@@ -153,7 +164,7 @@ public class RealmCleanupServiceTests
     [Fact]
     public void CleanupEndedRealms_Integration_ReturnsZero_WhenManagerIsEmpty()
     {
-        var manager = new RealmManager();
+        var manager = CreateRealmManager();
 
         var removed = manager.CleanupEndedRealms(TimeSpan.FromMinutes(30));
 

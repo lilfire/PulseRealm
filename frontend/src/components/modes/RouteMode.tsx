@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { RouteConfig } from "../lobbies/RouteLobby";
-import { estimateCaloriesPerSecond } from "../../utils/wearable";
+import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
 
 interface Props {
   clients: string[];
@@ -397,7 +397,24 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
         {latestData ? (
           <>
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
-            <div>{latestData.heartRate} bpm</div>
+            <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: -4 }}>{formatPace(latestData.speedKmh)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span>{latestData.heartRate} bpm</span>
+              {latestData.heartRate > 0 && (() => {
+                const maxHr = getMaxHrForAge(profile?.age);
+                const zone = getZoneForHr(latestData.heartRate, maxHr);
+                return (
+                  <span style={{
+                    background: ZONE_COLORS[zone - 1],
+                    color: zone <= 2 ? "#111" : "#fff",
+                    fontSize: "0.7rem",
+                    fontWeight: 700,
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                  }}>Z{zone}</span>
+                );
+              })()}
+            </div>
             <div>{latestData.steps} steps</div>
             {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
             <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceRef.current.toFixed(0)} m</div>

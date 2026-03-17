@@ -7,9 +7,23 @@ public class RealmManager
 {
     private readonly ConcurrentDictionary<string, Realm> _realms = new();
     private readonly ConcurrentDictionary<string, Realm> _joinCodes = new();
+    private readonly AdminConfigService _adminConfig;
+
+    public RealmManager(AdminConfigService adminConfig)
+    {
+        _adminConfig = adminConfig;
+    }
 
     public Realm CreateRealm(RealmMode mode)
     {
+        var maxRealms = _adminConfig.GetConfig().MaxConcurrentRealms;
+        if (maxRealms > 0)
+        {
+            var activeCount = _realms.Values.Count(r => r.Status != RealmStatus.Ended);
+            if (activeCount >= maxRealms)
+                throw new InvalidOperationException($"Maximum concurrent realms reached ({maxRealms}). Please wait for an existing realm to end.");
+        }
+
         var realm = new Realm
         {
             Mode = mode,

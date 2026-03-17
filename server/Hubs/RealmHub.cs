@@ -8,6 +8,7 @@ namespace PulseRealm.Server.Hubs;
 public class RealmHub : Hub
 {
     private readonly RealmManager _realmManager;
+    private readonly AdminConfigService _adminConfig;
 
     /// <summary>Tracks the last raw steps and receive time per client for speed and offset calculation.</summary>
     private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt)> _lastData = new();
@@ -21,12 +22,16 @@ public class RealmHub : Hub
     /// <summary>Connection IDs of clients that explicitly called LeaveRealm (intentional leave, not connection loss).</summary>
     private static readonly ConcurrentDictionary<string, bool> _pendingLeaves = new();
 
+    /// <summary>Tracks the last accepted wearable message time per client for rate limiting.</summary>
+    private static readonly ConcurrentDictionary<string, DateTime> _lastAcceptedTime = new();
+
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
 
-    public RealmHub(RealmManager realmManager)
+    public RealmHub(RealmManager realmManager, AdminConfigService adminConfig)
     {
         _realmManager = realmManager;
+        _adminConfig = adminConfig;
     }
 
     /// <summary>
@@ -93,6 +98,7 @@ public class RealmHub : Hub
         {
             _lastData.TryRemove(clientId, out _);
             _stepOffsets.TryRemove(clientId, out _);
+            _lastAcceptedTime.TryRemove(clientId, out _);
         }
 
         _realmManager.AddClient(realm.Id, clientId, profile);
@@ -146,6 +152,18 @@ public class RealmHub : Hub
     /// </summary>
     public async Task SendWearableData(string realmId, WearableData data)
     {
+        // Rate limiting: drop messages arriving faster than configured rate
+        var maxRate = _adminConfig.GetConfig().MaxWearableMessagesPerSecond;
+        if (maxRate > 0)
+        {
+            var now = DateTime.UtcNow;
+            var minIntervalMs = 1000.0 / maxRate;
+            var lastTime = _lastAcceptedTime.GetValueOrDefault(data.ClientId);
+            if (lastTime != default && (now - lastTime).TotalMilliseconds < minIntervalMs)
+                return;
+            _lastAcceptedTime[data.ClientId] = now;
+        }
+
         var realm = _realmManager.GetById(realmId);
         if (realm is null) return;
 
@@ -251,6 +269,7 @@ public class RealmHub : Hub
         _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
         _lastData.TryRemove(clientId, out _);
         _stepOffsets.TryRemove(clientId, out _);
+        _lastAcceptedTime.TryRemove(clientId, out _);
 
         if (kickedConnectionId != null)
         {
@@ -353,6 +372,7 @@ public class RealmHub : Hub
             _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId, removeFromKnown: true);
             _lastData.TryRemove(mapping.ClientId, out _);
             _stepOffsets.TryRemove(mapping.ClientId, out _);
+            _lastAcceptedTime.TryRemove(mapping.ClientId, out _);
 
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, mapping.RealmId);
             await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
@@ -384,6 +404,7 @@ public class RealmHub : Hub
                 _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId);
                 _lastData.TryRemove(mapping.ClientId, out _);
                 _stepOffsets.TryRemove(mapping.ClientId, out _);
+                _lastAcceptedTime.TryRemove(mapping.ClientId, out _);
             }
             await Clients.Group(mapping.RealmId).SendAsync("ClientDisconnected", mapping.ClientId);
             await TryAutoEndRealm(mapping.RealmId);
@@ -433,6 +454,7 @@ public class RealmHub : Hub
         {
             _lastData.TryRemove(clientId, out _);
             _stepOffsets.TryRemove(clientId, out _);
+            _lastAcceptedTime.TryRemove(clientId, out _);
         }
 
         foreach (var kvp in _connectionMap)

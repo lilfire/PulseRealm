@@ -3,6 +3,7 @@ import { ActiveRealms } from "./ActiveRealms";
 import { CompetitionDefaults } from "./CompetitionDefaults";
 import { DungeonDefaults } from "./DungeonDefaults";
 import { StreetViewEditor, type StreetViewLocationItem } from "./StreetViewEditor";
+import { ProtectionDefaults } from "./ProtectionDefaults";
 import { YouTubeEditor, type YouTubeVideoItem } from "./YouTubeEditor";
 import "./AdminDashboard.css";
 
@@ -15,6 +16,8 @@ interface AdminConfig {
   competitionDurationMinutes: number;
   dungeonDifficulty: string;
   dungeonTimeframeMinutes: number;
+  maxWearableMessagesPerSecond: number;
+  maxConcurrentRealms: number;
   streetViewLocations: StreetViewLocationItem[];
   youTubeVideos: YouTubeVideoItem[];
 }
@@ -32,7 +35,7 @@ interface Props {
   onJoinRealm?: (realm: RealmJoinData) => void;
 }
 
-type Tab = "realms" | "competition" | "dungeon" | "streetview" | "youtube";
+type Tab = "realms" | "competition" | "dungeon" | "streetview" | "youtube" | "protection";
 
 export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) {
   const [config, setConfig] = useState<AdminConfig | null>(null);
@@ -143,6 +146,7 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           ["dungeon", "Dungeon"],
           ["streetview", "Street View Places"],
           ["youtube", "YouTube Videos"],
+          ["protection", "Protection"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -190,6 +194,14 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           <YouTubeEditor
             videos={config.youTubeVideos}
             onChange={(vids) => setConfig({ ...config, youTubeVideos: vids })}
+          />
+        )}
+
+        {tab === "protection" && (
+          <ProtectionDefaults
+            maxWearableMessagesPerSecond={config.maxWearableMessagesPerSecond}
+            maxConcurrentRealms={config.maxConcurrentRealms}
+            onChange={updateField}
           />
         )}
       </div>

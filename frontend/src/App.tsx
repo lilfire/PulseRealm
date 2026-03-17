@@ -240,7 +240,8 @@ function App() {
         body: JSON.stringify({ mode: modeValue }),
       });
       if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `Server returned ${res.status}`);
       }
       const data = await res.json();
       setRealm({

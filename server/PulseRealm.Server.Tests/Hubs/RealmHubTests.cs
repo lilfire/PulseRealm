@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
 using PulseRealm.Server.Hubs;
 using PulseRealm.Server.Models;
@@ -26,6 +28,16 @@ public class RealmHubTests
     /// Builds a fully-wired RealmHub together with its supporting mocks and a
     /// brand-new RealmManager so each test starts from a clean slate.
     /// </summary>
+    private static AdminConfigService CreateAdminConfigService()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
+            .Build();
+        var logger = new Mock<Microsoft.Extensions.Logging.ILogger<AdminConfigService>>().Object;
+        return new AdminConfigService(config, logger);
+    }
+
     private static (
         RealmHub Hub,
         RealmManager Manager,
@@ -34,8 +46,9 @@ public class RealmHubTests
         Mock<IGroupManager> MockGroups)
         CreateHub(string? connectionId = null)
     {
-        var manager = new RealmManager();
-        var hub = new RealmHub(manager);
+        var adminConfig = CreateAdminConfigService();
+        var manager = new RealmManager(adminConfig);
+        var hub = new RealmHub(manager, adminConfig);
 
         var mockClients = new Mock<IHubCallerClients>();
         var mockProxy = new Mock<IClientProxy>();

@@ -34,6 +34,9 @@ interface ClientTracker {
   cadenceCount: number;
   lastDataTime: number;
   caloriesBurned: number;
+  speedSum: number;
+  speedCount: number;
+  peakSpeedKmh: number;
 }
 
 interface GameState {
@@ -376,6 +379,9 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         cadenceCount: 0,
         lastDataTime: 0,
         caloriesBurned: 0,
+        speedSum: 0,
+        speedCount: 0,
+        peakSpeedKmh: 0,
       };
       trackers.current.set(clientId, t);
     }
@@ -560,6 +566,12 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     if (stepDelta > 0) {
       const height = clientProfiles[latestData.clientId]?.heightCm ?? 170;
       t.distanceMeters += stepDelta * height * getStrideFactor(clientProfiles[latestData.clientId]);
+    }
+    // Speed tracking
+    if (latestData.speedKmh > 0) {
+      t.speedSum += latestData.speedKmh;
+      t.speedCount++;
+      if (latestData.speedKmh > t.peakSpeedKmh) t.peakSpeedKmh = latestData.speedKmh;
     }
     if (t.cadence > 0) {
       t.cadenceSum += t.cadence;
@@ -959,7 +971,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     const clientSummaries: ClientSummary[] = clients.map((cid) => {
       const t = allTrackers.get(cid);
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
-      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0 };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0, averageSpeedKmh: 0, peakSpeedKmh: 0 };
       return {
         clientId: cid,
         name,
@@ -970,6 +982,8 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
         timeInZone: { ...t.timeInZone },
         caloriesBurned: Math.round(t.caloriesBurned),
+        averageSpeedKmh: t.speedCount > 0 ? Math.round((t.speedSum / t.speedCount) * 10) / 10 : 0,
+        peakSpeedKmh: Math.round(t.peakSpeedKmh * 10) / 10,
       };
     });
 
@@ -992,6 +1006,13 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       for (const [zone, secs] of Object.entries(cs.timeInZone)) {
         groupTimeInZone[zone] = (groupTimeInZone[zone] ?? 0) + secs;
       }
+    }
+    let groupSpeedSum = 0;
+    let groupSpeedCount = 0;
+    let groupPeakSpeed = 0;
+    for (const cs of clientSummaries) {
+      if (cs.averageSpeedKmh > 0) { groupSpeedSum += cs.averageSpeedKmh; groupSpeedCount++; }
+      groupPeakSpeed = Math.max(groupPeakSpeed, cs.peakSpeedKmh);
     }
 
     // Approximate active period from tracker data
@@ -1018,6 +1039,8 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       activePeriodSeconds: perSecondActive.size,
       participantCount: clients.length,
       caloriesBurned: groupCalories,
+      averageSpeedKmh: groupSpeedCount > 0 ? Math.round((groupSpeedSum / groupSpeedCount) * 10) / 10 : 0,
+      peakSpeedKmh: Math.round(groupPeakSpeed * 10) / 10,
       clientSummaries,
     });
   }, [onEnd, clients, clientProfiles]);

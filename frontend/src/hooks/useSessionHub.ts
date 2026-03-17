@@ -17,6 +17,8 @@ export interface ClientSummary {
   avgCadenceSpm: number;
   caloriesBurned: number;
   timeInZone: Record<string, number>;
+  averageSpeedKmh: number;
+  peakSpeedKmh: number;
   teamName?: string;
   teamColor?: string;
 }
@@ -30,6 +32,7 @@ export interface RealmSummary {
   averageSpeedKmh: number;
   avgCadenceSpm: number;
   caloriesBurned: number;
+  peakSpeedKmh: number;
   timeInZone: Record<string, number>;
   activePeriodSeconds: number;
   participantCount: number;
@@ -60,6 +63,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     maxHeartRate: 0,
     speedSum: 0,
     speedCount: 0,
+    peakSpeedKmh: 0,
     currentHr: 0,
     currentClientId: "",
     lastDataReceivedAt: 0,
@@ -90,7 +94,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
     setLatestData(null);
     setRealmConfig(null);
     setDisconnectedClients(new Set());
-    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, currentHr: 0, currentClientId: "", lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, caloriesBurned: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
+    statsRef.current = { totalSteps: 0, heartRateSum: 0, heartRateCount: 0, maxHeartRate: 0, speedSum: 0, speedCount: 0, peakSpeedKmh: 0, currentHr: 0, currentClientId: "", lastDataReceivedAt: 0, activePeriodSeconds: 0, timeInZone: {}, cadenceSum: 0, cadenceCount: 0, caloriesBurned: 0, prevStepsForCadence: 0, prevStepsTimeForCadence: 0 };
 
     if (!realmId || !resolvedUrl) return;
 
@@ -165,6 +169,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       if (data.speedKmh > 0) {
         s.speedSum += data.speedKmh;
         s.speedCount++;
+        if (data.speedKmh > s.peakSpeedKmh) s.peakSpeedKmh = data.speedKmh;
       }
       // Cadence tracking from step deltas
       if (s.prevStepsForCadence > 0 && data.steps > s.prevStepsForCadence && s.prevStepsTimeForCadence > 0) {
@@ -200,6 +205,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
         averageHeartRate: summary.averageHeartRate || (s.heartRateCount > 0 ? Math.round(s.heartRateSum / s.heartRateCount) : 0),
         maxHeartRate: summary.maxHeartRate || s.maxHeartRate,
         averageSpeedKmh: summary.averageSpeedKmh || (s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0),
+        peakSpeedKmh: summary.peakSpeedKmh || Math.round(s.peakSpeedKmh * 10) / 10,
         avgCadenceSpm: summary.avgCadenceSpm || (s.cadenceCount > 0 ? Math.round(s.cadenceSum / s.cadenceCount) : 0),
         caloriesBurned: summary.caloriesBurned || Math.round(s.caloriesBurned),
         timeInZone: Object.keys(summary.timeInZone ?? {}).length > 0 ? summary.timeInZone : { ...s.timeInZone },
@@ -299,6 +305,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string) {
       averageHeartRate: s.heartRateCount > 0 ? Math.round(s.heartRateSum / s.heartRateCount) : 0,
       maxHeartRate: s.maxHeartRate,
       averageSpeedKmh: s.speedCount > 0 ? Math.round((s.speedSum / s.speedCount) * 10) / 10 : 0,
+      peakSpeedKmh: Math.round(s.peakSpeedKmh * 10) / 10,
       avgCadenceSpm: s.cadenceCount > 0 ? Math.round(s.cadenceSum / s.cadenceCount) : 0,
       caloriesBurned: Math.round(s.caloriesBurned),
       timeInZone: { ...s.timeInZone },

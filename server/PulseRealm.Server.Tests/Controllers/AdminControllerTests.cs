@@ -38,7 +38,7 @@ public class AdminControllerTests
     private static AdminController CreateController(AdminAuthService auth, AdminConfigService configService,
         string? authHeader = null)
     {
-        var controller = new AdminController(auth, configService, new RealmManager(), new Mock<IHubContext<RealmHub>>().Object);
+        var controller = new AdminController(auth, configService, new RealmManager(configService), new Mock<IHubContext<RealmHub>>().Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

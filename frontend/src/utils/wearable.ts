@@ -68,3 +68,17 @@ export function formatDuration(seconds: number): string {
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+/** Convert speed (km/h) to pace (min/km). Returns Infinity when speed ≤ 0. */
+export function speedToPace(speedKmh: number): number {
+  return speedKmh > 0 ? 60 / speedKmh : Infinity;
+}
+
+/** Format speed as pace string like "6:15 /km", or "—" when speed ≤ 0. */
+export function formatPace(speedKmh: number): string {
+  if (speedKmh <= 0) return "—";
+  const pace = 60 / speedKmh;
+  const mins = Math.floor(pace);
+  const secs = Math.round((pace - mins) * 60);
+  return `${mins}:${secs.toString().padStart(2, "0")} /km`;
+}

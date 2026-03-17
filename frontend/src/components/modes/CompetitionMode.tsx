@@ -26,6 +26,9 @@ interface ClientTracker {
   cadenceSum: number;
   cadenceCount: number;
   caloriesBurned: number;
+  speedSum: number;
+  speedCount: number;
+  peakSpeedKmh: number;
   // Sub-mode specific
   points: number;
   finished: boolean;
@@ -41,6 +44,7 @@ function newTracker(): ClientTracker {
     active: false, lastDataTime: 0, stepWindow: [],
     distanceMeters: 0, hrSum: 0, hrCount: 0, maxHr: 0,
     timeInZone: {}, cadenceSum: 0, cadenceCount: 0, caloriesBurned: 0,
+    speedSum: 0, speedCount: 0, peakSpeedKmh: 0,
     points: 0, finished: false, finishTime: null, finishPosition: null,
     eliminated: false, eliminatedPosition: null,
   };
@@ -267,6 +271,13 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       const dt = (last.time - first.time) / 1000 / 60;
       const ds = last.steps - first.steps;
       t.cadence = dt > 0 ? Math.round(ds / dt) : 0;
+    }
+
+    // Speed tracking
+    if (latestData.speedKmh > 0) {
+      t.speedSum += latestData.speedKmh;
+      t.speedCount++;
+      if (latestData.speedKmh > t.peakSpeedKmh) t.peakSpeedKmh = latestData.speedKmh;
     }
 
     // Race: check finish (10m tolerance for floating-point accumulation)
@@ -539,7 +550,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       const t = trackers[cid];
       const name = clientProfiles[cid]?.name ?? cid.slice(0, 8);
       const team = clientTeamMap.get(cid);
-      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0, teamName: team?.name, teamColor: team?.color };
+      if (!t) return { clientId: cid, name, steps: 0, distanceMeters: 0, averageHeartRate: 0, maxHeartRate: 0, avgCadenceSpm: 0, timeInZone: {}, caloriesBurned: 0, averageSpeedKmh: 0, peakSpeedKmh: 0, teamName: team?.name, teamColor: team?.color };
       totalDist += t.distanceMeters;
       return {
         clientId: cid,
@@ -551,6 +562,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         avgCadenceSpm: t.cadenceCount > 0 ? Math.round(t.cadenceSum / t.cadenceCount) : 0,
         timeInZone: { ...t.timeInZone },
         caloriesBurned: Math.round(t.caloriesBurned),
+        averageSpeedKmh: t.speedCount > 0 ? Math.round((t.speedSum / t.speedCount) * 10) / 10 : 0,
+        peakSpeedKmh: Math.round(t.peakSpeedKmh * 10) / 10,
         teamName: team?.name,
         teamColor: team?.color,
       };
@@ -575,6 +588,14 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       }
     }
 
+    let groupSpeedSum = 0;
+    let groupSpeedCount = 0;
+    let groupPeakSpeed = 0;
+    for (const cs of clientSummaries) {
+      if (cs.averageSpeedKmh > 0) { groupSpeedSum += cs.averageSpeedKmh; groupSpeedCount++; }
+      groupPeakSpeed = Math.max(groupPeakSpeed, cs.peakSpeedKmh);
+    }
+
     onEndRef.current(Math.round(totalDist), {
       totalSteps: groupSteps,
       averageHeartRate: groupHrCount > 0 ? Math.round(groupHrSum / groupHrCount) : 0,
@@ -585,6 +606,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       participantCount: clients.length,
       isTeamFormat: isTeam,
       caloriesBurned: groupCalories,
+      averageSpeedKmh: groupSpeedCount > 0 ? Math.round((groupSpeedSum / groupSpeedCount) * 10) / 10 : 0,
+      peakSpeedKmh: Math.round(groupPeakSpeed * 10) / 10,
       clientSummaries,
     });
   }, [clients, clientProfiles, isTeam, config.teams]);

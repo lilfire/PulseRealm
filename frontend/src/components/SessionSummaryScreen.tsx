@@ -1,5 +1,6 @@
 import type { ClientSummary, RealmSummary } from "../hooks/useSessionHub";
 import type { ClientProfile } from "../types/session";
+import { formatPace } from "../utils/wearable";
 
 interface Props {
   summary: RealmSummary;
@@ -154,7 +155,7 @@ function ZoneBar({ timeInZone, height = 28 }: { timeInZone: Record<string, numbe
 
 function ComparisonBars({ clients, metric, label, formatter }: {
   clients: ClientSummary[];
-  metric: keyof Pick<ClientSummary, "steps" | "distanceMeters" | "averageHeartRate" | "maxHeartRate" | "avgCadenceSpm">;
+  metric: keyof Pick<ClientSummary, "steps" | "distanceMeters" | "averageHeartRate" | "maxHeartRate" | "avgCadenceSpm" | "averageSpeedKmh" | "peakSpeedKmh">;
   label: string;
   formatter: (v: number) => string;
 }) {
@@ -205,6 +206,7 @@ function ComparisonBars({ clients, metric, label, formatter }: {
 function SoloSection({ summary }: { summary: RealmSummary }) {
   const hasZones = summary.timeInZone && Object.keys(summary.timeInZone).length > 0;
   const activeZones = hasZones ? [1, 2, 3, 4, 5].filter((z) => (summary.timeInZone[z] ?? 0) > 0) : [];
+  const totalZoneTime = activeZones.reduce((sum, z) => sum + (summary.timeInZone[z] ?? 0), 0);
 
   return (
     <div style={{
@@ -233,6 +235,8 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
             <StatCard label="Calories" value={summary.caloriesBurned > 0 ? `${summary.caloriesBurned} kcal` : "—"} />
             <StatCard label="Avg Cadence" value={summary.avgCadenceSpm > 0 ? `${summary.avgCadenceSpm} spm` : "—"} />
             <StatCard label="Avg Speed" value={`${(summary.averageSpeedKmh ?? 0).toFixed(1)} km/h`} />
+            <StatCard label="Avg Pace" value={formatPace(summary.averageSpeedKmh ?? 0)} />
+            <StatCard label="Peak Speed" value={summary.peakSpeedKmh > 0 ? `${summary.peakSpeedKmh.toFixed(1)} km/h` : "—"} />
           </div>
           {activeZones.length > 0 && (
             <ZoneBar timeInZone={summary.timeInZone} height={32} />
@@ -252,16 +256,19 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
             justifyContent: "center",
           }}>
             <div style={{ fontSize: "0.8rem", color: "#888", marginBottom: 8 }}>Zone Breakdown</div>
-            {activeZones.map((z) => (
-              <div key={z} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-                <span style={{ fontSize: "0.85rem", color: ZONE_COLORS[z - 1], fontWeight: 600 }}>
-                  {ZONE_LABELS[z - 1]}
-                </span>
-                <span style={{ fontSize: "0.95rem", fontFamily: "var(--mono)", fontWeight: 600, color: "var(--text-h)" }}>
-                  {formatZoneTime(summary.timeInZone[z])}
-                </span>
-              </div>
-            ))}
+            {activeZones.map((z) => {
+              const pct = totalZoneTime > 0 ? Math.round((summary.timeInZone[z] / totalZoneTime) * 100) : 0;
+              return (
+                <div key={z} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+                  <span style={{ fontSize: "0.85rem", color: ZONE_COLORS[z - 1], fontWeight: 600 }}>
+                    {ZONE_LABELS[z - 1]}
+                  </span>
+                  <span style={{ fontSize: "0.95rem", fontFamily: "var(--mono)", fontWeight: 600, color: "var(--text-h)" }}>
+                    {formatZoneTime(summary.timeInZone[z])} <span style={{ fontSize: "0.75rem", color: "#888" }}>({pct}%)</span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -317,6 +324,9 @@ function FewClientView({ summary, clients }: { summary: RealmSummary; clients: C
           </div>
           <div style={{ flex: 1 }}>
             <ComparisonBars clients={clients} metric="steps" label="Steps" formatter={(v) => v.toLocaleString()} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <ComparisonBars clients={clients} metric="averageSpeedKmh" label="Avg Speed" formatter={(v) => `${v.toFixed(1)} km/h`} />
           </div>
         </div>
       )}
@@ -404,7 +414,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)", position: "sticky", top: 0, background: "var(--code-bg)" }}>
-              {["Name", "Distance", "Steps", "Avg HR", "Peak HR", "Calories", "Cadence"].map((h) => (
+              {["Name", "Distance", "Steps", "Avg HR", "Peak HR", "Calories", "Cadence", "Avg Speed", "Peak Speed"].map((h) => (
                 <th key={h} style={{
                   padding: "0.6rem 0.75rem",
                   textAlign: "left",
@@ -429,6 +439,8 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.maxHeartRate > 0 ? `${cs.maxHeartRate}` : "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.caloriesBurned > 0 ? `${cs.caloriesBurned}` : "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.avgCadenceSpm > 0 ? `${cs.avgCadenceSpm}` : "—"}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.averageSpeedKmh > 0 ? `${cs.averageSpeedKmh.toFixed(1)}` : "—"}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.peakSpeedKmh > 0 ? `${cs.peakSpeedKmh.toFixed(1)}` : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -491,13 +503,19 @@ function TeamSection({ summary }: { summary: RealmSummary }) {
 
             {/* Team aggregate row */}
             <div style={{
-              display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
+              display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
               gap: "0.5rem", marginBottom: "0.5rem", flexShrink: 0,
             }}>
               <StatCard label="Distance" value={formatDistance(teamDist)} compact />
               <StatCard label="Steps" value={teamSteps.toLocaleString()} compact />
               <StatCard label="Avg HR" value={teamAvgHr > 0 ? `${teamAvgHr} bpm` : "—"} compact />
               <StatCard label="Peak HR" value={teamMaxHr > 0 ? `${teamMaxHr} bpm` : "—"} compact />
+              <StatCard label="Avg Speed" value={(() => {
+                const speedClients = team.clients.filter((c) => c.averageSpeedKmh > 0);
+                if (speedClients.length === 0) return "—";
+                const avg = speedClients.reduce((s, c) => s + c.averageSpeedKmh, 0) / speedClients.length;
+                return `${avg.toFixed(1)} km/h`;
+              })()} compact />
             </div>
 
             {/* Team zone bar */}
@@ -534,6 +552,7 @@ function TeamSection({ summary }: { summary: RealmSummary }) {
 function ClientCard({ cs, showZones, showZoneBar }: { cs: ClientSummary; showZones?: boolean; showZoneBar?: boolean }) {
   const hasZones = cs.timeInZone && Object.keys(cs.timeInZone).length > 0;
   const activeZones = hasZones ? [1, 2, 3, 4, 5].filter((z) => (cs.timeInZone[z] ?? 0) > 0) : [];
+  const totalZoneTime = activeZones.reduce((sum, z) => sum + (cs.timeInZone[z] ?? 0), 0);
 
   return (
     <div style={{
@@ -554,6 +573,8 @@ function ClientCard({ cs, showZones, showZoneBar }: { cs: ClientSummary; showZon
       <MiniStat label="Peak HR" value={cs.maxHeartRate > 0 ? `${cs.maxHeartRate} bpm` : "—"} />
       <MiniStat label="Calories" value={cs.caloriesBurned > 0 ? `${cs.caloriesBurned} kcal` : "—"} />
       <MiniStat label="Cadence" value={cs.avgCadenceSpm > 0 ? `${cs.avgCadenceSpm} spm` : "—"} />
+      <MiniStat label="Avg Speed" value={cs.averageSpeedKmh > 0 ? `${cs.averageSpeedKmh.toFixed(1)} km/h` : "—"} />
+      <MiniStat label="Peak Speed" value={cs.peakSpeedKmh > 0 ? `${cs.peakSpeedKmh.toFixed(1)} km/h` : "—"} />
 
       {/* Zone bar (compact visual) */}
       {(showZoneBar || showZones) && hasZones && (
@@ -566,16 +587,19 @@ function ClientCard({ cs, showZones, showZoneBar }: { cs: ClientSummary; showZon
       {showZones && activeZones.length > 0 && (
         <div style={{ marginTop: "auto", paddingTop: 6 }}>
           <div style={{ fontSize: "0.7rem", color: "#888", marginBottom: 2 }}>Zones</div>
-          {activeZones.map((z) => (
-            <div key={z} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-              <span style={{ fontSize: "0.75rem", color: ZONE_COLORS[z - 1], fontWeight: 600 }}>
-                {ZONE_LABELS[z - 1]}
-              </span>
-              <span style={{ fontSize: "0.8rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>
-                {formatZoneTime(cs.timeInZone[z])}
-              </span>
-            </div>
-          ))}
+          {activeZones.map((z) => {
+            const pct = totalZoneTime > 0 ? Math.round((cs.timeInZone[z] / totalZoneTime) * 100) : 0;
+            return (
+              <div key={z} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                <span style={{ fontSize: "0.75rem", color: ZONE_COLORS[z - 1], fontWeight: 600 }}>
+                  {ZONE_LABELS[z - 1]}
+                </span>
+                <span style={{ fontSize: "0.8rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+                  {formatZoneTime(cs.timeInZone[z])} <span style={{ fontSize: "0.65rem", color: "#888" }}>({pct}%)</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
