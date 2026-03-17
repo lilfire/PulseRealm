@@ -17,3 +17,7 @@
 
 ## UI
 - [ ] Fix the summary screen on frontend, maby use som graphs
+
+# BUGS
+
+- [ ] Change server auto connect to exsisting server
