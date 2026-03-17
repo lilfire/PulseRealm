@@ -282,8 +282,9 @@ describe("individual section", () => {
       />
     );
 
-    expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getByText("Bob")).toBeInTheDocument();
+    // Names may appear in both client cards and comparison bars
+    expect(screen.getAllByText("Alice").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Bob").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Individual")).toBeInTheDocument();
   });
 
