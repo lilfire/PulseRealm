@@ -60,7 +60,7 @@ fun RealmScreen(
 ) {
     val heartRate by viewModel.heartRate.collectAsState()
     val steps by viewModel.steps.collectAsState()
-    val sendCount by viewModel.sendCount.collectAsState()
+    val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val sensorsAvailable by viewModel.sensorsAvailable.collectAsState()
     val realmEnded by viewModel.realmEnded.collectAsState()
@@ -126,7 +126,7 @@ fun RealmScreen(
                 0 -> LivePage(
                     heartRate = heartRate,
                     steps = steps,
-                    sendCount = sendCount,
+                    caloriesBurned = caloriesBurned,
                     connectionState = connectionState,
                     sensorsAvailable = sensorsAvailable
                 )
@@ -147,7 +147,7 @@ fun RealmScreen(
 private fun LivePage(
     heartRate: Int,
     steps: Int,
-    sendCount: Int,
+    caloriesBurned: Double,
     connectionState: ConnectionState,
     sensorsAvailable: Boolean
 ) {
@@ -201,7 +201,7 @@ private fun LivePage(
             }
         }
 
-        // Steps and send count
+        // Steps and calories
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -213,8 +213,8 @@ private fun LivePage(
                     color = PulseColors.Green
                 )
                 StatItem(
-                    value = "$sendCount",
-                    label = "SENT",
+                    value = "${caloriesBurned.toInt()}",
+                    label = "KCAL",
                     color = PulseColors.Purple
                 )
             }

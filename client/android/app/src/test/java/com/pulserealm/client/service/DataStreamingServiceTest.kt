@@ -28,14 +28,18 @@ class DataStreamingServiceTest {
     }
 
     @Test
-    fun `sendCount initial value is 0`() {
-        assertEquals(0, DataStreamingService.sendCount.value)
+    fun `EXTRA_WEIGHT_KG constant value`() {
+        assertEquals("weight_kg", DataStreamingService.EXTRA_WEIGHT_KG)
     }
 
     @Test
-    fun `sendCount is a StateFlow`() {
-        val count = DataStreamingService.sendCount.value
-        assertTrue(count >= 0)
+    fun `EXTRA_AGE constant value`() {
+        assertEquals("age", DataStreamingService.EXTRA_AGE)
+    }
+
+    @Test
+    fun `caloriesBurned initial value is 0`() {
+        assertEquals(0.0, DataStreamingService.caloriesBurned.value, 0.001)
     }
 
     @Test

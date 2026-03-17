@@ -27,7 +27,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneOffset
@@ -63,15 +62,17 @@ class DataStreamingService : Service() {
             return START_NOT_STICKY
         }
         val intervalMs = intent.getLongExtra(EXTRA_INTERVAL_MS, 1000L)
+        val weightKg = intent.getDoubleExtra(EXTRA_WEIGHT_KG, 0.0)
+        val age = intent.getIntExtra(EXTRA_AGE, 0)
 
         startForeground(NOTIFICATION_ID, buildNotification())
         acquireWifiLock()
         acquireWakeLock()
         registerNetworkCallback()
         sensorDataCollector.start()
-        startStreaming(realmId, clientId, intervalMs)
+        startStreaming(realmId, clientId, intervalMs, weightKg, age)
 
-        _sendCount.value = 0
+        _caloriesBurned.value = 0.0
 
         return START_NOT_STICKY
     }
@@ -86,19 +87,25 @@ class DataStreamingService : Service() {
         super.onDestroy()
     }
 
-    private fun startStreaming(realmId: String, clientId: String, intervalMs: Long) {
+    private fun startStreaming(realmId: String, clientId: String, intervalMs: Long, weightKg: Double, age: Int) {
         streamingJob?.cancel()
         streamingJob = scope.launch {
+            val intervalSec = intervalMs / 1000.0
             while (true) {
                 try {
+                    val hr = sensorDataCollector.heartRate.value
                     val data = WearableData(
                         clientId = clientId,
-                        heartRate = sensorDataCollector.heartRate.value,
+                        heartRate = hr,
                         steps = sensorDataCollector.steps.value,
                         timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now().atOffset(ZoneOffset.UTC))
                     )
                     signalRClient.sendWearableData(realmId, data)
-                    _sendCount.update { it + 1 }
+                    if (hr > 0 && weightKg > 0 && age > 0) {
+                        val calsPerMin = (-37.549 + 0.5391 * hr + 0.1626 * weightKg + 0.1379 * age) / 4.184
+                        val calsThisTick = (calsPerMin.coerceAtLeast(0.0) / 60.0) * intervalSec
+                        _caloriesBurned.value += calsThisTick
+                    }
                 } catch (_: Exception) {
                     // Transient send failure — continue on next cycle
                 }
@@ -185,10 +192,12 @@ class DataStreamingService : Service() {
         const val EXTRA_REALM_ID = "realm_id"
         const val EXTRA_CLIENT_ID = "client_id"
         const val EXTRA_INTERVAL_MS = "interval_ms"
+        const val EXTRA_WEIGHT_KG = "weight_kg"
+        const val EXTRA_AGE = "age"
         private const val CHANNEL_ID = "pulserealm_streaming"
         private const val NOTIFICATION_ID = 1
 
-        private val _sendCount = MutableStateFlow(0)
-        val sendCount: StateFlow<Int> = _sendCount.asStateFlow()
+        private val _caloriesBurned = MutableStateFlow(0.0)
+        val caloriesBurned: StateFlow<Double> = _caloriesBurned.asStateFlow()
     }
 }

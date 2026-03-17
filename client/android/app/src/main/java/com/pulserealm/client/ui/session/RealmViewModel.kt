@@ -31,12 +31,14 @@ class RealmViewModel @Inject constructor(
     val clientId: String = savedStateHandle["clientId"] ?: ""
     val serverUrl: String = java.net.URLDecoder.decode(savedStateHandle["serverUrl"] ?: "", "UTF-8")
     val heightCm: Double = (prefs.getString("height_cm", null)?.toDoubleOrNull() ?: 0.0)
+    private val weightKg: Double = (prefs.getString("weight_kg", null)?.toDoubleOrNull() ?: 0.0)
+    private val age: Int = (prefs.getString("age", null)?.toIntOrNull() ?: 0)
 
     val heartRate: StateFlow<Int> = sensorDataCollector.heartRate
     val steps: StateFlow<Int> = sensorDataCollector.steps
     val sensorsAvailable: StateFlow<Boolean> = sensorDataCollector.sensorsAvailable
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
-    val sendCount: StateFlow<Int> = DataStreamingService.sendCount
+    val caloriesBurned: StateFlow<Double> = DataStreamingService.caloriesBurned
     val realmEnded: StateFlow<RealmSummaryData?> = signalRClient.realmEnded
     val eliminated: StateFlow<Boolean> = signalRClient.eliminated
     val realmStarted: StateFlow<Boolean> = signalRClient.realmStarted
@@ -61,6 +63,8 @@ class RealmViewModel @Inject constructor(
             putExtra(DataStreamingService.EXTRA_REALM_ID, realmId)
             putExtra(DataStreamingService.EXTRA_CLIENT_ID, clientId)
             putExtra(DataStreamingService.EXTRA_INTERVAL_MS, 1000L)
+            putExtra(DataStreamingService.EXTRA_WEIGHT_KG, weightKg)
+            putExtra(DataStreamingService.EXTRA_AGE, age)
         }
         application.startForegroundService(intent)
     }
