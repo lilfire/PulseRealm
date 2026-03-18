@@ -536,7 +536,12 @@ public class RealmHub : Hub
         {
             if (r.Status != RealmStatus.Started)
                 return false;
-            return r.ConnectedClientIds.Count == 0;
+            if (r.ConnectedClientIds.Count > 0)
+                return false;
+            // Don't auto-end if the dashboard/host is still connected
+            if (r.HostConnectionId is not null)
+                return false;
+            return true;
         });
 
         if (shouldEnd)
