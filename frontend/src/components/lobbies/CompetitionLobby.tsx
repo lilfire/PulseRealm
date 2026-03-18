@@ -118,7 +118,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       minPlayers={subMode === "elimination" ? 3 : undefined}
     >
       {/* Sub-mode selector */}
-      <div style={{ margin: "1.5rem 0" }}>
+      <div style={{ margin: "0.75rem 0" }}>
         <h3>Sub-mode</h3>
         <div className="fg-wrap" style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem", flexWrap: "wrap", "--fg": "0.75rem" } as React.CSSProperties}>
           {SUB_MODES.map((m) => (
@@ -133,7 +133,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       </div>
 
       {/* Player format */}
-      <div style={{ margin: "1.5rem 0" }}>
+      <div style={{ margin: "0.75rem 0" }}>
         <h3>Player Format</h3>
         <div className="fg-wrap" style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem", flexWrap: "wrap", "--fg": "0.75rem" } as React.CSSProperties}>
           {(["individual", "team"] as const).map((f) => (
@@ -146,7 +146,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
 
       {/* Sub-mode specific config */}
       {subMode === "race" && (
-        <div style={{ margin: "1.5rem 0" }}>
+        <div style={{ margin: "0.75rem 0" }}>
           <h3>Target Distance</h3>
           <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.75rem", "--fg": "1rem" } as React.CSSProperties}>
             <input
@@ -166,7 +166,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       )}
 
       {subMode === "elimination" && (
-        <div style={{ margin: "1.5rem 0" }}>
+        <div style={{ margin: "0.75rem 0" }}>
           <h3>Elimination Interval</h3>
           <div className="fg-row" style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem", "--fg": "0.75rem" } as React.CSSProperties}>
             {[1, 2, 3, 5, 10].map((v) => (
@@ -184,7 +184,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       )}
 
       {subMode === "heartzone" && (
-        <div style={{ margin: "1.5rem 0" }}>
+        <div style={{ margin: "0.75rem 0" }}>
           <h3>Target Zone</h3>
           <div className="fg-row" style={{ display: "flex", justifyContent: "center", marginTop: "0.75rem", "--fg": "0.75rem" } as React.CSSProperties}>
             {[1, 2, 3, 4, 5].map((z) => (
@@ -212,7 +212,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       )}
 
       {subMode === "king" && (
-        <div style={{ margin: "1.5rem 0" }}>
+        <div style={{ margin: "0.75rem 0" }}>
           <h3>Duration</h3>
           <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.75rem", "--fg": "1rem" } as React.CSSProperties}>
             <input
@@ -233,7 +233,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
 
       {/* Team assignment */}
       {playerFormat === "team" && (
-        <div style={{ margin: "1.5rem 0" }}>
+        <div style={{ margin: "0.75rem 0" }}>
           <h3>Team Assignment</h3>
           <div className="fg-col" style={{ display: "flex", flexDirection: "column", marginTop: "0.75rem", maxWidth: 500, margin: "0.75rem auto 0", "--fg": "1rem" } as React.CSSProperties}>
             {teams.map((team, ti) => (

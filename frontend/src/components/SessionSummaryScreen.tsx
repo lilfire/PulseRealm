@@ -49,7 +49,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
       flexDirection: "column",
       background: "var(--bg)",
       color: "var(--text-h)",
-      padding: "1.5rem 2.5rem",
+      padding: "0.75rem 2rem",
       boxSizing: "border-box",
     }}>
       {/* Header row */}
@@ -57,7 +57,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: "1rem",
+        marginBottom: "0.5rem",
         flexShrink: 0,
         flexWrap: "wrap",
       }}>
@@ -76,7 +76,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
       {/* Realm stats bar */}
       <div className="fg-wrap" style={{
         display: "flex",
-        marginBottom: "1rem",
+        marginBottom: "0.5rem",
         flexShrink: 0,
         flexWrap: "wrap",
         "--fg": "1rem",
@@ -339,7 +339,7 @@ function FewClientView({ summary, clients }: { summary: RealmSummary; clients: C
       <div className="summary-clients" style={{
         display: "grid",
         gridTemplateColumns: `repeat(${clients.length}, 1fr)`,
-        gap: "1rem",
+        gap: "0.75rem",
         flex: 1,
         minHeight: 0,
         overflow: "hidden",
@@ -473,7 +473,7 @@ function TeamSection({ summary }: { summary: RealmSummary }) {
     <div style={{
       display: "grid",
       gridTemplateColumns: `repeat(${cols}, 1fr)`,
-      gap: "1.5rem",
+      gap: "1rem",
       height: "100%",
       overflowY: "auto",
     }}>
