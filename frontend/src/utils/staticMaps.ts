@@ -108,10 +108,11 @@ export function staticMapUrl(options: {
   height: number;
   markers?: Array<{ lat: number; lng: number; label?: string; color?: string }>;
   path?: Array<{ lat: number; lng: number }>;
+  encodedPath?: string;
   pathColor?: string;
   playerMarker?: { lat: number; lng: number };
 }): string {
-  const { center, zoom, width, height, markers, path, pathColor, playerMarker } = options;
+  const { center, zoom, width, height, markers, path, encodedPath, pathColor, playerMarker } = options;
   // Use %7C instead of | — Google accepts both, but raw pipes get mangled
   // when proxied through the ASP.NET Core server (HttpClient/Uri encoding).
   const P = "%7C";
@@ -140,7 +141,10 @@ export function staticMapUrl(options: {
     url += `&markers=color:yellow${P}label:P${P}${playerMarker.lat},${playerMarker.lng}`;
   }
 
-  if (path && path.length >= 2) {
+  if (encodedPath) {
+    const color = pathColor || "0x4285F4ff";
+    url += `&path=color:${color}${P}weight:4${P}enc:${encodedPath}`;
+  } else if (path && path.length >= 2) {
     const color = pathColor || "0x4285F4ff";
     const coords = path.map((p) => `${p.lat},${p.lng}`).join(P);
     url += `&path=color:${color}${P}weight:4${P}${coords}`;

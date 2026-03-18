@@ -25,7 +25,13 @@ export function StaticRouteMode({
   onEnd,
   role = "host",
 }: Props) {
-  const totalRouteLength = computeDistanceBetween(route.from, route.to);
+  const [directionsData, setDirectionsData] = useState<{
+    overview_polyline: string;
+    distance_meters: number;
+    points: Array<{ lat: number; lng: number }>;
+  } | null>(null);
+  // Cumulative distances for the polyline points (for binary search interpolation)
+  const cumulativeDistRef = useRef<number[]>([]);
 
   const speedRef = useRef(0);
   const totalDistanceRef = useRef(0);
@@ -91,21 +97,46 @@ export function StaticRouteMode({
       });
   }
 
+  // Fetch directions (road polyline) from server
+  useEffect(function () {
+    fetch("/api/maps/directions?origin=" + route.from.lat + "," + route.from.lng + "&destination=" + route.to.lat + "," + route.to.lng)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.points && data.points.length >= 2) {
+          setDirectionsData(data);
+          // Build cumulative distances along the polyline
+          var distances = [0];
+          var total = 0;
+          for (var i = 1; i < data.points.length; i++) {
+            total += computeDistanceBetween(data.points[i - 1], data.points[i]);
+            distances.push(total);
+          }
+          cumulativeDistRef.current = distances;
+        }
+      })
+      .catch(function () { /* fallback to straight line */ });
+  }, [route]);
+
   // Build the initial map URL
-  useEffect(() => {
-    var url = staticMapUrl({
+  useEffect(function () {
+    var opts: any = {
       width: IMG_W,
       height: IMG_H,
       markers: [
         { lat: route.from.lat, lng: route.from.lng, label: "A", color: "green" },
         { lat: route.to.lat, lng: route.to.lng, label: "B", color: "red" },
       ],
-      path: [route.from, route.to],
       pathColor: "0x4285F4ff",
       playerMarker: { lat: route.from.lat, lng: route.from.lng },
-    });
+    };
+    if (directionsData) {
+      opts.encodedPath = directionsData.overview_polyline;
+    } else {
+      opts.path = [route.from, route.to];
+    }
+    var url = staticMapUrl(opts);
     tryLoadMap(url, true);
-  }, [route]);
+  }, [route, directionsData]);
 
   // Track speed
   useEffect(() => {
@@ -127,16 +158,20 @@ export function StaticRouteMode({
   }, [clients, clientProfiles, latestData]);
 
   // Progress along route
-  useEffect(() => {
-    const INTERVAL_MS = 500;
-    const timer = setInterval(() => {
+  useEffect(function () {
+    var totalRouteLength = directionsData
+      ? directionsData.distance_meters
+      : computeDistanceBetween(route.from, route.to);
+
+    var INTERVAL_MS = 500;
+    var timer = setInterval(function () {
       if (finished) return;
 
-      const speedKmh = speedRef.current;
+      var speedKmh = speedRef.current;
       if (speedKmh <= 0) return;
 
-      const speedMs = speedKmh / 3.6;
-      const distanceDelta = speedMs * (INTERVAL_MS / 1000);
+      var speedMs = speedKmh / 3.6;
+      var distanceDelta = speedMs * (INTERVAL_MS / 1000);
       totalDistanceRef.current += distanceDelta;
       travelledRef.current += distanceDelta;
       setTotalDistanceDisplay(Math.round(totalDistanceRef.current));
@@ -151,33 +186,58 @@ export function StaticRouteMode({
         return;
       }
 
-      const t = travelledRef.current / totalRouteLength;
-      setProgressPct(Math.min(100, t * 100));
+      setProgressPct(Math.min(100, (travelledRef.current / totalRouteLength) * 100));
 
-      // Interpolate position along straight line
-      const newLat = route.from.lat + (route.to.lat - route.from.lat) * t;
-      const newLng = route.from.lng + (route.to.lng - route.from.lng) * t;
+      // Interpolate position along polyline or straight line
+      var newLat: number;
+      var newLng: number;
+      if (directionsData && cumulativeDistRef.current.length >= 2) {
+        var points = directionsData.points;
+        var distances = cumulativeDistRef.current;
+        // Binary search for the segment containing travelledRef.current
+        var lo = 0;
+        var hi = distances.length - 1;
+        while (lo < hi - 1) {
+          var mid = (lo + hi) >> 1;
+          if (distances[mid] <= travelledRef.current) lo = mid;
+          else hi = mid;
+        }
+        var segStart = distances[lo];
+        var segEnd = distances[hi];
+        var segLen = segEnd - segStart;
+        var t2 = segLen > 0 ? (travelledRef.current - segStart) / segLen : 0;
+        newLat = points[lo].lat + (points[hi].lat - points[lo].lat) * t2;
+        newLng = points[lo].lng + (points[hi].lng - points[lo].lng) * t2;
+      } else {
+        var t = travelledRef.current / totalRouteLength;
+        newLat = route.from.lat + (route.to.lat - route.from.lat) * t;
+        newLng = route.from.lng + (route.to.lng - route.from.lng) * t;
+      }
 
       // Update map image periodically — pre-validate via fetch so a 403 keeps the old image
       var now = Date.now();
       if (now - lastMapUpdateRef.current >= UPDATE_INTERVAL_MS) {
         lastMapUpdateRef.current = now;
-        var url = staticMapUrl({
+        var opts: any = {
           width: IMG_W,
           height: IMG_H,
           markers: [
             { lat: route.from.lat, lng: route.from.lng, label: "A", color: "green" },
             { lat: route.to.lat, lng: route.to.lng, label: "B", color: "red" },
           ],
-          path: [route.from, route.to],
           pathColor: "0x4285F4ff",
           playerMarker: { lat: newLat, lng: newLng },
-        });
-        tryLoadMap(url, false);
+        };
+        if (directionsData) {
+          opts.encodedPath = directionsData.overview_polyline;
+        } else {
+          opts.path = [route.from, route.to];
+        }
+        tryLoadMap(staticMapUrl(opts), false);
       }
     }, INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [finished, route, totalRouteLength]);
+    return function () { clearInterval(timer); };
+  }, [finished, route, directionsData]);
 
   const clientId = clients[0];
   const profile = clientId ? clientProfiles[clientId] : null;
@@ -277,8 +337,8 @@ export function StaticRouteMode({
           textAlign: "center",
         }}
       >
-        <div style={{ fontWeight: 600 }}>{(totalRouteLength / 1000).toFixed(1)} km</div>
-        <div style={{ color: "#aaa", fontSize: "0.75rem" }}>Straight line</div>
+        <div style={{ fontWeight: 600 }}>{((directionsData ? directionsData.distance_meters : computeDistanceBetween(route.from, route.to)) / 1000).toFixed(1)} km</div>
+        <div style={{ color: "#aaa", fontSize: "0.75rem" }}>{directionsData ? "Walking route" : "Straight line"}</div>
         <div style={{ color: "#00D4FF", fontSize: "0.8rem", marginTop: "0.2rem" }}>{progressPct.toFixed(0)}%</div>
       </div>
 
