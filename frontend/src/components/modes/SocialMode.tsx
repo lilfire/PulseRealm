@@ -372,55 +372,55 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       {/* ── Team totals bar ─────────────────────────────────────── */}
       <div className="fg-row" style={{
         display: "flex", justifyContent: "center", alignItems: "baseline",
-        "--fg": "48px", padding: "28px 32px 20px",
+        "--fg": "32px", padding: "12px 24px 8px",
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
       } as React.CSSProperties}>
         <div style={{ textAlign: "center" }}>
           <div style={{
-            fontSize: 64, fontWeight: 700, lineHeight: 1,
+            fontSize: 40, fontWeight: 700, lineHeight: 1,
             fontFamily: "var(--mono)", color: "var(--text-h)",
             transition: "all 0.4s ease",
           }}>
             {totalSteps.toLocaleString()}
           </div>
-          <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 12, color: "var(--text)", marginTop: 2, textTransform: "uppercase", letterSpacing: 1 }}>
             steps
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{
-            fontSize: 36, fontWeight: 600, lineHeight: 1,
+            fontSize: 24, fontWeight: 600, lineHeight: 1,
             fontFamily: "var(--mono)", color: "var(--text-h)",
             transition: "all 0.4s ease",
           }}>
             {totalDistKm.toFixed(2)}
           </div>
-          <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 12, color: "var(--text)", marginTop: 2, textTransform: "uppercase", letterSpacing: 1 }}>
             km
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{
-            fontSize: 36, fontWeight: 600, lineHeight: 1,
+            fontSize: 24, fontWeight: 600, lineHeight: 1,
             fontFamily: "var(--mono)", color: avgHr > 0 ? "var(--text-h)" : "var(--text)",
             transition: "all 0.4s ease",
           }}>
             {avgHr > 0 ? avgHr : "—"}
           </div>
-          <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 12, color: "var(--text)", marginTop: 2, textTransform: "uppercase", letterSpacing: 1 }}>
             avg bpm
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{
-            fontSize: 36, fontWeight: 600, lineHeight: 1,
+            fontSize: 24, fontWeight: 600, lineHeight: 1,
             fontFamily: "var(--mono)", color: totalCalories > 0 ? "var(--text-h)" : "var(--text)",
             transition: "all 0.4s ease",
           }}>
             {totalCalories > 0 ? Math.round(totalCalories) : "—"}
           </div>
-          <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: 12, color: "var(--text)", marginTop: 2, textTransform: "uppercase", letterSpacing: 1 }}>
             kcal
           </div>
         </div>
@@ -431,7 +431,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         flex: 1, overflow: "auto",
         display: "grid",
         gridTemplateColumns: `repeat(${Math.min(clients.length, 4)}, 1fr)`,
-        gap: 16, padding: "24px 32px",
+        gap: 12, padding: "12px 24px",
         alignContent: "stretch",
       }}>
         {clients.map((cid, idx) => {
@@ -449,8 +449,8 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
             <div key={cid} className="fg-col" style={{
               background: "var(--code-bg)",
               borderRadius: 12,
-              padding: "20px 24px",
-              display: "flex", flexDirection: "column", "--fg": "14px",
+              padding: "12px 16px",
+              display: "flex", flexDirection: "column", "--fg": "8px",
               opacity: active ? 1 : 0.4,
               transition: "opacity 0.6s ease",
               border: "1px solid var(--border)",
@@ -459,10 +459,10 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
               <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "12px" } as React.CSSProperties}>
                 {/* Avatar */}
                 <div style={{
-                  width: 40, height: 40, borderRadius: "50%",
+                  width: 32, height: 32, borderRadius: "50%",
                   background: active ? avatarColor(idx) : "#555",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 16, fontWeight: 700, color: "#fff",
+                  fontSize: 13, fontWeight: 700, color: "#fff",
                   transition: "background 0.6s ease",
                   flexShrink: 0,
                 }}>
@@ -489,7 +489,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
               {/* HR */}
               <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
                 <span style={{
-                  fontSize: 32, fontWeight: 700, fontFamily: "var(--mono)",
+                  fontSize: 24, fontWeight: 700, fontFamily: "var(--mono)",
                   color: active && hr > 0 ? "var(--text-h)" : "var(--text)",
                   transition: "all 0.4s ease",
                 }}>
@@ -564,7 +564,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       {/* ── Moment banner ───────────────────────────────────────── */}
       <div style={{
         flexShrink: 0,
-        padding: "16px 32px",
+        padding: "8px 24px",
         display: "flex", justifyContent: "space-between", alignItems: "center",
         borderTop: "1px solid var(--border)",
         background: isInSync
@@ -589,7 +589,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           )}
         </div>
         <div style={{
-          fontSize: 28, fontWeight: 600, fontFamily: "var(--mono)",
+          fontSize: 22, fontWeight: 600, fontFamily: "var(--mono)",
           color: "var(--text-h)",
         }}>
           {formatDuration(elapsed)}

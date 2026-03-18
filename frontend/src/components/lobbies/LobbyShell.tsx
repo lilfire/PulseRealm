@@ -39,7 +39,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
 
       <div className="lobby-header">
         <p style={{ margin: "0 0 0.25rem", fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.1em" }}>Join Code</p>
-        <p style={{ margin: 0 }}><strong style={{ fontSize: "3rem", letterSpacing: "0.2em", lineHeight: 1 }}>{joinCode}</strong></p>
+        <p style={{ margin: 0 }}><strong style={{ fontSize: "2rem", letterSpacing: "0.2em", lineHeight: 1 }}>{joinCode}</strong></p>
         <div style={{
           display: "inline-block",
           padding: "0.15rem 0.6rem",
@@ -50,7 +50,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
           fontSize: "0.65rem",
           fontWeight: 600,
           letterSpacing: "0.05em",
-          marginTop: "0.5rem",
+          marginTop: "0.25rem",
         }}>
           {role.toUpperCase()}
         </div>
@@ -152,7 +152,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
 function HostKeyToggle({ hostSecret }: { hostSecret: string }) {
   const [show, setShow] = useState(false);
   return (
-    <p style={{ margin: "0.25rem 0 0", color: "var(--text, #9ca3af)", fontSize: "0.75rem" }}>
+    <p style={{ margin: "0.15rem 0 0", color: "var(--text, #9ca3af)", fontSize: "0.75rem" }}>
       <button
         onClick={() => setShow(!show)}
         style={{

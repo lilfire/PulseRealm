@@ -750,7 +750,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {/* ── Top bar ──────────────────────────────────────────────── */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "20px 32px",
+        padding: "10px 24px",
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
       }}>
@@ -777,14 +777,14 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         {/* Timer / countdown */}
         <div style={{ textAlign: "center" }}>
           {config.subMode === "race" && (
-            <div style={{ fontSize: 28, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
               {formatDuration(elapsed)}
             </div>
           )}
           {config.subMode === "elimination" && (
             <div style={{ textAlign: "center" }}>
               <div style={{
-                fontSize: 40, fontWeight: 700, fontFamily: "var(--mono)",
+                fontSize: 20, fontWeight: 700, fontFamily: "var(--mono)",
                 color: elimCountdown <= 10 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
@@ -798,7 +798,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           {(config.subMode === "heartzone" || config.subMode === "king") && (
             <div style={{ textAlign: "center" }}>
               <div style={{
-                fontSize: 36, fontWeight: 700, fontFamily: "var(--mono)",
+                fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
                 color: remainingSecs <= 60 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
@@ -818,7 +818,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {config.subMode === "heartzone" && (
         <div style={{
           display: "flex", justifyContent: "center", alignItems: "center",
-          padding: "12px 32px",
+          padding: "6px 24px",
           background: `${ZONE_COLORS[config.targetZone - 1]}18`,
           borderBottom: "1px solid var(--border)",
           "--fg": "12px",
@@ -839,13 +839,13 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {config.subMode === "king" && currentKing && (
         <div style={{
           display: "flex", justifyContent: "center", alignItems: "center",
-          padding: "14px 32px",
+          padding: "7px 24px",
           background: "rgba(255, 215, 0, 0.08)",
           borderBottom: "1px solid var(--border)",
           "--fg": "12px",
         } as React.CSSProperties} className="fg-row">
-          <span style={{ fontSize: 24 }}>&#128081;</span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#ffd700" }}>
+          <span style={{ fontSize: 18 }}>&#128081;</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#ffd700" }}>
             {isTeam ? currentKing : (clientProfiles[currentKing]?.name ?? currentKing.slice(0, 8))}
           </span>
           <span style={{ fontSize: 13, color: "var(--text)", fontFamily: "var(--mono)" }}>
@@ -858,13 +858,13 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {config.subMode === "race" && raceWinner && (
         <div style={{
           display: "flex", justifyContent: "center", alignItems: "center",
-          padding: "16px 32px",
+          padding: "8px 24px",
           background: "rgba(34, 197, 94, 0.12)",
           borderBottom: "1px solid var(--border)",
           "--fg": "12px",
         } as React.CSSProperties} className="fg-row">
           <span style={{ fontSize: 24 }}>&#127942;</span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: "#22c55e" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#22c55e" }}>
             {isTeam ? raceWinner : (clientProfiles[raceWinner]?.name ?? raceWinner.slice(0, 8))} wins!
           </span>
         </div>
@@ -874,13 +874,13 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {config.subMode === "elimination" && elimWinner && (
         <div style={{
           display: "flex", justifyContent: "center", alignItems: "center",
-          padding: "16px 32px",
+          padding: "8px 24px",
           background: "rgba(34, 197, 94, 0.12)",
           borderBottom: "1px solid var(--border)",
           "--fg": "12px",
         } as React.CSSProperties} className="fg-row">
           <span style={{ fontSize: 24 }}>&#127942;</span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: "#22c55e" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#22c55e" }}>
             {isTeam ? elimWinner : (clientProfiles[elimWinner]?.name ?? elimWinner.slice(0, 8))} wins!
           </span>
           <span style={{ fontSize: 14, color: "var(--text)" }}>Last one standing</span>
@@ -890,9 +890,9 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {/* ── Leaderboard ──────────────────────────────────────────── */}
       <div style={{
         flex: 1, overflow: "auto",
-        padding: "20px 32px",
+        padding: "10px 24px",
       }}>
-        <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "12px", maxWidth: 1100, margin: "0 auto" } as React.CSSProperties}>
+        <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "6px", maxWidth: 1100, margin: "0 auto" } as React.CSSProperties}>
           {sorted.map((entry, idx) => {
             const isElimZone = config.subMode === "elimination"
               && !entry.eliminated
@@ -911,7 +911,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                       ? "rgba(239, 68, 68, 0.08)"
                       : "var(--code-bg)",
                   borderRadius: 10,
-                  padding: "16px 24px",
+                  padding: "10px 16px",
                   border: entry.eliminated
                     ? "1px solid rgba(255,255,255,0.04)"
                     : isElimZone
@@ -925,8 +925,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
               >
                 {/* Position */}
                 <div style={{
-                  width: 32, textAlign: "center",
-                  fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)",
+                  width: 28, textAlign: "center",
+                  fontSize: 13, fontWeight: 700, fontFamily: "var(--mono)",
                   color: entry.finished && entry.finishPosition
                     ? (entry.finishPosition === 1 ? "#ffd700" : entry.finishPosition === 2 ? "#c0c0c0" : "#cd7f32")
                     : entry.eliminated
@@ -942,10 +942,10 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
 
                 {/* Avatar / color */}
                 <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
+                  width: 28, height: 28, borderRadius: "50%",
                   background: entry.eliminated ? "#555" : entry.color,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, fontWeight: 700, color: "#fff",
+                  fontSize: 11, fontWeight: 700, color: "#fff",
                   flexShrink: 0,
                   transition: "background 0.4s",
                 }}>
@@ -955,7 +955,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 {/* Name + status */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 16, fontWeight: 600,
+                    fontSize: 13, fontWeight: 600,
                     color: entry.eliminated ? "#666" : "var(--text-h)",
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>
@@ -999,7 +999,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 {/* Calories */}
                 {entry.calories > 0 && (
                   <div style={{ textAlign: "right", minWidth: 60 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
                       {Math.round(entry.calories)}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text)" }}>kcal</div>
@@ -1030,10 +1030,10 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 {/* Elimination / general: distance */}
                 {config.subMode === "elimination" && (
                   <div style={{ textAlign: "right", minWidth: 80 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
                       {entry.distanceKm.toFixed(2)}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text)" }}>km</div>
+                    <div style={{ fontSize: 10, color: "var(--text)" }}>km</div>
                   </div>
                 )}
 
@@ -1041,23 +1041,23 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 {config.subMode === "heartzone" && (
                   <div style={{ textAlign: "right", minWidth: 80 }}>
                     <div style={{
-                      fontSize: 20, fontWeight: 700, fontFamily: "var(--mono)",
+                      fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)",
                       color: entry.inZone ? ZONE_COLORS[config.targetZone - 1] : "var(--text-h)",
                       transition: "color 0.3s",
                     }}>
                       {entry.points}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text)" }}>pts</div>
+                    <div style={{ fontSize: 10, color: "var(--text)" }}>pts</div>
                   </div>
                 )}
 
                 {/* King: points + king bar */}
                 {config.subMode === "king" && (
                   <div style={{ textAlign: "right", minWidth: 100 }}>
-                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
                       {entry.points}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text)", marginBottom: 4 }}>pts</div>
+                    <div style={{ fontSize: 10, color: "var(--text)", marginBottom: 4 }}>pts</div>
                     {elapsed > 0 && (
                       <div style={{
                         height: 4, borderRadius: 2,
@@ -1085,7 +1085,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       {/* ── Bottom bar ───────────────────────────────────────────── */}
       <div style={{
         flexShrink: 0,
-        padding: "14px 32px",
+        padding: "8px 24px",
         display: "flex", justifyContent: "space-between", alignItems: "center",
         borderTop: "1px solid var(--border)",
       }}>
@@ -1095,7 +1095,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           {totalCalories > 0 && ` · ${Math.round(totalCalories)} kcal`}
         </div>
         <div style={{
-          fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
+          fontSize: 13, fontWeight: 600, fontFamily: "var(--mono)",
           color: "var(--text-h)",
         }}>
           {formatDuration(elapsed)}
