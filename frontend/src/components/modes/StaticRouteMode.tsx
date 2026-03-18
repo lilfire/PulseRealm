@@ -37,13 +37,63 @@ export function StaticRouteMode({
   const [finished, setFinished] = useState(false);
   const [mapError, setMapError] = useState("");
 
-  // Map image URL
+  // Map image URL — only updated when the image is confirmed loadable
   const [mapUrl, setMapUrl] = useState("");
   const lastMapUpdateRef = useRef(0);
+  const pendingFetchRef = useRef(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up retry timer on unmount
+  useEffect(function () {
+    return function () {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
+  /** Try to load a static map URL. Only update <img> src if the server returns an image.
+   *  Retries with exponential backoff (2s, 4s, 8s, 16s) on failure. */
+  function tryLoadMap(url: string, isInitial: boolean, attempt?: number) {
+    var currentAttempt = attempt || 0;
+    if (pendingFetchRef.current && currentAttempt === 0) return;
+    pendingFetchRef.current = true;
+    fetch(url)
+      .then(function (r) {
+        pendingFetchRef.current = false;
+        if (r.ok) {
+          setMapUrl(url);
+          setMapError("");
+        } else {
+          // Retry up to 4 times with exponential backoff
+          if (currentAttempt < 4) {
+            var delay = Math.pow(2, currentAttempt + 1) * 1000; // 2s, 4s, 8s, 16s
+            retryTimerRef.current = setTimeout(function () {
+              tryLoadMap(url, isInitial, currentAttempt + 1);
+            }, delay);
+          } else if (isInitial) {
+            // All retries exhausted on initial load — show error
+            r.json()
+              .then(function (data) { setMapError(data && data.error ? data.error : "load_error"); })
+              .catch(function () { setMapError("load_error"); });
+          }
+          // else: update retries exhausted — silently keep the last good image
+        }
+      })
+      .catch(function () {
+        pendingFetchRef.current = false;
+        if (currentAttempt < 4) {
+          var delay = Math.pow(2, currentAttempt + 1) * 1000;
+          retryTimerRef.current = setTimeout(function () {
+            tryLoadMap(url, isInitial, currentAttempt + 1);
+          }, delay);
+        } else if (isInitial) {
+          setMapError("load_error");
+        }
+      });
+  }
 
   // Build the initial map URL
   useEffect(() => {
-    const url = staticMapUrl({
+    var url = staticMapUrl({
       width: IMG_W,
       height: IMG_H,
       markers: [
@@ -54,7 +104,7 @@ export function StaticRouteMode({
       pathColor: "0x4285F4ff",
       playerMarker: { lat: route.from.lat, lng: route.from.lng },
     });
-    setMapUrl(url);
+    tryLoadMap(url, true);
   }, [route]);
 
   // Track speed
@@ -108,11 +158,11 @@ export function StaticRouteMode({
       const newLat = route.from.lat + (route.to.lat - route.from.lat) * t;
       const newLng = route.from.lng + (route.to.lng - route.from.lng) * t;
 
-      // Update map image periodically
-      const now = Date.now();
+      // Update map image periodically — pre-validate via fetch so a 403 keeps the old image
+      var now = Date.now();
       if (now - lastMapUpdateRef.current >= UPDATE_INTERVAL_MS) {
         lastMapUpdateRef.current = now;
-        const url = staticMapUrl({
+        var url = staticMapUrl({
           width: IMG_W,
           height: IMG_H,
           markers: [
@@ -123,7 +173,7 @@ export function StaticRouteMode({
           pathColor: "0x4285F4ff",
           playerMarker: { lat: newLat, lng: newLng },
         });
-        setMapUrl(url);
+        tryLoadMap(url, false);
       }
     }, INTERVAL_MS);
     return () => clearInterval(timer);
@@ -161,23 +211,7 @@ export function StaticRouteMode({
         <img
           src={mapUrl}
           alt="Route Map"
-          onError={function (e) {
-            var img = e.target as HTMLImageElement;
-            // Try fetching the URL to get the JSON error body from our proxy
-            fetch(img.src)
-              .then(function (r) {
-                if (!r.ok) return r.json().catch(function () { return null; });
-                return null;
-              })
-              .then(function (data) {
-                if (data && data.error) {
-                  setMapError(data.error);
-                } else {
-                  setMapError("load_error");
-                }
-              })
-              .catch(function () { setMapError("load_error"); });
-          }}
+          onError={function () { setMapError("load_error"); }}
           style={{
             position: "absolute",
             top: 0,
