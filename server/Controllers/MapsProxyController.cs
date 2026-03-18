@@ -72,7 +72,10 @@ public class MapsProxyController : ControllerBase
 
         if (!response.IsSuccessStatusCode || bytes.Length == 0)
         {
-            return StatusCode((int)response.StatusCode, bytes.Length > 0 ? bytes : "Empty response from Google Maps API");
+            // Try to extract a human-readable error from the Google response body.
+            var errorBody = bytes.Length > 0 ? System.Text.Encoding.UTF8.GetString(bytes) : "";
+            var message = !string.IsNullOrWhiteSpace(errorBody) ? errorBody : "Empty response from Google Maps API";
+            return StatusCode((int)response.StatusCode, new { error = message, statusCode = (int)response.StatusCode });
         }
 
         return File(bytes, contentType);
