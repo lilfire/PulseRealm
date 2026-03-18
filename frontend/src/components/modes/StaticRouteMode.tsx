@@ -11,7 +11,6 @@ interface Props {
   route: RouteConfig;
   onEnd: (totalDistanceMeters: number) => void;
   role?: RealmRole;
-  apiKey: string;
 }
 
 const IMG_W = 640;
@@ -25,7 +24,6 @@ export function StaticRouteMode({
   route,
   onEnd,
   role = "host",
-  apiKey,
 }: Props) {
   const totalRouteLength = computeDistanceBetween(route.from, route.to);
 
@@ -48,7 +46,6 @@ export function StaticRouteMode({
     const url = staticMapUrl({
       width: IMG_W,
       height: IMG_H,
-      apiKey,
       markers: [
         { lat: route.from.lat, lng: route.from.lng, label: "A", color: "green" },
         { lat: route.to.lat, lng: route.to.lng, label: "B", color: "red" },
@@ -58,7 +55,7 @@ export function StaticRouteMode({
       playerMarker: { lat: route.from.lat, lng: route.from.lng },
     });
     setMapUrl(url);
-  }, [route, apiKey]);
+  }, [route]);
 
   // Track speed
   useEffect(() => {
@@ -118,7 +115,6 @@ export function StaticRouteMode({
         const url = staticMapUrl({
           width: IMG_W,
           height: IMG_H,
-          apiKey,
           markers: [
             { lat: route.from.lat, lng: route.from.lng, label: "A", color: "green" },
             { lat: route.to.lat, lng: route.to.lng, label: "B", color: "red" },
@@ -131,7 +127,7 @@ export function StaticRouteMode({
       }
     }, INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [finished, route, totalRouteLength, apiKey]);
+  }, [finished, route, totalRouteLength]);
 
   const clientId = clients[0];
   const profile = clientId ? clientProfiles[clientId] : null;

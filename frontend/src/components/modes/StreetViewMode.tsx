@@ -59,7 +59,7 @@ const arrowBtnStyle: React.CSSProperties = {
 const PRELOAD_COUNT = 3;
 
 export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd, role = "host" }: Props) {
-  const { loaded: mapsLoaded, error: mapsError, apiKey } = useGoogleMaps();
+  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
 
   // Two containers — one visible, one hidden preloading the next pano
   const containerARef = useRef<HTMLDivElement>(null);
@@ -545,7 +545,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const profile = clientId ? clientProfiles[clientId] : null;
 
   if (!mapsLoaded) {
-    if (mapsError && apiKey) {
+    if (mapsError) {
       return (
         <StaticStreetViewMode
           clients={clients}
@@ -554,7 +554,6 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           startLocation={startLocation}
           onEnd={onEnd}
           role={role}
-          apiKey={apiKey}
         />
       );
     }

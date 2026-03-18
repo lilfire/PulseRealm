@@ -33,7 +33,7 @@ function extractDetailedPath(result: google.maps.DirectionsResult): google.maps.
 }
 
 export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, role = "host" }: Props) {
-  const { loaded: mapsLoaded, error: mapsError, apiKey } = useGoogleMaps();
+  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -311,7 +311,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   const profile = clientId ? clientProfiles[clientId] : null;
 
   if (!mapsLoaded) {
-    if (mapsError && apiKey) {
+    if (mapsError) {
       return (
         <StaticRouteMode
           clients={clients}
@@ -320,7 +320,6 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
           route={route}
           onEnd={onEnd}
           role={role}
-          apiKey={apiKey}
         />
       );
     }

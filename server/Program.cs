@@ -13,6 +13,7 @@ builder.Services.AddSingleton<AdminAuthService>();
 builder.Services.AddTransient<AdminAuthFilter>();
 builder.Services.AddHostedService<ServerDiscoveryService>();
 builder.Services.AddHostedService<RealmCleanupService>();
+builder.Services.AddHttpClient();
 
 builder.Services.AddCors(options =>
 {

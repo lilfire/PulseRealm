@@ -15,7 +15,6 @@ interface Props {
   startLocation: StreetViewLocation;
   onEnd: (totalDistanceMeters: number) => void;
   role?: RealmRole;
-  apiKey: string;
 }
 
 const arrowBtnStyle: React.CSSProperties = {
@@ -44,7 +43,6 @@ export function StaticStreetViewMode({
   startLocation,
   onEnd,
   role = "host",
-  apiKey,
 }: Props) {
   const pitch = 0;
 
@@ -69,8 +67,8 @@ export function StaticStreetViewMode({
   // Build image URL for current position
   const buildUrl = useCallback(
     (la: number, ln: number, h: number) =>
-      streetViewImageUrl(la, ln, h, pitch, IMG_W, IMG_H, apiKey),
-    [pitch, apiKey],
+      streetViewImageUrl(la, ln, h, pitch, IMG_W, IMG_H),
+    [pitch],
   );
 
   // Initialize with the start location image
@@ -87,7 +85,7 @@ export function StaticStreetViewMode({
       movingRef.current = true;
 
       try {
-        const metaUrl = streetViewMetadataUrl(newLat, newLng, apiKey);
+        const metaUrl = streetViewMetadataUrl(newLat, newLng);
         const resp = await fetch(metaUrl);
         const data = await resp.json();
 
@@ -116,7 +114,7 @@ export function StaticStreetViewMode({
         movingRef.current = false;
       }
     },
-    [apiKey, buildUrl],
+    [buildUrl],
   );
 
   // Track speed

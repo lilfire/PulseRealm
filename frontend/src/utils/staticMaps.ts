@@ -69,7 +69,7 @@ export function computeHeading(
   return ((toDeg(Math.atan2(y, x)) % 360) + 360) % 360;
 }
 
-/** Build a Street View Static API image URL. */
+/** Build a Street View image URL via the server proxy (avoids referrer/403 issues). */
 export function streetViewImageUrl(
   lat: number,
   lng: number,
@@ -77,55 +77,49 @@ export function streetViewImageUrl(
   pitch: number,
   width: number,
   height: number,
-  apiKey: string,
 ): string {
   return (
-    `https://maps.googleapis.com/maps/api/streetview` +
+    `/api/maps/streetview` +
     `?size=${width}x${height}` +
     `&location=${lat},${lng}` +
     `&heading=${heading}` +
     `&pitch=${pitch}` +
-    `&fov=90` +
-    `&key=${apiKey}`
+    `&fov=90`
   );
 }
 
-/** Build a Street View Metadata API URL (returns JSON with status + pano location). */
+/** Build a Street View Metadata API URL via the server proxy. */
 export function streetViewMetadataUrl(
   lat: number,
   lng: number,
-  apiKey: string,
 ): string {
   return (
-    `https://maps.googleapis.com/maps/api/streetview/metadata` +
-    `?location=${lat},${lng}` +
-    `&key=${apiKey}`
+    `/api/maps/streetview/metadata` +
+    `?location=${lat},${lng}`
   );
 }
 
-/** Build a Static Maps API URL with optional markers and path.
+/** Build a Static Maps API URL via the server proxy.
  *  When center/zoom are omitted the API auto-fits to markers & path. */
 export function staticMapUrl(options: {
   center?: { lat: number; lng: number };
   zoom?: number;
   width: number;
   height: number;
-  apiKey: string;
   markers?: Array<{ lat: number; lng: number; label?: string; color?: string }>;
   path?: Array<{ lat: number; lng: number }>;
   pathColor?: string;
   playerMarker?: { lat: number; lng: number };
 }): string {
-  const { center, zoom, width, height, apiKey, markers, path, pathColor, playerMarker } = options;
+  const { center, zoom, width, height, markers, path, pathColor, playerMarker } = options;
   let url =
-    `https://maps.googleapis.com/maps/api/staticmap` +
+    `/api/maps/static` +
     `?size=${width}x${height}` +
     `&maptype=roadmap` +
     `&style=element:geometry|color:0x242f3e` +
     `&style=element:labels.text.fill|color:0x746855` +
     `&style=feature:road|element:geometry|color:0x38414e` +
-    `&style=feature:water|element:geometry|color:0x17263c` +
-    `&key=${apiKey}`;
+    `&style=feature:water|element:geometry|color:0x17263c`;
 
   if (center != null && zoom != null) {
     url += `&center=${center.lat},${center.lng}&zoom=${zoom}`;
