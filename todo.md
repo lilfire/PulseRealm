@@ -18,6 +18,7 @@ Qr kode på front for android nedlasting
 Pov setting for streetview start 
 
 Youtube mode duration i hud
++ progress av video. Hva skjer når videoen er ferdig? End realm? 
 
 Terms of use
 
