@@ -38,28 +38,16 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       </div>
 
       <div className="lobby-header">
-        <p style={{ margin: "0 0 0.25rem", fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.1em" }}>Join Code</p>
-        <p style={{ margin: 0 }}><strong style={{ fontSize: "2rem", letterSpacing: "0.2em", lineHeight: 1 }}>{joinCode}</strong></p>
-        <div style={{
-          display: "inline-block",
-          padding: "0.15rem 0.6rem",
-          borderRadius: "4px",
-          background: rs.bg,
-          border: `1px solid ${rs.border}`,
-          color: rs.color,
-          fontSize: "0.65rem",
-          fontWeight: 600,
-          letterSpacing: "0.05em",
-          marginTop: "0.25rem",
-        }}>
-          {role.toUpperCase()}
-        </div>
+        <p style={{ margin: "0 0 0.15rem", fontSize: "0.7rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.1em" }}>Join Code</p>
+        <p style={{ margin: 0 }}><strong style={{ fontSize: "1.6rem", letterSpacing: "0.2em", lineHeight: 1 }}>{joinCode}</strong></p>
         {hostSecret && canControl && <HostKeyToggle hostSecret={hostSecret} />}
       </div>
 
       <div className="lobby-columns">
         <div className="lobby-col-settings">
-          {canControl && children}
+          {canControl ? children : (
+            <div style={{ pointerEvents: "none", opacity: 0.7 }}>{children}</div>
+          )}
         </div>
 
         <div className="lobby-col-players">
@@ -108,6 +96,20 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       </div>
 
       <div className="lobby-footer">
+        <div style={{
+          position: "absolute",
+          left: "1rem",
+          padding: "0.15rem 0.6rem",
+          borderRadius: "4px",
+          background: rs.bg,
+          border: `1px solid ${rs.border}`,
+          color: rs.color,
+          fontSize: "0.6rem",
+          fontWeight: 600,
+          letterSpacing: "0.05em",
+        }}>
+          {role.toUpperCase()}
+        </div>
         {canControl && (
           <button
             onClick={onStart}
