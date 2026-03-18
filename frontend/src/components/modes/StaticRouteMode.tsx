@@ -37,6 +37,7 @@ export function StaticRouteMode({
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
   const [progressPct, setProgressPct] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [mapError, setMapError] = useState(false);
 
   // Map image URL
   const [mapUrl, setMapUrl] = useState("");
@@ -145,18 +146,38 @@ export function StaticRouteMode({
   return (
     <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#000" }}>
       {/* Static map image */}
-      <img
-        src={mapUrl}
-        alt="Route Map"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-        }}
-      />
+      {mapError ? (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#555",
+            fontSize: "1.2rem",
+          }}
+        >
+          Map unavailable
+        </div>
+      ) : (
+        <img
+          src={mapUrl}
+          alt="Route Map"
+          onError={() => setMapError(true)}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+          }}
+        />
+      )}
 
       {/* Limited mode notice */}
       <div

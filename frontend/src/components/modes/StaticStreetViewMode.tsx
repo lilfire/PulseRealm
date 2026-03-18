@@ -63,6 +63,8 @@ export function StaticStreetViewMode({
   const latRef = useRef(startLocation.lat);
   const lngRef = useRef(startLocation.lng);
   const headingRef = useRef(0);
+  const showFrontRef = useRef(true);
+  const pendingSwapRef = useRef<"front" | "back" | null>(null);
 
   // Build image URL for current position
   const buildUrl = useCallback(
@@ -94,15 +96,15 @@ export function StaticStreetViewMode({
           const snappedLng = data.location.lng;
           const imgUrl = buildUrl(snappedLat, snappedLng, newHeading);
 
-          // Preload on the hidden image, then swap
-          if (showFront) {
+          // Preload on the hidden image, then swap on load
+          if (showFrontRef.current) {
+            pendingSwapRef.current = "back";
             setBackSrc(imgUrl);
           } else {
+            pendingSwapRef.current = "front";
             setFrontSrc(imgUrl);
           }
 
-          // Wait a tick for the browser to start loading, then swap on load
-          // The onLoad handler on the img will trigger the swap
           latRef.current = snappedLat;
           lngRef.current = snappedLng;
           headingRef.current = newHeading;
@@ -114,7 +116,7 @@ export function StaticStreetViewMode({
         movingRef.current = false;
       }
     },
-    [apiKey, buildUrl, showFront],
+    [apiKey, buildUrl],
   );
 
   // Track speed
@@ -170,28 +172,44 @@ export function StaticStreetViewMode({
 
     // Just rotate — reload image at same position with new heading
     const url = buildUrl(latRef.current, lngRef.current, newHeading);
-    if (showFront) {
+    if (showFrontRef.current) {
+      pendingSwapRef.current = "back";
       setBackSrc(url);
     } else {
+      pendingSwapRef.current = "front";
       setFrontSrc(url);
     }
-  }, [buildUrl, showFront]);
+  }, [buildUrl]);
 
   const handleRight = useCallback(() => {
     const newHeading = (headingRef.current + 90) % 360;
     headingRef.current = newHeading;
 
     const url = buildUrl(latRef.current, lngRef.current, newHeading);
-    if (showFront) {
+    if (showFrontRef.current) {
+      pendingSwapRef.current = "back";
       setBackSrc(url);
     } else {
+      pendingSwapRef.current = "front";
       setFrontSrc(url);
     }
-  }, [buildUrl, showFront]);
+  }, [buildUrl]);
 
-  // Swap on back image load
+  // Swap when the hidden (preloading) image finishes loading
+  const handleFrontLoad = useCallback(() => {
+    if (pendingSwapRef.current === "front") {
+      pendingSwapRef.current = null;
+      showFrontRef.current = true;
+      setShowFront(true);
+    }
+  }, []);
+
   const handleBackLoad = useCallback(() => {
-    setShowFront((prev) => !prev);
+    if (pendingSwapRef.current === "back") {
+      pendingSwapRef.current = null;
+      showFrontRef.current = false;
+      setShowFront(false);
+    }
   }, []);
 
   const clientId = clients[0];
@@ -203,6 +221,7 @@ export function StaticStreetViewMode({
       <img
         src={frontSrc}
         alt="Street View"
+        onLoad={handleFrontLoad}
         style={{
           position: "absolute",
           top: 0,

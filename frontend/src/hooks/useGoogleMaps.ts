@@ -31,9 +31,29 @@ function getApiKey(): Promise<string> {
 
 let loadPromise: Promise<void> | null = null;
 
+/** Check whether the browser can parse optional chaining (`?.`), which the
+ *  Google Maps JS API requires.  Chrome 74 (Wear OS) does not support it. */
+function supportsOptionalChaining(): boolean {
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function("var o={}; return o?.x");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function loadGoogleMaps(apiKey: string): Promise<void> {
   if ((window as unknown as { google?: typeof google }).google?.maps) return Promise.resolve();
   if (loadPromise) return loadPromise;
+
+  // Skip loading the JS API on browsers that can't parse it — prevents
+  // uncaught SyntaxError noise in the console (falls back to static maps).
+  if (!supportsOptionalChaining()) {
+    return Promise.reject(
+      new Error("Google Maps API requires optional chaining (?.) which this browser does not support"),
+    );
+  }
 
   loadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
