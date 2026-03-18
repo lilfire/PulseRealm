@@ -22,12 +22,7 @@
   flex-direction: row;
 }
 
-/* Left spacer to balance the sidebar and keep content centered */
-.home-body::before {
-  content: "";
-  width: 60px;
-  flex-shrink: 0;
-}
+/* (spacer removed — device strip is now inline) */
 
 .home-content {
   flex: 1;
@@ -100,7 +95,7 @@
 .btn-join-link {
   background: none;
   border: none;
-  color: var(--accent2, #33DFFF);
+  color: var(--text, #9ca3af);
   font-size: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -108,11 +103,11 @@
   margin: 0;
   text-decoration: underline;
   text-underline-offset: 2px;
-  transition: opacity 0.2s;
+  transition: color 0.2s;
 }
 
 .btn-join-link:hover {
-  opacity: 0.8;
+  color: var(--text-h, #f3f4f6);
   background: none;
 }
 
@@ -335,36 +330,31 @@
   background: transparent;
 }
 
-/* --- Device Sidebar --- */
+/* --- Device Strip --- */
 
-.device-sidebar {
+.device-strip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  font-size: 0.8rem;
-  color: var(--text, #9ca3af);
-  opacity: 0.5;
-  border-left: 1px solid var(--border, #2e303a);
-  width: 60px;
-  flex-shrink: 0;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  opacity: 0.6;
   transition: opacity 0.2s;
 }
 
-.device-sidebar:hover {
+.device-strip:hover {
   opacity: 1;
 }
 
-.device-sidebar-label {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-  white-space: nowrap;
-  opacity: 0.7;
+.device-strip-label {
   font-size: 0.75rem;
+  color: var(--text, #9ca3af);
   letter-spacing: 0.05em;
+}
+
+.device-strip-buttons {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .device-link {
@@ -372,15 +362,37 @@
   border: 1px solid var(--border, #2e303a);
   color: var(--text-h, #f3f4f6);
   font-size: 0.75rem;
-  padding: 0.2rem 0.75rem;
+  padding: 0.25rem 0.85rem;
   border-radius: 4px;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .device-link:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: var(--accent2, #33DFFF);
   color: var(--accent2, #33DFFF);
+}
+
+.device-link--disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.device-link--disabled:hover {
+  border-color: var(--border, #2e303a);
+  color: var(--text-h, #f3f4f6);
+  background: transparent;
+}
+
+.device-coming-soon {
+  font-size: 0.55rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* --- QR Code Modal --- */
