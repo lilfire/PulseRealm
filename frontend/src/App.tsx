@@ -493,30 +493,35 @@ function App() {
           </div>
         </div>
         <footer className="server-footer">
-          {!PRESET_API_URL && server.serverInfo && (
-            <>
-              <span>
-                {server.serverInfo.name ?? server.serverUrl}
-                {server.serverInfo.version && (
-                  <span className="server-version">v{server.serverInfo.version}</span>
-                )}
-              </span>
-              <button className="btn-change-server" onClick={server.disconnect}>
-                Change
+          <div className="footer-left">
+            {!PRESET_API_URL && server.serverInfo && (
+              <>
+                <span>
+                  {server.serverInfo.name ?? server.serverUrl}
+                  {server.serverInfo.version && (
+                    <span className="server-version">v{server.serverInfo.version}</span>
+                  )}
+                </span>
+                <button className="btn-change-server" onClick={server.disconnect}>
+                  Change
+                </button>
+              </>
+            )}
+            {adminEnabled && (
+              <button className="btn-admin-gear" onClick={() => setPage("admin-login")} title="Admin Settings">
+                &#9881;
               </button>
-            </>
-          )}
-          {adminEnabled && (
-            <button className="btn-admin-gear" onClick={() => setPage("admin-login")} title="Admin Settings">
-              &#9881;
+            )}
+          </div>
+          <div className="footer-right">
+            <button className="btn-tos-link" onClick={() => setPage("tos")}>
+              Terms of Service
             </button>
-          )}
-          <button className="btn-tos-link" onClick={() => setPage("tos")}>
-            Terms of Service
-          </button>
-          <button className="btn-android-download" onClick={() => setShowAndroidQR(true)}>
-            &#9662; Android App
-          </button>
+            <button className="btn-android-download" onClick={() => setShowAndroidQR(true)}>
+              &#9662; Android App
+            </button>
+            <span className="app-version">v{APP_VERSION}</span>
+          </div>
         </footer>
         {showAndroidQR && (
           <div className="qr-overlay" onClick={() => setShowAndroidQR(false)}>
@@ -536,7 +541,6 @@ function App() {
             </div>
           </div>
         )}
-        <span className="app-version">v{APP_VERSION}</span>
       </div>
     );
   }
