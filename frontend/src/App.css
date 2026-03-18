@@ -770,7 +770,6 @@ button:disabled {
   text-align: left;
   flex: 1;
   min-height: 0;
-  padding-bottom: 60px;
 }
 
 .lobby-col-settings {
@@ -778,6 +777,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .lobby-col-players {
@@ -795,10 +795,8 @@ button:disabled {
 }
 
 .lobby-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   align-items: center;
