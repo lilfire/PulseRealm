@@ -53,6 +53,7 @@ interface LobbyDefaults {
   };
   streetViewLocations: { lat: number; lng: number; address: string; heading?: number; pitch?: number }[];
   youTubeVideos: { videoId: string; url: string; title: string; baseSpeedKmh: number }[];
+  curatedRoutes: { fromLat: number; fromLng: number; fromAddress: string; toLat: number; toLng: number; toAddress: string }[];
 }
 
 function App() {
@@ -624,6 +625,7 @@ function App() {
       return (
         <RouteLobby
           {...lobbyProps}
+          curatedRoutes={lobbyDefaults?.curatedRoutes}
           onStart={(config) => {
             setRouteConfig(config);
             startRealm(config);

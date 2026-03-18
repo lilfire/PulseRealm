@@ -47,6 +47,7 @@ public class ConfigController : ControllerBase
                 },
                 streetViewLocations = config.StreetViewLocations,
                 youTubeVideos = config.YouTubeVideos,
+                curatedRoutes = config.CuratedRoutes,
             },
         });
     }

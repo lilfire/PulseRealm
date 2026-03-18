@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActiveRealms } from "./ActiveRealms";
 import { CompetitionDefaults } from "./CompetitionDefaults";
 import { DungeonDefaults } from "./DungeonDefaults";
+import { RouteEditor, type CuratedRouteItem } from "./RouteEditor";
 import { StreetViewEditor, type StreetViewLocationItem } from "./StreetViewEditor";
 import { ProtectionDefaults } from "./ProtectionDefaults";
 import { YouTubeEditor, type YouTubeVideoItem } from "./YouTubeEditor";
@@ -20,6 +21,7 @@ interface AdminConfig {
   maxConcurrentRealms: number;
   streetViewLocations: StreetViewLocationItem[];
   youTubeVideos: YouTubeVideoItem[];
+  curatedRoutes: CuratedRouteItem[];
 }
 
 interface RealmJoinData {
@@ -35,7 +37,7 @@ interface Props {
   onJoinRealm?: (realm: RealmJoinData) => void;
 }
 
-type Tab = "realms" | "competition" | "dungeon" | "streetview" | "youtube" | "protection";
+type Tab = "realms" | "competition" | "dungeon" | "streetview" | "youtube" | "route" | "protection";
 
 export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) {
   const [config, setConfig] = useState<AdminConfig | null>(null);
@@ -146,6 +148,7 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           ["dungeon", "Dungeon"],
           ["streetview", "Street View Places"],
           ["youtube", "YouTube Videos"],
+          ["route", "Routes"],
           ["protection", "Protection"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
@@ -194,6 +197,13 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           <YouTubeEditor
             videos={config.youTubeVideos}
             onChange={(vids) => setConfig({ ...config, youTubeVideos: vids })}
+          />
+        )}
+
+        {tab === "route" && (
+          <RouteEditor
+            routes={config.curatedRoutes}
+            onChange={(routes) => setConfig({ ...config, curatedRoutes: routes })}
           />
         )}
 

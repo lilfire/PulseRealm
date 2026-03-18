@@ -21,6 +21,7 @@ public class AdminConfig
     // Curated lists
     public List<StreetViewLocationDto> StreetViewLocations { get; set; } = DefaultStreetViewLocations();
     public List<YouTubeVideoDto> YouTubeVideos { get; set; } = DefaultYouTubeVideos();
+    public List<CuratedRouteDto> CuratedRoutes { get; set; } = DefaultCuratedRoutes();
 
     public static List<StreetViewLocationDto> DefaultStreetViewLocations() =>
     [
@@ -52,6 +53,20 @@ public class AdminConfig
         new() { VideoId = "qSk4VWboaE4", Url = "https://www.youtube.com/watch?v=qSk4VWboaE4", Title = "Walking Tour - Istanbul, Turkey" },
         new() { VideoId = "F0VKx9G1Mig", Url = "https://www.youtube.com/watch?v=F0VKx9G1Mig", Title = "Walking Tour - Amsterdam, Netherlands" },
     ];
+
+    public static List<CuratedRouteDto> DefaultCuratedRoutes() =>
+    [
+        new() { FromLat = 48.8584, FromLng = 2.2945, FromAddress = "Eiffel Tower, Paris", ToLat = 48.8606, ToLng = 2.3376, ToAddress = "Louvre Museum, Paris" },
+        new() { FromLat = 40.7484, FromLng = -73.9857, FromAddress = "Empire State Building, NYC", ToLat = 40.7580, ToLng = -73.9855, ToAddress = "Times Square, NYC" },
+        new() { FromLat = 51.5014, FromLng = -0.1419, FromAddress = "Big Ben, London", ToLat = 51.5081, ToLng = -0.0759, ToAddress = "Tower of London" },
+        new() { FromLat = 41.8902, FromLng = 12.4922, FromAddress = "Colosseum, Rome", ToLat = 41.9029, ToLng = 12.4534, ToAddress = "Vatican City, Rome" },
+        new() { FromLat = 35.6762, FromLng = 139.6503, FromAddress = "Shibuya, Tokyo", ToLat = 35.6586, ToLng = 139.7454, ToAddress = "Tokyo Tower" },
+        new() { FromLat = 37.8199, FromLng = -122.4783, FromAddress = "Golden Gate Bridge, SF", ToLat = 37.8083, ToLng = -122.4156, ToAddress = "Fisherman's Wharf, SF" },
+        new() { FromLat = 52.5163, FromLng = 13.3777, FromAddress = "Brandenburg Gate, Berlin", ToLat = 52.5209, ToLng = 13.4094, ToAddress = "Alexanderplatz, Berlin" },
+        new() { FromLat = 59.9139, FromLng = 10.7522, FromAddress = "Karl Johans gate, Oslo", ToLat = 59.9050, ToLng = 10.7505, ToAddress = "Aker Brygge, Oslo" },
+        new() { FromLat = -33.8568, FromLng = 151.2153, FromAddress = "Sydney Opera House", ToLat = -33.8523, ToLng = 151.2108, ToAddress = "Sydney Harbour Bridge" },
+        new() { FromLat = 50.0755, FromLng = 14.4378, FromAddress = "Charles Bridge, Prague", ToLat = 50.0865, ToLng = 14.4200, ToAddress = "Prague Castle" },
+    ];
 }
 
 public class StreetViewLocationDto
@@ -69,4 +84,14 @@ public class YouTubeVideoDto
     public string Url { get; set; } = "";
     public string Title { get; set; } = "";
     public double BaseSpeedKmh { get; set; } = 5.0;
+}
+
+public class CuratedRouteDto
+{
+    public double FromLat { get; set; }
+    public double FromLng { get; set; }
+    public string FromAddress { get; set; } = "";
+    public double ToLat { get; set; }
+    public double ToLng { get; set; }
+    public string ToAddress { get; set; } = "";
 }

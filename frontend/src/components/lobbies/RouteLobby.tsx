@@ -15,6 +15,15 @@ export interface RouteConfig {
   to: RouteEndpoint;
 }
 
+export interface CuratedRouteItem {
+  fromLat: number;
+  fromLng: number;
+  fromAddress: string;
+  toLat: number;
+  toLng: number;
+  toAddress: string;
+}
+
 interface Props {
   joinCode: string;
   mode: RealmMode;
@@ -27,6 +36,7 @@ interface Props {
   onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
+  curatedRoutes?: CuratedRouteItem[] | null;
   lobbySettings?: Record<string, unknown> | null;
   onSettingsChange?: (settings: object) => void;
 }
@@ -224,10 +234,17 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, lobbySettings, onSettingsChange }: Props) {
+export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedRoutes, lobbySettings, onSettingsChange }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
+
+  const routes: RouteConfig[] = curatedRoutes && curatedRoutes.length > 0
+    ? curatedRoutes.map((r) => ({
+        from: { lat: r.fromLat, lng: r.fromLng, address: r.fromAddress },
+        to: { lat: r.toLat, lng: r.toLng, address: r.toAddress },
+      }))
+    : CURATED_ROUTES;
 
   const isHost = role === "host" || role === "admin";
   const settingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -294,7 +311,7 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
             )}
             <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a curated route:</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {CURATED_ROUTES.map((r, i) => {
+              {routes.map((r, i) => {
                 const isSelected = from?.address === r.from.address && to?.address === r.to.address;
                 return (
                   <li
