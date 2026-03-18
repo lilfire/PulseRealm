@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
+import { usePlacesProxy } from "../../hooks/usePlacesProxy";
 import { LobbyShell } from "./LobbyShell";
 
 export interface RouteEndpoint {
@@ -52,13 +53,16 @@ function PlaceInput({
   value,
   onSelect,
   mapsLoaded,
+  useProxyMode,
 }: {
   label: string;
   placeholder: string;
   value: RouteEndpoint | null;
   onSelect: (endpoint: RouteEndpoint) => void;
   mapsLoaded: boolean;
+  useProxyMode?: boolean;
 }) {
+  const proxy = usePlacesProxy();
   const [query, setQuery] = useState(value?.address ?? "");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -69,12 +73,12 @@ function PlaceInput({
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!mapsLoaded) return;
+    if (!mapsLoaded || useProxyMode) return;
     autocompleteService.current = new google.maps.places.AutocompleteService();
     if (placesDiv.current) {
       placesService.current = new google.maps.places.PlacesService(placesDiv.current);
     }
-  }, [mapsLoaded]);
+  }, [mapsLoaded, useProxyMode]);
 
   useEffect(() => {
     return () => {
@@ -100,20 +104,37 @@ function PlaceInput({
     (val: string) => {
       setQuery(val);
       setShowSuggestions(true);
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(() => fetchSuggestions(val), 300);
+      if (useProxyMode) {
+        proxy.fetchSuggestions(val);
+      } else {
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => fetchSuggestions(val), 300);
+      }
     },
-    [fetchSuggestions],
+    [fetchSuggestions, useProxyMode, proxy],
   );
 
   const selectSuggestion = useCallback(
     (suggestion: Suggestion) => {
+      if (useProxyMode) {
+        proxy.getDetails(suggestion.placeId).then(function (details) {
+          if (details) {
+            var endpoint: RouteEndpoint = { lat: details.lat, lng: details.lng, address: details.address };
+            onSelect(endpoint);
+            setQuery(endpoint.address);
+            setSuggestions([]);
+            proxy.clearSuggestions();
+            setShowSuggestions(false);
+          }
+        });
+        return;
+      }
       if (!placesService.current) return;
       placesService.current.getDetails(
         { placeId: suggestion.placeId, fields: ["geometry", "formatted_address", "name"] },
         (place, status) => {
           if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
-            const endpoint: RouteEndpoint = {
+            var endpoint: RouteEndpoint = {
               lat: place.geometry.location.lat(),
               lng: place.geometry.location.lng(),
               address: place.formatted_address || place.name || suggestion.description,
@@ -126,8 +147,10 @@ function PlaceInput({
         },
       );
     },
-    [onSelect],
+    [onSelect, useProxyMode, proxy],
   );
+
+  var activeSuggestions = useProxyMode ? proxy.suggestions : suggestions;
 
   return (
     <div style={{ marginBottom: "1rem" }}>
@@ -139,21 +162,21 @@ function PlaceInput({
           type="text"
           value={query}
           onChange={(e) => onInputChange(e.target.value)}
-          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onFocus={() => activeSuggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           style={{
             padding: "0.6rem 0.75rem",
             fontSize: "1rem",
             borderRadius: "6px",
-            border: `2px solid ${value ? "#00D4FF" : "#555"}`,
+            border: "2px solid " + (value ? "#00D4FF" : "#555"),
             width: "100%",
             background: "#1a1a1a",
             color: "#fff",
             boxSizing: "border-box",
           }}
         />
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && activeSuggestions.length > 0 && (
           <ul
             role="listbox"
             style={{
@@ -173,7 +196,7 @@ function PlaceInput({
               textAlign: "left",
             }}
           >
-            {suggestions.map((s) => (
+            {activeSuggestions.map((s) => (
               <li
                 key={s.placeId}
                 role="option"
@@ -221,10 +244,33 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
     >
       <div style={{ margin: "1.5rem 0", maxWidth: "420px", width: "100%", textAlign: "left" }}>
         <h3>Plan Your Route</h3>
-        {mapsError ? (
+        {!mapsLoaded && !mapsError ? (
+          <p style={{ color: "#888" }}>Loading maps...</p>
+        ) : (
           <>
-            <p style={{ color: "#f59e0b", fontSize: "0.85rem" }}>Place search unavailable (limited browser). Pick a curated route:</p>
-            <ul style={{ listStyle: "none", padding: 0, margin: "0.75rem 0", maxHeight: "400px", overflowY: "auto" }}>
+            <PlaceInput
+              label="From"
+              placeholder="Starting point..."
+              value={from}
+              onSelect={setFrom}
+              mapsLoaded={mapsLoaded}
+              useProxyMode={!!mapsError}
+            />
+            <PlaceInput
+              label="To"
+              placeholder="Destination..."
+              value={to}
+              onSelect={setTo}
+              mapsLoaded={mapsLoaded}
+              useProxyMode={!!mapsError}
+            />
+            {from && to && (
+              <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                Route will use walking/hiking directions.
+              </p>
+            )}
+            <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a curated route:</p>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {CURATED_ROUTES.map((r, i) => {
                 const isSelected = from?.address === r.from.address && to?.address === r.to.address;
                 return (
@@ -250,30 +296,6 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
                 );
               })}
             </ul>
-          </>
-        ) : !mapsLoaded ? (
-          <p style={{ color: "#888" }}>Loading maps...</p>
-        ) : (
-          <>
-            <PlaceInput
-              label="From"
-              placeholder="Starting point..."
-              value={from}
-              onSelect={setFrom}
-              mapsLoaded={mapsLoaded}
-            />
-            <PlaceInput
-              label="To"
-              placeholder="Destination..."
-              value={to}
-              onSelect={setTo}
-              mapsLoaded={mapsLoaded}
-            />
-            {from && to && (
-              <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.5rem" }}>
-                Route will use walking/hiking directions.
-              </p>
-            )}
           </>
         )}
       </div>

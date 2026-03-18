@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
+import { usePlacesProxy } from "../../hooks/usePlacesProxy";
 import { LobbyShell } from "./LobbyShell";
 
 export interface StreetViewLocation {
@@ -74,12 +75,16 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 
 export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
+  const proxy = usePlacesProxy();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const locations = curatedLocations && curatedLocations.length > 0 ? curatedLocations : CURATED_LOCATIONS;
   const [randomLocations] = useState(() => pickRandom(locations, 5));
+
+  // Use server proxy when Maps JS SDK is unavailable (Chrome 74)
+  const useProxy = !!mapsError;
 
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);
@@ -126,13 +131,30 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
       setLocation(null);
       setShowSuggestions(true);
 
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(() => fetchSuggestions(value), 300);
+      if (useProxy) {
+        proxy.fetchSuggestions(value);
+      } else {
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => fetchSuggestions(value), 300);
+      }
     },
-    [fetchSuggestions],
+    [fetchSuggestions, useProxy, proxy],
   );
 
   const selectSuggestion = useCallback((suggestion: Suggestion) => {
+    if (useProxy) {
+      proxy.getDetails(suggestion.placeId).then(function (details) {
+        if (details) {
+          setLocation({ lat: details.lat, lng: details.lng, address: details.address });
+          setQuery(details.address);
+          setSuggestions([]);
+          proxy.clearSuggestions();
+          setShowSuggestions(false);
+        }
+      });
+      return;
+    }
+
     if (!placesService.current) return;
 
     placesService.current.getDetails(
@@ -150,7 +172,7 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
         }
       },
     );
-  }, []);
+  }, [useProxy, proxy]);
 
   return (
     <LobbyShell
@@ -169,9 +191,7 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Starting Location</h3>
-        {mapsError ? (
-          <p style={{ color: "#f59e0b", fontSize: "0.85rem" }}>Place search unavailable (limited browser). Pick a location below:</p>
-        ) : !mapsLoaded ? (
+        {!mapsLoaded && !mapsError ? (
           <p style={{ color: "#888" }}>Loading maps...</p>
         ) : (
           <div style={{ position: "relative", display: "inline-block", width: "100%", maxWidth: "420px" }}>
@@ -179,21 +199,21 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
               type="text"
               value={query}
               onChange={(e) => onInputChange(e.target.value)}
-              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              onFocus={() => (useProxy ? proxy.suggestions : suggestions).length > 0 && setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Search for an address..."
               style={{
                 padding: "0.6rem 0.75rem",
                 fontSize: "1rem",
                 borderRadius: "6px",
-                border: `2px solid ${location ? "#00D4FF" : "#555"}`,
+                border: "2px solid " + (location ? "#00D4FF" : "#555"),
                 width: "100%",
                 background: "#1a1a1a",
                 color: "#fff",
                 boxSizing: "border-box",
               }}
             />
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && (useProxy ? proxy.suggestions : suggestions).length > 0 && (
               <ul
                 role="listbox"
                 style={{
@@ -213,7 +233,7 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
                   textAlign: "left",
                 }}
               >
-                {suggestions.map((s) => (
+                {(useProxy ? proxy.suggestions : suggestions).map((s) => (
                   <li
                     key={s.placeId}
                     role="option"
@@ -239,9 +259,9 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
         )}
 
         <div style={{ marginTop: "1rem", textAlign: "left", maxWidth: "420px", display: "inline-block", width: "100%" }}>
-          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>{mapsError ? "Pick a location:" : "Or pick a random location:"}</p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: mapsError ? "400px" : undefined, overflowY: mapsError ? "auto" : undefined }}>
-            {(mapsError ? locations : randomLocations).map((loc) => (
+          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>Or pick a random location:</p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {randomLocations.map((loc) => (
               <li
                 key={loc.address}
                 onClick={() => {

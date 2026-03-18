@@ -497,13 +497,14 @@ describe("StreetViewLobby (maps loading)", () => {
     expect(screen.getByText("Loading maps...")).toBeInTheDocument();
   });
 
-  it("shows curated locations fallback when maps fail to load", async () => {
+  it("shows search input and curated locations when maps fail to load (proxy mode)", async () => {
     vi.doMock("../../hooks/useGoogleMaps", () => ({
       useGoogleMaps: () => ({ loaded: false, error: "Failed to load Google Maps API", apiKey: null }),
     }));
     const { StreetViewLobby: ErrorLobby } = await import("./StreetViewLobby");
     render(<ErrorLobby {...baseProps} />);
-    expect(screen.getByText(/Place search unavailable/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search for an address...")).toBeInTheDocument();
+    expect(screen.getByText("Or pick a random location:")).toBeInTheDocument();
   });
 
   it("does not show search input when maps are loading", async () => {

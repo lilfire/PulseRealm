@@ -192,6 +192,127 @@ public class MapsProxyController : ControllerBase
         return points;
     }
 
+    /// <summary>
+    /// Proxy for Google Places Autocomplete API.
+    /// GET /api/maps/places/autocomplete?input=...
+    /// </summary>
+    [HttpGet("places/autocomplete")]
+    public async Task<IActionResult> PlacesAutocomplete([FromQuery] string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return Ok(new { predictions = Array.Empty<object>() });
+        }
+
+        var apiKey = _configuration["GOOGLE_MAPS_API_KEY"];
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return BadRequest("Google Maps API key not configured");
+        }
+
+        var encodedInput = Uri.EscapeDataString(input);
+        var url = $"https://maps.googleapis.com/maps/api/place/autocomplete/json?input={encodedInput}&key={apiKey}";
+
+        var client = _httpClientFactory.CreateClient();
+        var response = await client.GetAsync(url);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return StatusCode((int)response.StatusCode, new { error = json });
+        }
+
+        JsonElement root;
+        try
+        {
+            root = JsonSerializer.Deserialize<JsonElement>(json);
+        }
+        catch (JsonException)
+        {
+            return StatusCode(502, new { error = "Invalid JSON from Google Places API" });
+        }
+
+        if (!root.TryGetProperty("predictions", out var predictions))
+        {
+            return Ok(new { predictions = Array.Empty<object>() });
+        }
+
+        var results = new List<object>();
+        foreach (var p in predictions.EnumerateArray())
+        {
+            var placeId = p.TryGetProperty("place_id", out var pid) ? pid.GetString() : "";
+            var description = p.TryGetProperty("description", out var desc) ? desc.GetString() : "";
+            results.Add(new { placeId, description });
+        }
+
+        return Ok(new { predictions = results });
+    }
+
+    /// <summary>
+    /// Proxy for Google Places Details API.
+    /// GET /api/maps/places/details?placeId=...
+    /// </summary>
+    [HttpGet("places/details")]
+    public async Task<IActionResult> PlacesDetails([FromQuery] string placeId)
+    {
+        if (string.IsNullOrWhiteSpace(placeId))
+        {
+            return BadRequest("placeId is required");
+        }
+
+        var apiKey = _configuration["GOOGLE_MAPS_API_KEY"];
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return BadRequest("Google Maps API key not configured");
+        }
+
+        var encodedPlaceId = Uri.EscapeDataString(placeId);
+        var url = $"https://maps.googleapis.com/maps/api/place/details/json?place_id={encodedPlaceId}&fields=geometry,formatted_address,name&key={apiKey}";
+
+        var client = _httpClientFactory.CreateClient();
+        var response = await client.GetAsync(url);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return StatusCode((int)response.StatusCode, new { error = json });
+        }
+
+        JsonElement root;
+        try
+        {
+            root = JsonSerializer.Deserialize<JsonElement>(json);
+        }
+        catch (JsonException)
+        {
+            return StatusCode(502, new { error = "Invalid JSON from Google Places API" });
+        }
+
+        if (!root.TryGetProperty("result", out var result))
+        {
+            return NotFound(new { error = "Place not found" });
+        }
+
+        double? lat = null, lng = null;
+        if (result.TryGetProperty("geometry", out var geo) &&
+            geo.TryGetProperty("location", out var loc))
+        {
+            lat = loc.TryGetProperty("lat", out var latProp) ? latProp.GetDouble() : null;
+            lng = loc.TryGetProperty("lng", out var lngProp) ? lngProp.GetDouble() : null;
+        }
+
+        var name = result.TryGetProperty("name", out var n) ? n.GetString() : null;
+        var address = result.TryGetProperty("formatted_address", out var a) ? a.GetString() : null;
+
+        return Ok(new
+        {
+            lat,
+            lng,
+            name,
+            address = address ?? name
+        });
+    }
+
     private async Task<IActionResult> ProxyGet(string baseGoogleUrl)
     {
         var apiKey = _configuration["GOOGLE_MAPS_API_KEY"];
