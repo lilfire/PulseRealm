@@ -39,8 +39,9 @@ export function OptionGrid<T>({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+          gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
           gap: `${gap}px`,
+          maxWidth: "100%",
         }}
       >
         {items.slice(0, visibleCount).map((item, i) => (
