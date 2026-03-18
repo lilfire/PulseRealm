@@ -21,6 +21,8 @@ Youtube mode duration i hud
 
 Terms of use
 
+Stide factor view only i hud
+
 
 ## BUGS
 
