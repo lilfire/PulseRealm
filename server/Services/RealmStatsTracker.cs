@@ -12,6 +12,7 @@ public class RealmStatsTracker
     private static readonly ConcurrentDictionary<string, ClientStats> _stats = new();
 
     private const double StrideFactor = 0.415;
+    private const double CadenceEmaAlpha = 0.3;
 
     /// <summary>Key that scopes stats to a specific client within a specific realm.</summary>
     private static string Key(string realmId, string clientId) => $"{realmId}:{clientId}";
@@ -69,16 +70,25 @@ public class RealmStatsTracker
                 stats.PeakSpeedKmh = Math.Max(stats.PeakSpeedKmh, speedKmh);
             }
 
-            // Cadence from step deltas
+            // Cadence from step deltas with EMA smoothing
             if (stats.PrevSteps > 0 && steps > stats.PrevSteps && stats.PrevStepsTime != default)
             {
                 var dtMinutes = (now - stats.PrevStepsTime).TotalMinutes;
                 if (dtMinutes > 0)
                 {
-                    var cadence = (int)Math.Round((steps - stats.PrevSteps) / dtMinutes);
-                    if (cadence is > 0 and < 300)
+                    var rawCadence = (steps - stats.PrevSteps) / dtMinutes;
+                    if (rawCadence is > 0 and < 300)
                     {
-                        stats.CadenceSum += cadence;
+                        // Pre-clamp outliers before EMA
+                        var maxChange = Math.Max(30.0, stats.SmoothedCadence * 0.5);
+                        var clamped = Math.Clamp(rawCadence, stats.SmoothedCadence - maxChange, stats.SmoothedCadence + maxChange);
+
+                        // Apply EMA (first sample seeds directly)
+                        stats.SmoothedCadence = stats.SmoothedCadence > 0
+                            ? CadenceEmaAlpha * clamped + (1 - CadenceEmaAlpha) * stats.SmoothedCadence
+                            : rawCadence;
+
+                        stats.CadenceSum += stats.SmoothedCadence;
                         stats.CadenceCount++;
                     }
                 }
@@ -271,8 +281,9 @@ public class RealmStatsTracker
         public double PeakSpeedKmh;
         public double ActivePeriodSeconds;
         public Dictionary<string, int> TimeInZone = new();
-        public int CadenceSum;
+        public double CadenceSum;
         public int CadenceCount;
+        public double SmoothedCadence;
         public double CaloriesBurned;
         public int PrevSteps;
         public DateTime PrevStepsTime;

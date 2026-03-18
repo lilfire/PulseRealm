@@ -12,7 +12,7 @@ public class RealmHub : Hub
     private readonly RealmStatsTracker _statsTracker;
 
     /// <summary>Tracks the last raw steps and receive time per client for speed and offset calculation.</summary>
-    private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt)> _lastData = new();
+    private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt, double SmoothedSpeed, DateTime LastStepTime)> _lastData = new();
 
     /// <summary>Maps SignalR connection IDs to (realmId, clientId) for disconnect handling.</summary>
     private static readonly ConcurrentDictionary<string, (string RealmId, string ClientId)> _connectionMap = new();
@@ -31,6 +31,13 @@ public class RealmHub : Hub
 
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
+
+    /// <summary>EMA smoothing factor (higher = more responsive, noisier). At ~5 msg/sec reaches 90% of true speed in ~1.4s.</summary>
+    private const double EmaAlpha = 0.3;
+    /// <summary>Seconds after last step before speed starts decaying.</summary>
+    private const double IdleGraceSec = 3.0;
+    /// <summary>Seconds for linear decay from grace end to zero speed.</summary>
+    private const double IdleDecaySec = 4.0;
 
     public RealmHub(RealmManager realmManager, AdminConfigService adminConfig, RealmStatsTracker statsTracker)
     {
@@ -237,30 +244,63 @@ public class RealmHub : Hub
     {
         var now = DateTime.UtcNow;
         var previous = _lastData.GetValueOrDefault(clientId);
-        _lastData[clientId] = (rawSteps, now);
 
-        if (previous.RawSteps == 0 && previous.ReceivedAt == default)
+        // First message for this client — initialize and return 0
+        if (previous.ReceivedAt == default)
+        {
+            _lastData[clientId] = (rawSteps, now, 0, now);
             return 0;
+        }
 
-        var stepDelta = rawSteps - previous.RawSteps;
-        if (stepDelta <= 0)
-            return 0;
-
-        // Use server-side receive timestamps for reliable time deltas
         var timeDelta = (now - previous.ReceivedAt).TotalSeconds;
-        if (timeDelta < 0.1)
-            return 0;
+        var stepDelta = rawSteps - previous.RawSteps;
 
-        var profile = _realmManager.GetClientProfile(realmId, clientId);
-        var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0; // fallback to average
+        if (stepDelta > 0)
+        {
+            // Steps received — compute instantaneous speed, pre-clamp outliers, apply EMA
+            if (timeDelta < 0.1)
+            {
+                // Too-fast message — return previous smoothed speed instead of flickering to 0
+                _lastData[clientId] = (rawSteps, now, previous.SmoothedSpeed, now);
+                return Math.Round(previous.SmoothedSpeed, 1);
+            }
 
-        var factor = profile?.StrideFactor > 0 ? profile.StrideFactor : StrideFactor;
-        var strideLengthM = heightCm * factor / 100.0;
-        var distanceM = stepDelta * strideLengthM;
-        var speedKmh = distanceM / timeDelta * 3.6;
+            var profile = _realmManager.GetClientProfile(realmId, clientId);
+            var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
+            var factor = profile?.StrideFactor > 0 ? profile.StrideFactor : StrideFactor;
+            var strideLengthM = heightCm * factor / 100.0;
+            var distanceM = stepDelta * strideLengthM;
+            var instantaneous = distanceM / timeDelta * 3.6;
 
-        // Clamp to a reasonable treadmill range (0–25 km/h)
-        return Math.Clamp(Math.Round(speedKmh, 1), 0, 25);
+            // Pre-clamp outliers before EMA to prevent single burst from spiking
+            var maxChange = Math.Max(3.0, previous.SmoothedSpeed * 0.5);
+            var clamped = Math.Clamp(instantaneous, previous.SmoothedSpeed - maxChange, previous.SmoothedSpeed + maxChange);
+
+            // Apply EMA
+            var smoothed = EmaAlpha * clamped + (1 - EmaAlpha) * previous.SmoothedSpeed;
+            smoothed = Math.Clamp(smoothed, 0, 25);
+
+            _lastData[clientId] = (rawSteps, now, smoothed, now);
+            return Math.Round(smoothed, 1);
+        }
+
+        // No new steps — check idle decay
+        var secSinceLastStep = (now - previous.LastStepTime).TotalSeconds;
+
+        if (secSinceLastStep <= IdleGraceSec)
+        {
+            // Within grace period — hold previous smoothed speed
+            _lastData[clientId] = (rawSteps, now, previous.SmoothedSpeed, previous.LastStepTime);
+            return Math.Round(previous.SmoothedSpeed, 1);
+        }
+
+        // Past grace period — linearly decay to 0
+        var decayElapsed = secSinceLastStep - IdleGraceSec;
+        var decayFactor = Math.Clamp(1.0 - decayElapsed / IdleDecaySec, 0, 1);
+        var decayed = previous.SmoothedSpeed * decayFactor;
+
+        _lastData[clientId] = (rawSteps, now, decayed, previous.LastStepTime);
+        return Math.Round(decayed, 1);
     }
 
     /// <summary>
