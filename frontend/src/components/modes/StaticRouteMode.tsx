@@ -35,7 +35,7 @@ export function StaticRouteMode({
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
   const [progressPct, setProgressPct] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [mapError, setMapError] = useState(false);
+  const [mapError, setMapError] = useState("");
 
   // Map image URL
   const [mapUrl, setMapUrl] = useState("");
@@ -144,19 +144,40 @@ export function StaticRouteMode({
             width: "100%",
             height: "100%",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             color: "#555",
             fontSize: "1.2rem",
+            gap: "0.5rem",
           }}
         >
-          Map unavailable
+          <div>Map unavailable</div>
+          {mapError !== "load_error" && (
+            <div style={{ fontSize: "0.8rem", maxWidth: 500, textAlign: "center", color: "#666" }}>{mapError}</div>
+          )}
         </div>
       ) : mapUrl ? (
         <img
           src={mapUrl}
           alt="Route Map"
-          onError={() => setMapError(true)}
+          onError={function (e) {
+            var img = e.target as HTMLImageElement;
+            // Try fetching the URL to get the JSON error body from our proxy
+            fetch(img.src)
+              .then(function (r) {
+                if (!r.ok) return r.json().catch(function () { return null; });
+                return null;
+              })
+              .then(function (data) {
+                if (data && data.error) {
+                  setMapError(data.error);
+                } else {
+                  setMapError("load_error");
+                }
+              })
+              .catch(function () { setMapError("load_error"); });
+          }}
           style={{
             position: "absolute",
             top: 0,
