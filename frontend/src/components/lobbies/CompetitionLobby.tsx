@@ -35,10 +35,13 @@ const SUB_MODES: { value: CompetitionSubMode; label: string; desc: string }[] = 
 
 const TEAM_COLORS = ["#FF5C75", "#33DFFF", "#22c55e", "#f59e0b", "#818cf8", "#D06ACA", "#fb923c", "#2dd4bf"];
 
+const minRequired = (sm: CompetitionSubMode): number =>
+  sm === "elimination" ? 3 : 2;
+
 const btnStyle = (selected: boolean) => ({
-  padding: "0.6rem 1.5rem",
-  fontSize: "0.95rem",
-  borderRadius: "8px",
+  padding: "0.35rem 1rem",
+  fontSize: "0.85rem",
+  borderRadius: "6px",
   border: selected ? "2px solid var(--accent2, #33DFFF)" : "1px solid #333",
   background: selected ? "rgba(51, 223, 255, 0.1)" : "var(--code-bg, #1f2028)",
   color: selected ? "#fff" : "var(--text, #9ca3af)",
@@ -108,34 +111,34 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       clients={clients}
       clientProfiles={clientProfiles}
       connected={connected}
-      canStart={connected && clients.length > 0 && allAssigned && (subMode !== "elimination" || clients.length >= 3)}
+      canStart={connected && clients.length >= minRequired(subMode) && allAssigned}
       onStart={() => onStart({ subMode, playerFormat, teams, targetDistanceKm, intervalMinutes, targetZone, durationMinutes })}
       onLeave={onLeave}
       onEnd={onEnd}
       onKick={onKick}
       role={role}
       hostSecret={hostSecret}
-      minPlayers={subMode === "elimination" ? 3 : undefined}
+      minPlayers={minRequired(subMode)}
     >
       {/* Sub-mode selector */}
-      <div style={{ margin: "0.5rem 0" }}>
-        <h3>Sub-mode</h3>
-        <div className="fg-wrap" style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem", flexWrap: "wrap", "--fg": "0.75rem" } as React.CSSProperties}>
+      <div style={{ margin: "0.25rem 0" }}>
+        <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Sub-mode</h3>
+        <div className="fg-wrap" style={{ display: "flex", justifyContent: "flex-start", marginTop: "0.25rem", flexWrap: "wrap", "--fg": "0.5rem" } as React.CSSProperties}>
           {SUB_MODES.map((m) => (
             <button key={m.value} onClick={() => setSubMode(m.value)} style={btnStyle(subMode === m.value)}>
               {m.label}
             </button>
           ))}
         </div>
-        <p style={{ color: "#888", fontSize: "0.8rem", marginTop: "0.5rem" }}>
+        <p style={{ color: "#888", fontSize: "0.75rem", marginTop: "0.25rem" }}>
           {SUB_MODES.find((m) => m.value === subMode)?.desc}
         </p>
       </div>
 
       {/* Player format */}
-      <div style={{ margin: "0.5rem 0" }}>
-        <h3>Player Format</h3>
-        <div className="fg-wrap" style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem", flexWrap: "wrap", "--fg": "0.75rem" } as React.CSSProperties}>
+      <div style={{ margin: "0.25rem 0" }}>
+        <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Player Format</h3>
+        <div className="fg-wrap" style={{ display: "flex", justifyContent: "flex-start", marginTop: "0.25rem", flexWrap: "wrap", "--fg": "0.5rem" } as React.CSSProperties}>
           {(["individual", "team"] as const).map((f) => (
             <button key={f} onClick={() => setPlayerFormat(f)} style={btnStyle(playerFormat === f)}>
               {f === "individual" ? "Individual" : "Team"}
@@ -146,9 +149,9 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
 
       {/* Sub-mode specific config */}
       {subMode === "race" && (
-        <div style={{ margin: "0.5rem 0" }}>
-          <h3>Target Distance</h3>
-          <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.5rem", "--fg": "1rem" } as React.CSSProperties}>
+        <div style={{ margin: "0.25rem 0" }}>
+          <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Target Distance</h3>
+          <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", marginTop: "0.25rem", "--fg": "1rem" } as React.CSSProperties}>
             <input
               type="range"
               min={0.1}
@@ -158,7 +161,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
               onChange={(e) => setTargetDistanceKm(Number(e.target.value))}
               style={{ width: "100%", maxWidth: "200px" }}
             />
-            <span style={{ fontSize: "1.3rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 60 }}>
+            <span style={{ fontSize: "1.1rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 60 }}>
               {targetDistanceKm.toFixed(1)} km
             </span>
           </div>
@@ -166,35 +169,30 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       )}
 
       {subMode === "elimination" && (
-        <div style={{ margin: "0.5rem 0" }}>
-          <h3>Elimination Interval</h3>
-          <div className="fg-row" style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem", "--fg": "0.75rem" } as React.CSSProperties}>
+        <div style={{ margin: "0.25rem 0" }}>
+          <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Elimination Interval</h3>
+          <div className="fg-row" style={{ display: "flex", justifyContent: "flex-start", marginTop: "0.25rem", "--fg": "0.5rem" } as React.CSSProperties}>
             {[1, 2, 3, 5, 10].map((v) => (
               <button key={v} onClick={() => setIntervalMinutes(v)} style={btnStyle(intervalMinutes === v)}>
                 {v} min
               </button>
             ))}
           </div>
-          {clients.length < 3 && (
-            <p style={{ color: "#f87171", fontSize: "0.8rem", marginTop: "0.5rem" }}>
-              Elimination requires at least 3 players
-            </p>
-          )}
         </div>
       )}
 
       {subMode === "heartzone" && (
-        <div style={{ margin: "0.5rem 0" }}>
-          <h3>Target Zone</h3>
-          <div className="fg-row" style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem", "--fg": "0.75rem" } as React.CSSProperties}>
+        <div style={{ margin: "0.25rem 0" }}>
+          <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Target Zone</h3>
+          <div className="fg-row" style={{ display: "flex", justifyContent: "flex-start", marginTop: "0.25rem", "--fg": "0.5rem" } as React.CSSProperties}>
             {[1, 2, 3, 4, 5].map((z) => (
               <button key={z} onClick={() => setTargetZone(z)} style={btnStyle(targetZone === z)}>
                 Zone {z}
               </button>
             ))}
           </div>
-          <h3 style={{ marginTop: "1rem" }}>Duration</h3>
-          <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.5rem", "--fg": "1rem" } as React.CSSProperties}>
+          <h3 style={{ margin: "0.5rem 0 0.15rem", fontSize: "0.9rem" }}>Duration</h3>
+          <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", marginTop: "0.25rem", "--fg": "1rem" } as React.CSSProperties}>
             <input
               type="range"
               min={5}
@@ -204,7 +202,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
               onChange={(e) => setHzDuration(Number(e.target.value))}
               style={{ width: "100%", maxWidth: "200px" }}
             />
-            <span style={{ fontSize: "1.3rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 70 }}>
+            <span style={{ fontSize: "1.1rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 70 }}>
               {hzDuration} min
             </span>
           </div>
@@ -212,9 +210,9 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       )}
 
       {subMode === "king" && (
-        <div style={{ margin: "0.5rem 0" }}>
-          <h3>Duration</h3>
-          <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.5rem", "--fg": "1rem" } as React.CSSProperties}>
+        <div style={{ margin: "0.25rem 0" }}>
+          <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Duration</h3>
+          <div className="fg-row" style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", marginTop: "0.25rem", "--fg": "1rem" } as React.CSSProperties}>
             <input
               type="range"
               min={5}
@@ -224,7 +222,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
               onChange={(e) => setKingDuration(Number(e.target.value))}
               style={{ width: "100%", maxWidth: "200px" }}
             />
-            <span style={{ fontSize: "1.3rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 70 }}>
+            <span style={{ fontSize: "1.1rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)", minWidth: 70 }}>
               {kingDuration} min
             </span>
           </div>
@@ -233,18 +231,18 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
 
       {/* Team assignment */}
       {playerFormat === "team" && (
-        <div style={{ margin: "0.5rem 0" }}>
-          <h3>Team Assignment</h3>
-          <div className="fg-col" style={{ display: "flex", flexDirection: "column", marginTop: "0.5rem", maxWidth: 500, margin: "0.5rem auto 0", "--fg": "1rem" } as React.CSSProperties}>
+        <div style={{ margin: "0.25rem 0" }}>
+          <h3 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem" }}>Team Assignment</h3>
+          <div className="fg-col" style={{ display: "flex", flexDirection: "column", marginTop: "0.25rem", maxWidth: 500, margin: "0.25rem 0 0", "--fg": "0.75rem" } as React.CSSProperties}>
             {teams.map((team, ti) => (
               <div key={team.name} style={{
                 background: "var(--code-bg, #1f2028)",
                 border: `2px solid ${team.color}`,
-                borderRadius: 10,
-                padding: "0.75rem 1rem",
+                borderRadius: 8,
+                padding: "0.5rem 0.75rem",
               }}>
-                <div className="fg-row" style={{ display: "flex", alignItems: "center", marginBottom: "0.5rem", "--fg": "0.5rem" } as React.CSSProperties}>
-                  <div style={{ width: 16, height: 16, borderRadius: 4, background: team.color, flexShrink: 0 }} />
+                <div className="fg-row" style={{ display: "flex", alignItems: "center", marginBottom: "0.35rem", "--fg": "0.5rem" } as React.CSSProperties}>
+                  <div style={{ width: 14, height: 14, borderRadius: 4, background: team.color, flexShrink: 0 }} />
                   <input
                     value={team.name}
                     onChange={(e) => renameTeam(ti, e.target.value)}
@@ -252,7 +250,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
                       background: "transparent",
                       border: "none",
                       color: "var(--text-h)",
-                      fontSize: "1rem",
+                      fontSize: "0.9rem",
                       fontWeight: 600,
                       flex: 1,
                       outline: "none",
@@ -266,7 +264,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
                         border: "none",
                         color: "#888",
                         cursor: "pointer",
-                        fontSize: "1rem",
+                        fontSize: "0.9rem",
                       }}
                     >
                       ✕
@@ -282,8 +280,8 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
                         key={cid}
                         onClick={() => assignClient(cid, ti)}
                         style={{
-                          padding: "0.3rem 0.7rem",
-                          fontSize: "0.8rem",
+                          padding: "0.25rem 0.6rem",
+                          fontSize: "0.75rem",
                           borderRadius: 6,
                           border: inTeam ? `1px solid ${team.color}` : "1px solid #444",
                           background: inTeam ? `${team.color}22` : "transparent",
@@ -302,9 +300,9 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
             <button
               onClick={addTeam}
               style={{
-                padding: "0.4rem 1rem",
-                fontSize: "0.85rem",
-                borderRadius: 8,
+                padding: "0.3rem 0.75rem",
+                fontSize: "0.8rem",
+                borderRadius: 6,
                 border: "1px dashed #555",
                 background: "transparent",
                 color: "var(--text)",
@@ -315,7 +313,7 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
             </button>
           </div>
           {!allAssigned && clients.length > 0 && (
-            <p style={{ color: "#f87171", fontSize: "0.8rem", marginTop: "0.5rem" }}>
+            <p style={{ color: "#f87171", fontSize: "0.75rem", marginTop: "0.25rem" }}>
               All players must be assigned to a team before starting
             </p>
           )}

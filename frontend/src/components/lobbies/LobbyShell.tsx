@@ -40,7 +40,6 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       <div className="lobby-header">
         <p style={{ margin: "0 0 0.15rem", fontSize: "0.7rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.1em" }}>Join Code</p>
         <p style={{ margin: 0 }}><strong style={{ fontSize: "1.6rem", letterSpacing: "0.2em", lineHeight: 1 }}>{joinCode}</strong></p>
-        {hostSecret && canControl && <HostKeyToggle hostSecret={hostSecret} />}
       </div>
 
       <div className="lobby-columns">
@@ -99,16 +98,23 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
         <div style={{
           position: "absolute",
           left: "1rem",
-          padding: "0.15rem 0.6rem",
-          borderRadius: "4px",
-          background: rs.bg,
-          border: `1px solid ${rs.border}`,
-          color: rs.color,
-          fontSize: "0.6rem",
-          fontWeight: 600,
-          letterSpacing: "0.05em",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
         }}>
-          {role.toUpperCase()}
+          <div style={{
+            padding: "0.15rem 0.6rem",
+            borderRadius: "4px",
+            background: rs.bg,
+            border: `1px solid ${rs.border}`,
+            color: rs.color,
+            fontSize: "0.6rem",
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+          }}>
+            {role.toUpperCase()}
+          </div>
+          {hostSecret && canControl && <HostKeyToggle hostSecret={hostSecret} />}
         </div>
         {canControl && (
           <button
@@ -135,17 +141,19 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
             End Realm
           </button>
         )}
-        <button
-          onClick={onLeave}
-          style={{
-            background: "#FF3D5A",
-            color: "#fff",
-            fontSize: "1.2rem",
-            padding: "0.6rem 2rem",
-          }}
-        >
-          {isGuest ? "Leave" : "Leave Realm"}
-        </button>
+        {isGuest && (
+          <button
+            onClick={onLeave}
+            style={{
+              background: "#FF3D5A",
+              color: "#fff",
+              fontSize: "1.2rem",
+              padding: "0.6rem 2rem",
+            }}
+          >
+            Leave
+          </button>
+        )}
       </div>
     </div>
   );
