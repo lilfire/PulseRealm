@@ -2,11 +2,32 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 /**
  * Create an AbortSignal that auto-aborts after `ms` milliseconds.
- * Uses AbortSignal.timeout() which is natively supported in modern browsers
- * and does not leak a timer handle the way a manual setTimeout approach would.
+ * Uses AbortController + setTimeout for Chrome 74+ compatibility
+ * (AbortSignal.timeout() requires Chrome 103+).
  */
 function createTimeoutSignal(ms: number): AbortSignal {
-  return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
+/**
+ * Create an AbortSignal that aborts when EITHER the parent signal aborts
+ * OR the timeout expires. Used to add per-probe timeouts during batch scanning
+ * without requiring AbortSignal.any() (Chrome 116+).
+ */
+function createCombinedSignal(parentSignal: AbortSignal, timeoutMs: number): AbortSignal {
+  const controller = new AbortController();
+  if (parentSignal.aborted) {
+    controller.abort();
+    return controller.signal;
+  }
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  parentSignal.addEventListener("abort", () => {
+    clearTimeout(timer);
+    controller.abort();
+  });
+  return controller.signal;
 }
 
 const STORAGE_KEY = "pulserealm_server_url";
@@ -335,6 +356,27 @@ export function useServerConnection() {
     setError(null);
     setSearchAttempt((prev) => prev + 1);
 
+    // Fast path: try same-origin before full network scan
+    const origin = window.location.origin;
+    const hostname = window.location.hostname;
+    const fastCandidates = [origin];
+    if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+      fastCandidates.push(`http://${hostname}:${SERVER_PORT}`);
+    }
+    for (const url of fastCandidates) {
+      if (controller.signal.aborted) return;
+      const info = await probeUrl(url, createTimeoutSignal(PROBE_TIMEOUT));
+      if (info && !controller.signal.aborted) {
+        setServerUrl(url);
+        setServerInfo(info);
+        setIsConnected(true);
+        setSearchPhase("found");
+        setSearchProgress("");
+        localStorage.setItem(STORAGE_KEY, url);
+        return;
+      }
+    }
+
     const candidates = await buildCandidateUrls((msg) => setSearchProgress(msg));
 
     if (controller.signal.aborted) return;
@@ -351,7 +393,7 @@ export function useServerConnection() {
 
       const results = await Promise.all(
         batch.map((url) =>
-          probeUrl(url, controller.signal).then((info) =>
+          probeUrl(url, createCombinedSignal(controller.signal, PROBE_TIMEOUT)).then((info) =>
             info ? { url, info } : null
           )
         )

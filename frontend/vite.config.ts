@@ -11,13 +11,11 @@ export default defineConfig({
     react(),
     legacy({
       targets: ['chrome >= 74'],
+      modernTargets: ['chrome >= 74'],
     }),
   ],
   envDir: '..',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
-  },
-  build: {
-    target: ['es2015', 'chrome74'],
   },
 })
