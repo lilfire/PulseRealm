@@ -174,8 +174,11 @@
 
 .join-modal-actions {
   display: flex;
-  gap: 0.75rem;
   justify-content: center;
+}
+
+.join-modal-actions > * + * {
+  margin-left: 0.75rem;
 }
 
 .join-modal-actions .btn-join-go,
@@ -216,7 +219,11 @@
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+}
+
+.footer-left > * + *,
+.footer-right > * + * {
+  margin-left: 0.75rem;
 }
 
 .footer-right > * + *::before {
@@ -342,7 +349,6 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
   padding: 1rem 1.25rem;
   font-size: 0.8rem;
   color: var(--text, #9ca3af);
@@ -351,6 +357,10 @@
   width: 120px;
   flex-shrink: 0;
   transition: opacity 0.2s;
+}
+
+.device-sidebar > * + * {
+  margin-top: 0.5rem;
 }
 
 .device-sidebar:hover {
@@ -388,7 +398,10 @@
 
 .qr-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
@@ -470,7 +483,7 @@ h2 {
 }
 
 button {
-  margin-top: 1rem;
+  
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   cursor: pointer;

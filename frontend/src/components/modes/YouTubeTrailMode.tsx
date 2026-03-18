@@ -361,6 +361,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
 
       {/* Progress bar and time info */}
       <div
+        className="fg-row"
         style={{
           position: "absolute",
           bottom: 0,
@@ -372,10 +373,10 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
           pointerEvents: "none",
           display: "flex",
           alignItems: "center",
-          gap: "0.75rem",
           fontSize: "0.8rem",
           color: "#fff",
-        }}
+          "--fg": "0.75rem",
+        } as React.CSSProperties}
       >
         <span style={{ whiteSpace: "nowrap", color: "#aaa" }}>
           {formatTime(elapsedSeconds)}

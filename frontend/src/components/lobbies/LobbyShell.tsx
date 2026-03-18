@@ -95,13 +95,13 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       </div>
 
       <div className="lobby-footer">
-        <div style={{
+        <div className="fg-row" style={{
           position: "absolute",
           left: "1rem",
           display: "flex",
           alignItems: "center",
-          gap: "0.75rem",
-        }}>
+          "--fg": "0.75rem",
+        } as React.CSSProperties}>
           <div style={{
             padding: "0.15rem 0.6rem",
             borderRadius: "4px",
@@ -162,7 +162,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
 function HostKeyToggle({ hostSecret }: { hostSecret: string }) {
   const [show, setShow] = useState(false);
   return (
-    <p style={{ margin: "0.15rem 0 0", color: "var(--text, #9ca3af)", fontSize: "0.75rem" }}>
+    <span style={{ display: "flex", alignItems: "center", color: "var(--text, #9ca3af)", fontSize: "0.75rem" }}>
       <button
         onClick={() => setShow(!show)}
         style={{
@@ -184,6 +184,6 @@ function HostKeyToggle({ hostSecret }: { hostSecret: string }) {
           {hostSecret}
         </span>
       )}
-    </p>
+    </span>
   );
 }

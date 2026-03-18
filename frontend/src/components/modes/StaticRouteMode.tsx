@@ -247,6 +247,7 @@ export function StaticRouteMode({
       {/* Static map image */}
       {mapError ? (
         <div
+          className="fg-col"
           style={{
             position: "absolute",
             top: 0,
@@ -259,8 +260,8 @@ export function StaticRouteMode({
             justifyContent: "center",
             color: "#555",
             fontSize: "1.2rem",
-            gap: "0.5rem",
-          }}
+            "--fg": "0.5rem",
+          } as React.CSSProperties}
         >
           <div>Map unavailable</div>
           {mapError !== "load_error" && (
