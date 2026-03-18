@@ -31,6 +31,8 @@ export function OptionGrid<T>({
       style={{
         flex: 1,
         minHeight: 0,
+        minWidth: 0,
+        maxWidth: "100%",
         overflow: "hidden",
       }}
     >
