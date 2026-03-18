@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import QRCode from "qrcode";
 import { useRealmHub, type RealmSummary } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
 import { ServerConnect } from "./components/ServerConnect";
@@ -82,6 +83,10 @@ function App() {
   const [joinError, setJoinError] = useState("");
   const [joining, setJoining] = useState(false);
 
+  // Android download QR modal
+  const [showAndroidQR, setShowAndroidQR] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
   const hubUrl = PRESET_API_URL
@@ -130,6 +135,17 @@ function App() {
       resetRealm();
     }
   }, [ended, started, resetRealm]);
+
+  // Render QR code when Android download modal opens
+  useEffect(() => {
+    if (showAndroidQR && qrCanvasRef.current) {
+      QRCode.toCanvas(qrCanvasRef.current, "https://github.com/lilfire/PulseRealm/releases/latest", {
+        width: 200,
+        margin: 2,
+        color: { dark: "#f3f4f6", light: "#16171d" },
+      });
+    }
+  }, [showAndroidQR]);
 
   // Issue #8 — noOpEnd is a stable no-op for view-only mode
   const noOpEnd = useCallback(() => {}, []);
@@ -498,7 +514,28 @@ function App() {
           <button className="btn-tos-link" onClick={() => setPage("tos")}>
             Terms of Service
           </button>
+          <button className="btn-android-download" onClick={() => setShowAndroidQR(true)}>
+            &#9662; Android App
+          </button>
         </footer>
+        {showAndroidQR && (
+          <div className="qr-overlay" onClick={() => setShowAndroidQR(false)}>
+            <div className="qr-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Download Android App</h3>
+              <p>Scan to download the latest APK from GitHub</p>
+              <canvas ref={qrCanvasRef} />
+              <a
+                href="https://github.com/lilfire/PulseRealm/releases/latest"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="qr-direct-link"
+              >
+                Or open directly
+              </a>
+              <button className="qr-close" onClick={() => setShowAndroidQR(false)}>Close</button>
+            </div>
+          </div>
+        )}
         <span className="app-version">v{APP_VERSION}</span>
       </div>
     );

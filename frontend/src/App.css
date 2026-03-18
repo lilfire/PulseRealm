@@ -291,6 +291,93 @@
   background: transparent;
 }
 
+/* --- Android Download Button --- */
+
+.btn-android-download {
+  background: transparent;
+  border: 1px solid var(--accent, #FF5C75);
+  color: var(--accent, #FF5C75);
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+.btn-android-download:hover {
+  opacity: 1;
+  background: rgba(255, 92, 117, 0.1);
+}
+
+/* --- QR Code Modal --- */
+
+.qr-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.qr-modal {
+  background: var(--bg, #16171d);
+  border: 1px solid var(--border, #2e303a);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  max-width: 320px;
+  width: 90%;
+}
+
+.qr-modal h3 {
+  margin: 0 0 0.5rem;
+  color: var(--text-h, #f3f4f6);
+  font-size: 1.1rem;
+}
+
+.qr-modal p {
+  margin: 0 0 1.25rem;
+  color: var(--text, #9ca3af);
+  font-size: 0.85rem;
+}
+
+.qr-modal canvas {
+  display: block;
+  margin: 0 auto 1rem;
+  border-radius: 8px;
+}
+
+.qr-direct-link {
+  display: block;
+  color: var(--accent2, #33DFFF);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.qr-direct-link:hover {
+  opacity: 0.8;
+}
+
+.qr-close {
+  background: transparent;
+  border: 1px solid var(--border, #2e303a);
+  color: var(--text, #9ca3af);
+  padding: 0.4rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.qr-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-h, #f3f4f6);
+}
+
 /* --- App Version --- */
 
 .app-version {
