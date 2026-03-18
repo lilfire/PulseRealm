@@ -512,7 +512,7 @@ describe("useRealmHub", () => {
   });
 
   describe("endRealm", () => {
-    it("invokes 'EndRealm' with a summary object", async () => {
+    it("invokes 'EndRealm' with null when called without overrides", async () => {
       const { useRealmHub } = await import("./useSessionHub");
       const { result } = renderHook(() =>
         useRealmHub("realm-end", "http://localhost:5062/hubs/realm")
@@ -521,17 +521,17 @@ describe("useRealmHub", () => {
       await waitFor(() => expect(result.current.connected).toBe(true));
 
       act(() => {
-        result.current.endRealm(1500);
+        result.current.endRealm();
       });
 
       expect(mockConnectionInstance.invoke).toHaveBeenCalledWith(
         "EndRealm",
         "realm-end",
-        expect.objectContaining({ totalDistanceMeters: 1500 })
+        null
       );
     });
 
-    it("applies overrides to the summary", async () => {
+    it("passes overrides to the server", async () => {
       const { useRealmHub } = await import("./useSessionHub");
       const { result } = renderHook(() =>
         useRealmHub("realm-end-override", "http://localhost:5062/hubs/realm")
@@ -540,7 +540,7 @@ describe("useRealmHub", () => {
       await waitFor(() => expect(result.current.connected).toBe(true));
 
       act(() => {
-        result.current.endRealm(2000, { participantCount: 5 });
+        result.current.endRealm({ totalDistanceMeters: 2000, participantCount: 5 });
       });
 
       const invocation = mockConnectionInstance.invoke.mock.calls.find(

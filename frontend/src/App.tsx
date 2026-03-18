@@ -137,16 +137,16 @@ function App() {
 
   // Issue #8 — stable onEnd handlers for each mode; they delegate to noOpEnd or endRealm
   const onEndSimple = useCallback(
-    (totalDistance: number) => {
+    (totalDistance?: number) => {
       if (isGuest) return;
-      endRealm(totalDistance);
+      endRealm(totalDistance ? { totalDistanceMeters: totalDistance } : undefined);
     },
     [isGuest, endRealm]
   );
   const onEndWithOverrides = useCallback(
     (totalDistance: number, overrides?: Partial<RealmSummary>) => {
       if (isGuest) return;
-      endRealm(totalDistance, overrides);
+      endRealm({ totalDistanceMeters: totalDistance, ...overrides });
     },
     [isGuest, endRealm]
   );
@@ -518,7 +518,7 @@ function App() {
       role,
       hostSecret: hostSecret ?? undefined,
       onLeave: resetRealm,
-      onEnd: () => { endRealm(0); },
+      onEnd: () => { endRealm(); },
       onKick: kickClient,
     };
 

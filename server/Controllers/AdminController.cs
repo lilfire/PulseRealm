@@ -15,13 +15,15 @@ public class AdminController : ControllerBase
     private readonly AdminConfigService _configService;
     private readonly RealmManager _realmManager;
     private readonly IHubContext<RealmHub> _hubContext;
+    private readonly RealmStatsTracker _statsTracker;
 
-    public AdminController(AdminAuthService auth, AdminConfigService configService, RealmManager realmManager, IHubContext<RealmHub> hubContext)
+    public AdminController(AdminAuthService auth, AdminConfigService configService, RealmManager realmManager, IHubContext<RealmHub> hubContext, RealmStatsTracker statsTracker)
     {
         _auth = auth;
         _configService = configService;
         _realmManager = realmManager;
         _hubContext = hubContext;
+        _statsTracker = statsTracker;
     }
 
     [HttpPost("login")]
@@ -93,10 +95,10 @@ public class AdminController : ControllerBase
 
         realm.WithLock(r => r.Status = RealmStatus.Ended);
 
-        var summary = new RealmSummary
-        {
-            DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds,
-        };
+        var summary = _statsTracker.BuildSummary(realm);
+
+        var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+        _statsTracker.CleanupRealm(realmId, knownClientIds);
 
         await _hubContext.Clients.Group(realmId).SendAsync("RealmEnded", summary);
 

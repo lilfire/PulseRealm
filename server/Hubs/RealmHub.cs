@@ -9,6 +9,7 @@ public class RealmHub : Hub
 {
     private readonly RealmManager _realmManager;
     private readonly AdminConfigService _adminConfig;
+    private readonly RealmStatsTracker _statsTracker;
 
     /// <summary>Tracks the last raw steps and receive time per client for speed and offset calculation.</summary>
     private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt)> _lastData = new();
@@ -31,10 +32,11 @@ public class RealmHub : Hub
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
 
-    public RealmHub(RealmManager realmManager, AdminConfigService adminConfig)
+    public RealmHub(RealmManager realmManager, AdminConfigService adminConfig, RealmStatsTracker statsTracker)
     {
         _realmManager = realmManager;
         _adminConfig = adminConfig;
+        _statsTracker = statsTracker;
     }
 
     /// <summary>
@@ -219,6 +221,10 @@ public class RealmHub : Hub
         // Apply offset to outgoing steps
         data.Steps = rawSteps + _stepOffsets.GetValueOrDefault(data.ClientId, 0);
 
+        // Accumulate stats for the summary
+        var profile = _realmManager.GetClientProfile(realmId, data.ClientId);
+        _statsTracker.Record(realmId, data.ClientId, data.Steps, data.HeartRate, data.SpeedKmh, profile);
+
         // Forward enriched data to all dashboard listeners in this realm
         await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
     }
@@ -310,17 +316,45 @@ public class RealmHub : Hub
 
     /// <summary>
     /// Called by the dashboard to end a realm. Broadcasts a summary to all clients.
+    /// Accepts optional overrides (e.g. totalDistanceMeters, isTeamFormat) from the dashboard
+    /// that get merged into the server-built summary.
     /// </summary>
-    public async Task EndRealm(string realmId, RealmSummary summary)
+    public async Task EndRealm(string realmId, RealmSummary? overrides = null)
     {
         var realm = GetRealmAsHost(realmId);
 
         realm.WithLock(r => r.Status = RealmStatus.Ended);
-        summary.DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
+
+        var summary = _statsTracker.BuildSummary(realm);
+
+        // Allow the dashboard to override specific fields (e.g. distance from GPS, team format)
+        if (overrides is not null)
+        {
+            if (overrides.TotalDistanceMeters > 0)
+                summary.TotalDistanceMeters = overrides.TotalDistanceMeters;
+            if (overrides.IsTeamFormat)
+                summary.IsTeamFormat = true;
+            // Merge per-client team assignments from dashboard
+            if (overrides.ClientSummaries is not null)
+            {
+                foreach (var ocs in overrides.ClientSummaries)
+                {
+                    var existing = summary.ClientSummaries?.FirstOrDefault(c => c.ClientId == ocs.ClientId);
+                    if (existing is not null)
+                    {
+                        if (ocs.DistanceMeters > 0)
+                            existing.DistanceMeters = ocs.DistanceMeters;
+                        existing.TeamName = ocs.TeamName;
+                        existing.TeamColor = ocs.TeamColor;
+                    }
+                }
+            }
+        }
 
         // Clean up hub state for all clients that were in this realm (including disconnected ones)
         var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
         CleanupRealmHubState(realmId, knownClientIds);
+        _statsTracker.CleanupRealm(realmId, knownClientIds);
 
         await Clients.Group(realmId).SendAsync("RealmEnded", summary);
     }
@@ -374,15 +408,12 @@ public class RealmHub : Hub
             var realm = _realmManager.GetById(mapping.RealmId);
             var wasStarted = realm is not null && realm.Status == RealmStatus.Started;
 
-            // If the realm was started, send the leaving client a summary so they see the end screen
+            // If the realm was started, send the leaving client a full summary
             if (wasStarted)
             {
-                var summary = new RealmSummary
-                {
-                    DurationSeconds = (DateTime.UtcNow - realm!.CreatedAt).TotalSeconds,
-                    ParticipantCount = realm.WithLock(r => r.ConnectedClientIds.Count),
-                };
+                var summary = _statsTracker.BuildSummaryForClient(realm!, mapping.ClientId);
                 await Clients.Caller.SendAsync("RealmEnded", summary);
+                _statsTracker.CleanupRealm(realm!.Id, new[] { mapping.ClientId });
             }
 
             _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId, removeFromKnown: true);
@@ -459,13 +490,11 @@ public class RealmHub : Hub
         if (shouldEnd)
         {
             realm.WithLock(r => r.Status = RealmStatus.Ended);
-            var summary = new RealmSummary
-            {
-                DurationSeconds = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds,
-            };
+            var summary = _statsTracker.BuildSummary(realm);
 
             var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
             CleanupRealmHubState(realmId, knownClientIds);
+            _statsTracker.CleanupRealm(realmId, knownClientIds);
             await Clients.Group(realmId).SendAsync("RealmEnded", summary);
         }
     }

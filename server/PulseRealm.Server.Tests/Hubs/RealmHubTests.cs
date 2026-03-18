@@ -54,7 +54,7 @@ public class RealmHubTests
     {
         var adminConfig = CreateAdminConfigService();
         var manager = new RealmManager(adminConfig);
-        var hub = new RealmHub(manager, adminConfig);
+        var hub = new RealmHub(manager, adminConfig, new RealmStatsTracker());
 
         var mockClients = new Mock<IHubCallerClients>();
         var mockProxy = new Mock<ISingleClientProxy>();
@@ -645,7 +645,7 @@ public class RealmHubTests
         await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
         realm.WithLock(r => r.Status = RealmStatus.Started);
 
-        await hub.EndRealm(realm.Id, new RealmSummary());
+        await hub.EndRealm(realm.Id);
 
         Assert.Equal(RealmStatus.Ended, realm.Status);
     }
@@ -658,7 +658,7 @@ public class RealmHubTests
         var realm = manager.CreateRealm(RealmMode.Competition);
         await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
 
-        await hub.EndRealm(realm.Id, new RealmSummary { TotalSteps = 500 });
+        await hub.EndRealm(realm.Id);
 
         mockProxy.Verify(p => p.SendCoreAsync(
             "RealmEnded", It.IsAny<object?[]>(), default), Times.Once);
@@ -668,17 +668,27 @@ public class RealmHubTests
     public async Task EndRealm_ValidRealm_PopulatesDurationSeconds()
     {
         var connId = Guid.NewGuid().ToString();
-        var (hub, manager, _, _, _) = CreateHub(connId);
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
         await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
         // Back-date so the duration is measurably > 0.
         realm.CreatedAt = DateTime.UtcNow.AddMinutes(-5);
-        var summary = new RealmSummary();
 
-        await hub.EndRealm(realm.Id, summary);
+        RealmSummary? capturedSummary = null;
+        mockProxy.Setup(p => p.SendCoreAsync(
+            "RealmEnded", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) =>
+            {
+                if (args.Length > 0 && args[0] is RealmSummary s)
+                    capturedSummary = s;
+            })
+            .Returns(Task.CompletedTask);
 
-        Assert.True(summary.DurationSeconds > 0,
-            $"Expected DurationSeconds > 0, got {summary.DurationSeconds}");
+        await hub.EndRealm(realm.Id);
+
+        Assert.NotNull(capturedSummary);
+        Assert.True(capturedSummary!.DurationSeconds > 0,
+            $"Expected DurationSeconds > 0, got {capturedSummary.DurationSeconds}");
     }
 
     [Fact]

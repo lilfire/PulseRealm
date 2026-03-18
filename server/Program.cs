@@ -8,6 +8,7 @@ builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<RealmManager>();
 builder.Services.AddSingleton<AdminConfigService>();
+builder.Services.AddSingleton<RealmStatsTracker>();
 builder.Services.AddSingleton<AdminAuthService>();
 builder.Services.AddTransient<AdminAuthFilter>();
 builder.Services.AddHostedService<ServerDiscoveryService>();
