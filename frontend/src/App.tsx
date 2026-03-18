@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import QRCode from "qrcode";
 import { useRealmHub, type RealmSummary } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
