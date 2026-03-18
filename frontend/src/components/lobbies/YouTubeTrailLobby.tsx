@@ -22,6 +22,8 @@ interface Props {
   role?: RealmRole;
   hostSecret?: string;
   curatedVideos?: YouTubeVideo[] | null;
+  lobbySettings?: Record<string, unknown> | null;
+  onSettingsChange?: (settings: object) => void;
 }
 
 const CURATED_VIDEOS: YouTubeVideo[] = [
@@ -73,7 +75,7 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos }: Props) {
+export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos, lobbySettings, onSettingsChange }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -82,6 +84,26 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
   const durationPlayerRef = useRef<YT.Player | null>(null);
   const videos = curatedVideos && curatedVideos.length > 0 ? curatedVideos : CURATED_VIDEOS;
   const [randomVideos] = useState(() => pickRandom(videos, 5));
+
+  const isHost = role === "host" || role === "admin";
+  const settingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isHost || !onSettingsChange || !video) return;
+    if (settingsDebounceRef.current) clearTimeout(settingsDebounceRef.current);
+    settingsDebounceRef.current = setTimeout(() => {
+      onSettingsChange({ video });
+    }, 300);
+    return () => { if (settingsDebounceRef.current) clearTimeout(settingsDebounceRef.current); };
+  }, [isHost, onSettingsChange, video]);
+
+  useEffect(() => {
+    if (role !== "guest" || !lobbySettings) return;
+    const v = lobbySettings.video as YouTubeVideo | undefined;
+    if (v && typeof v.videoId === "string" && typeof v.url === "string") {
+      setVideo(v);
+      setInputUrl(v.url);
+    }
+  }, [role, lobbySettings]);
 
   // Fetch video duration using a hidden YT player
   useEffect(() => {

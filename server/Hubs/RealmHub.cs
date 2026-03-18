@@ -63,6 +63,18 @@ public class RealmHub : Hub
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Called by the host dashboard to broadcast lobby settings to all clients in the realm.
+    /// Stores the settings on the realm so late-joining clients receive them on connect.
+    /// </summary>
+    public async Task UpdateLobbySettings(string realmId, string settingsJson)
+    {
+        var realm = GetRealmAsHost(realmId);
+
+        realm.WithLock(r => r.LobbySettings = settingsJson);
+        await Clients.Group(realmId).SendAsync("LobbySettingsUpdated", settingsJson);
+    }
+
     private Realm GetRealmAsHost(string realmId)
     {
         var realm = _realmManager.GetById(realmId);
@@ -152,6 +164,13 @@ public class RealmHub : Hub
         if (isReconnect)
         {
             await Clients.Caller.SendAsync("RealmStarted", realm.RealmConfig);
+        }
+
+        // Send current lobby settings to the joining client so they see the host's configuration
+        var lobbySettings = realm.WithLock(r => r.LobbySettings);
+        if (lobbySettings is not null)
+        {
+            await Clients.Caller.SendAsync("LobbySettingsUpdated", lobbySettings);
         }
     }
 
