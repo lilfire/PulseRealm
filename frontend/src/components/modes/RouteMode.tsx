@@ -53,6 +53,12 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   const [progressPct, setProgressPct] = useState(0);
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
 
+  // Enter browser fullscreen on mount
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
   // Track speed
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;

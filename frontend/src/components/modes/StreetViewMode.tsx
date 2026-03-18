@@ -251,6 +251,12 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     };
   }, [startLocation, mapsLoaded]);
 
+  // Enter browser fullscreen on mount
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
   }, [latestData]);

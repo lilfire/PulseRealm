@@ -29,6 +29,12 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
   const [currentRate, setCurrentRate] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
 
+  // Enter browser fullscreen on mount
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
   // Track speed from wearable data
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
