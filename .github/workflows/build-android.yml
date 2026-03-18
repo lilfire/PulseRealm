@@ -13,6 +13,8 @@ jobs:
   build:
     name: Build Debug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -40,3 +42,30 @@ jobs:
           name: pulserealm-apk
           path: client/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+
+      - name: Get version and tag
+        if: github.ref == 'refs/heads/main'
+        id: version
+        working-directory: client/android
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          TAG="android-v${VERSION}"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+            TAG="android-v${VERSION}-${TIMESTAMP}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: PulseRealm Android v${{ steps.version.outputs.name }}
+          body: |
+            Android debug APK built from main branch.
+
+            Commit: ${{ github.sha }}
+          files: client/android/app/build/outputs/apk/debug/*.apk
+          make_latest: true
