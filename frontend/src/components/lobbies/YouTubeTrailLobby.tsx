@@ -81,8 +81,10 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
+  const [cardDurations, setCardDurations] = useState<Record<string, number>>({});
   const durationContainerRef = useRef<HTMLDivElement>(null);
   const durationPlayerRef = useRef<YT.Player | null>(null);
+  const cardDurationContainerRef = useRef<HTMLDivElement>(null);
   const videos = curatedVideos && curatedVideos.length > 0 ? curatedVideos : CURATED_VIDEOS;
   const [randomVideos] = useState(() => pickRandom(videos, 5));
 
@@ -182,6 +184,69 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
     };
   }, [video?.videoId]);
 
+  // Fetch durations for suggestion cards
+  useEffect(() => {
+    const container = cardDurationContainerRef.current;
+    if (!container || randomVideos.length === 0) return;
+
+    let destroyed = false;
+    const players: YT.Player[] = [];
+
+    function createAll() {
+      if (destroyed || !container) return;
+      container.innerHTML = "";
+
+      for (const v of randomVideos) {
+        const div = document.createElement("div");
+        container.appendChild(div);
+
+        const player = new YT.Player(div, {
+          videoId: v.videoId,
+          width: "1",
+          height: "1",
+          playerVars: { autoplay: 0, mute: 1 },
+          events: {
+            onReady: (event: YT.PlayerEvent) => {
+              if (destroyed) return;
+              const tryGet = () => {
+                const dur = event.target.getDuration();
+                if (dur > 0) {
+                  setCardDurations((prev) => ({ ...prev, [v.videoId]: dur }));
+                  event.target.destroy();
+                } else if (!destroyed) {
+                  setTimeout(tryGet, 300);
+                }
+              };
+              tryGet();
+            },
+          },
+        });
+        players.push(player);
+      }
+    }
+
+    const ytWindow = window as Window & { YT?: typeof YT; onYouTubeIframeAPIReady?: () => void };
+    if (ytWindow.YT?.Player) {
+      createAll();
+    } else {
+      const prevCallback = ytWindow.onYouTubeIframeAPIReady;
+      ytWindow.onYouTubeIframeAPIReady = () => {
+        prevCallback?.();
+        createAll();
+      };
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(tag);
+      }
+    }
+
+    return () => {
+      destroyed = true;
+      players.forEach((p) => { try { p.destroy(); } catch {} });
+    };
+  }, [randomVideos]);
+
   const onInputChange = useCallback((value: string) => {
     setInputUrl(value);
     setUrlError("");
@@ -226,6 +291,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
     >
       {/* Hidden container for duration-fetching player */}
       <div ref={durationContainerRef} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} />
+      <div ref={cardDurationContainerRef} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} />
       <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingTop: "1.5rem", textAlign: "left" }}>
         <div style={{ maxWidth: "420px", flexShrink: 0 }}>
           <h3 style={{ marginTop: 0 }}>YouTube Video</h3>
@@ -299,7 +365,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
         </div>
         <OptionGrid
           items={randomVideos}
-          cardMinWidth={200}
+          cardMinWidth={280}
           cardHeight={100}
           gap={12}
           keyExtractor={(v) => v.videoId}
@@ -332,7 +398,10 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.title}</div>
-                  <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{v.baseSpeedKmh} km/h = 1×</div>
+                  <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem", whiteSpace: "nowrap" }}>Target speed: {v.baseSpeedKmh} km/h</div>
+                  {cardDurations[v.videoId] != null && (
+                    <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.15rem" }}>Duration: {formatDuration(cardDurations[v.videoId])}</div>
+                  )}
                 </div>
               </div>
             );
