@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import QRCode from "qrcode";
 import { useRealmHub, type RealmSummary } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
@@ -77,7 +77,7 @@ function App() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Join realm UI state
-  const [showJoinInput, setShowJoinInput] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [hostKeyInput, setHostKeyInput] = useState("");
   const [joinError, setJoinError] = useState("");
@@ -123,7 +123,7 @@ function App() {
     setRouteConfig(null);
     setDungeonConfig(null);
     setCompetitionConfig(null);
-    setShowJoinInput(false);
+    setShowJoinModal(false);
     setJoinCodeInput("");
     setHostKeyInput("");
     setJoinError("");
@@ -354,147 +354,87 @@ function App() {
   if (!realm) {
     return (
       <div className="home-screen">
-        <div className="home-content">
-          <div className="brand-header">
-            <img src="/logo.png" alt="PulseRealm" className="logo" />
-          </div>
-          <p className="home-subtitle">Choose a mode to create a realm</p>
-          <div className="mode-grid">
-            <button
-              className="mode-card"
-              onClick={() => createRealm("competition")}
-              disabled={creatingMode !== null}
-            >
-              <span className="mode-icon">&#9876;</span>
-              <span className="mode-name">Competition</span>
-              <span className="mode-desc">Race against others in real-time</span>
-            </button>
-            <button
-              className="mode-card"
-              onClick={() => createRealm("streetview")}
-              disabled={creatingMode !== null}
-            >
-              <span className="mode-icon">&#127758;</span>
-              <span className="mode-name">Street View</span>
-              <span className="mode-desc">Explore the world together</span>
-            </button>
-            <button
-              className="mode-card"
-              onClick={() => createRealm("youtubetrail")}
-              disabled={creatingMode !== null}
-            >
-              <span className="mode-icon">&#9654;</span>
-              <span className="mode-name">YouTube Trail</span>
-              <span className="mode-desc">Walk through videos together</span>
-            </button>
-            <button
-              className="mode-card"
-              onClick={() => createRealm("route")}
-              disabled={creatingMode !== null}
-            >
-              <span className="mode-icon">&#128739;</span>
-              <span className="mode-name">Route</span>
-              <span className="mode-desc">Follow a path in the real world</span>
-            </button>
-            <button
-              className="mode-card"
-              onClick={() => createRealm("dungeon")}
-              disabled={creatingMode !== null}
-            >
-              <span className="mode-icon">&#128081;</span>
-              <span className="mode-name">Dungeon</span>
-              <span className="mode-desc">Conquer dungeons with your team</span>
-            </button>
-            <button
-              className="mode-card"
-              onClick={() => createRealm("social")}
-              disabled={creatingMode !== null}
-            >
-              <span className="mode-icon">&#128172;</span>
-              <span className="mode-name">Social</span>
-              <span className="mode-desc">Hang out and move together</span>
-            </button>
-          </div>
-
-          {/* Create realm error banner (Issue #28) */}
-          {createError && (
-            <p className="error-message" style={{ textAlign: "center", marginTop: "0.75rem" }}>
-              {createError}
-            </p>
-          )}
-
-          {/* Join Realm Section */}
-          <div className="join-realm-section">
-            {!showJoinInput ? (
-              <button
-                className="btn-join-realm"
-                onClick={() => setShowJoinInput(true)}
-              >
-                Join a Realm
+        <div className="home-body">
+          <div className="home-content">
+            <div className="brand-header">
+              <img src="/logo.png" alt="PulseRealm" className="logo" />
+            </div>
+            <p className="home-subtitle">
+              Choose a mode to create a realm or{" "}
+              <button className="btn-join-link" onClick={() => setShowJoinModal(true)}>
+                join an existing realm
               </button>
-            ) : (
-              <div className="join-realm-form">
-                <p style={{ color: "var(--text, #9ca3af)", fontSize: "0.9rem", margin: "0 0 0.75rem" }}>
-                  Enter a 6-digit join code to watch a realm
-                </p>
-                <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.5rem" } as React.CSSProperties}>
-                  <input
-                    type="text"
-                    value={joinCodeInput}
-                    onChange={(e) => {
-                      setJoinCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
-                      setJoinError("");
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && joinRealm()}
-                    placeholder="000000"
-                    maxLength={6}
-                    className="input-join-code"
-                    autoFocus
-                  />
-                  <button
-                    onClick={joinRealm}
-                    disabled={joinCodeInput.length < 6 || joining}
-                    className="btn-join-go"
-                  >
-                    {joining ? "Joining..." : hostKeyInput.trim() ? "Join as Host" : "Watch"}
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={hostKeyInput}
-                  onChange={(e) => {
-                    setHostKeyInput(e.target.value.toUpperCase().slice(0, 8));
-                    setJoinError("");
-                  }}
-                  onKeyDown={(e) => e.key === "Enter" && joinRealm()}
-                  placeholder="Host key (optional)"
-                  maxLength={8}
-                  style={{
-                    width: "100%",
-                    padding: "0.4rem 0.6rem",
-                    fontSize: "0.85rem",
-                    borderRadius: "6px",
-                    border: "1px solid var(--border, #2e303a)",
-                    background: "var(--bg, #16171d)",
-                    color: "var(--text-h, #f3f4f6)",
-                    marginTop: "0.5rem",
-                    boxSizing: "border-box",
-                  }}
-                />
-                {joinError && <p className="error-message">{joinError}</p>}
-                <button
-                  className="btn-join-cancel"
-                  onClick={() => { setShowJoinInput(false); setJoinCodeInput(""); setHostKeyInput(""); setJoinError(""); }}
-                >
-                  Cancel
-                </button>
-              </div>
+            </p>
+            <div className="mode-grid">
+              <button
+                className="mode-card"
+                onClick={() => createRealm("competition")}
+                disabled={creatingMode !== null}
+              >
+                <span className="mode-icon">&#9876;</span>
+                <span className="mode-name">Competition</span>
+                <span className="mode-desc">Race against others in real-time</span>
+              </button>
+              <button
+                className="mode-card"
+                onClick={() => createRealm("streetview")}
+                disabled={creatingMode !== null}
+              >
+                <span className="mode-icon">&#127758;</span>
+                <span className="mode-name">Street View</span>
+                <span className="mode-desc">Explore the world together</span>
+              </button>
+              <button
+                className="mode-card"
+                onClick={() => createRealm("youtubetrail")}
+                disabled={creatingMode !== null}
+              >
+                <span className="mode-icon">&#9654;</span>
+                <span className="mode-name">YouTube Trail</span>
+                <span className="mode-desc">Walk through videos together</span>
+              </button>
+              <button
+                className="mode-card"
+                onClick={() => createRealm("route")}
+                disabled={creatingMode !== null}
+              >
+                <span className="mode-icon">&#128739;</span>
+                <span className="mode-name">Route</span>
+                <span className="mode-desc">Follow a path in the real world</span>
+              </button>
+              <button
+                className="mode-card"
+                onClick={() => createRealm("dungeon")}
+                disabled={creatingMode !== null}
+              >
+                <span className="mode-icon">&#128081;</span>
+                <span className="mode-name">Dungeon</span>
+                <span className="mode-desc">Conquer dungeons with your team</span>
+              </button>
+              <button
+                className="mode-card"
+                onClick={() => createRealm("social")}
+                disabled={creatingMode !== null}
+              >
+                <span className="mode-icon">&#128172;</span>
+                <span className="mode-name">Social</span>
+                <span className="mode-desc">Hang out and move together</span>
+              </button>
+            </div>
+
+            <p className="home-tagline">
+              PulseRealm is a real-time treadmill workout platform — connect your wearable and get moving.
+            </p>
+
+            {/* Create realm error banner (Issue #28) */}
+            {createError && (
+              <p className="error-message" style={{ textAlign: "center", marginTop: "0.75rem" }}>
+                {createError}
+              </p>
             )}
           </div>
-        </div>
-        <div className="device-section">
-          <span className="device-section-label">Connect your device</span>
-          <div className="device-section-links">
+          <div className="device-sidebar">
+            <span className="device-sidebar-label">Connect your device</span>
             <button className="device-link" onClick={() => setShowAndroidQR(true)}>
               Android
             </button>
@@ -538,6 +478,54 @@ function App() {
                 Or open directly
               </a>
               <button className="qr-close" onClick={() => setShowAndroidQR(false)}>Close</button>
+            </div>
+          </div>
+        )}
+        {showJoinModal && (
+          <div className="qr-overlay" onClick={() => { setShowJoinModal(false); setJoinError(""); }}>
+            <div className="qr-modal join-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Join a Realm</h3>
+              <p>Enter a 6-digit join code to watch a realm</p>
+              <input
+                type="text"
+                value={joinCodeInput}
+                onChange={(e) => {
+                  setJoinCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setJoinError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && joinRealm()}
+                placeholder="000000"
+                maxLength={6}
+                className="input-join-code"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={hostKeyInput}
+                onChange={(e) => {
+                  setHostKeyInput(e.target.value.toUpperCase().slice(0, 8));
+                  setJoinError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && joinRealm()}
+                placeholder="Host key (optional)"
+                className="input-host-key"
+              />
+              {joinError && <p className="error-message">{joinError}</p>}
+              <div className="join-modal-actions">
+                <button
+                  onClick={joinRealm}
+                  disabled={joinCodeInput.length < 6 || joining}
+                  className="btn-join-go"
+                >
+                  {joining ? "Joining..." : hostKeyInput.trim() ? "Join as Host" : "Watch"}
+                </button>
+                <button
+                  className="qr-close"
+                  onClick={() => { setShowJoinModal(false); setJoinCodeInput(""); setHostKeyInput(""); setJoinError(""); }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
