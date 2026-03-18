@@ -3,6 +3,7 @@ import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { usePlacesProxy } from "../../hooks/usePlacesProxy";
 import { LobbyShell } from "./LobbyShell";
+import { OptionGrid } from "./OptionGrid";
 
 export interface RouteEndpoint {
   lat: number;
@@ -282,61 +283,71 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
       role={role}
       hostSecret={hostSecret}
     >
-      <div style={{ margin: "1.5rem 0", maxWidth: "420px", width: "100%", textAlign: "left" }}>
-        <h3>Plan Your Route</h3>
-        {!mapsLoaded && !mapsError ? (
-          <p style={{ color: "#888" }}>Loading maps...</p>
-        ) : (
-          <>
-            <PlaceInput
-              label="From"
-              placeholder="Starting point..."
-              value={from}
-              onSelect={setFrom}
-              mapsLoaded={mapsLoaded}
-              useProxyMode={!!mapsError}
-            />
-            <PlaceInput
-              label="To"
-              placeholder="Destination..."
-              value={to}
-              onSelect={setTo}
-              mapsLoaded={mapsLoaded}
-              useProxyMode={!!mapsError}
-            />
-            {from && to && (
-              <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.5rem" }}>
-                Route will use walking/hiking directions.
-              </p>
-            )}
-            <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a curated route:</p>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {routes.map((r, i) => {
-                const isSelected = from?.address === r.from.address && to?.address === r.to.address;
-                return (
-                  <li
-                    key={i}
-                    onClick={() => { setFrom(r.from); setTo(r.to); }}
-                    style={{
-                      padding: "0.6rem 0.75rem",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      borderRadius: "4px",
-                      border: isSelected ? "1px solid #00D4FF" : "1px solid #333",
-                      marginBottom: "0.4rem",
-                      background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
-                      transition: "background 0.15s, border-color 0.15s",
-                    }}
-                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
-                    onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
-                  >
-                    <div>{r.from.address}</div>
-                    <div style={{ color: "#888", fontSize: "0.8rem" }}>to {r.to.address}</div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingTop: "1.5rem", textAlign: "left" }}>
+        <div style={{ maxWidth: "420px", flexShrink: 0 }}>
+          <h3 style={{ marginTop: 0 }}>Plan Your Route</h3>
+          {!mapsLoaded && !mapsError ? (
+            <p style={{ color: "#888" }}>Loading maps...</p>
+          ) : (
+            <>
+              <PlaceInput
+                label="From"
+                placeholder="Starting point..."
+                value={from}
+                onSelect={setFrom}
+                mapsLoaded={mapsLoaded}
+                useProxyMode={!!mapsError}
+              />
+              <PlaceInput
+                label="To"
+                placeholder="Destination..."
+                value={to}
+                onSelect={setTo}
+                mapsLoaded={mapsLoaded}
+                useProxyMode={!!mapsError}
+              />
+              {from && to && (
+                <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                  Route will use walking/hiking directions.
+                </p>
+              )}
+            </>
+          )}
+          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a curated route:</p>
+        </div>
+        {(mapsLoaded || mapsError) && (
+          <OptionGrid
+            items={routes}
+            cardMinWidth={240}
+            cardHeight={90}
+            gap={12}
+            keyExtractor={(_, i) => String(i)}
+            renderCard={(r) => {
+              const isSelected = from?.address === r.from.address && to?.address === r.to.address;
+              return (
+                <div
+                  onClick={() => { setFrom(r.from); setTo(r.to); }}
+                  style={{
+                    padding: "0.6rem 0.75rem",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                    borderRadius: "6px",
+                    border: isSelected ? "2px solid #00D4FF" : "1px solid #333",
+                    background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
+                    height: "100%",
+                    boxSizing: "border-box",
+                    transition: "background 0.15s, border-color 0.15s",
+                    overflow: "hidden",
+                  }}
+                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
+                  onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
+                >
+                  <div style={{ fontWeight: 500 }}>{r.from.address}</div>
+                  <div style={{ color: "#888", fontSize: "0.8rem", marginTop: "0.25rem" }}>to {r.to.address}</div>
+                </div>
+              );
+            }}
+          />
         )}
       </div>
     </LobbyShell>

@@ -775,7 +775,9 @@ button:disabled {
 
 .lobby-col-settings {
   min-width: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .lobby-col-players {
