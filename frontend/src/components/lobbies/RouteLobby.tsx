@@ -27,6 +27,8 @@ interface Props {
   onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
+  lobbySettings?: Record<string, unknown> | null;
+  onSettingsChange?: (settings: object) => void;
 }
 
 interface Suggestion {
@@ -222,10 +224,31 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret }: Props) {
+export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, lobbySettings, onSettingsChange }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
+
+  const isHost = role === "host" || role === "admin";
+  const settingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isHost || !onSettingsChange || !from) return;
+    if (settingsDebounceRef.current) clearTimeout(settingsDebounceRef.current);
+    settingsDebounceRef.current = setTimeout(() => {
+      onSettingsChange({ from, to });
+    }, 300);
+    return () => { if (settingsDebounceRef.current) clearTimeout(settingsDebounceRef.current); };
+  }, [isHost, onSettingsChange, from, to]);
+
+  useEffect(() => {
+    if (role !== "guest" || !lobbySettings) return;
+    const f = lobbySettings.from as RouteEndpoint | undefined;
+    const t = lobbySettings.to as RouteEndpoint | undefined;
+    if (f && typeof f.lat === "number" && typeof f.lng === "number" && typeof f.address === "string")
+      setFrom(f);
+    if (t && typeof t.lat === "number" && typeof t.lng === "number" && typeof t.address === "string")
+      setTo(t);
+  }, [role, lobbySettings]);
 
   return (
     <LobbyShell

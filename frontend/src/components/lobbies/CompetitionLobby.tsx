@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { ClientProfile, CompetitionConfig, CompetitionSubMode, PlayerFormat, RealmMode, RealmRole, TeamAssignment } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
@@ -24,6 +24,8 @@ interface Props {
   role?: RealmRole;
   hostSecret?: string;
   defaults?: CompetitionDefaults | null;
+  lobbySettings?: Record<string, unknown> | null;
+  onSettingsChange?: (settings: object) => void;
 }
 
 const SUB_MODES: { value: CompetitionSubMode; label: string; desc: string }[] = [
@@ -50,7 +52,7 @@ const btnStyle = (selected: boolean) => ({
   fontWeight: selected ? 600 : 400,
 });
 
-export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults }: Props) {
+export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange }: Props) {
   const validSubModes: CompetitionSubMode[] = ["race", "elimination", "heartzone", "king"];
   const validFormats: PlayerFormat[] = ["individual", "team"];
   const [subMode, setSubMode] = useState<CompetitionSubMode>(
@@ -78,6 +80,37 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
   const [kingDuration, setKingDuration] = useState(15);
 
   const durationMinutes = subMode === "heartzone" ? hzDuration : kingDuration;
+
+  // Host: broadcast settings whenever they change
+  const isHost = role === "host" || role === "admin";
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isHost || !onSettingsChange) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onSettingsChange({ subMode, playerFormat, targetDistanceKm, intervalMinutes, targetZone, durationMinutes });
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [isHost, onSettingsChange, subMode, playerFormat, targetDistanceKm, intervalMinutes, targetZone, durationMinutes]);
+
+  // Guest: apply lobby settings received from host
+  useEffect(() => {
+    if (role !== "guest" || !lobbySettings) return;
+    if (typeof lobbySettings.subMode === "string" && validSubModes.includes(lobbySettings.subMode as CompetitionSubMode))
+      setSubMode(lobbySettings.subMode as CompetitionSubMode);
+    if (typeof lobbySettings.playerFormat === "string" && validFormats.includes(lobbySettings.playerFormat as PlayerFormat))
+      setPlayerFormat(lobbySettings.playerFormat as PlayerFormat);
+    if (typeof lobbySettings.targetDistanceKm === "number")
+      setTargetDistanceKm(lobbySettings.targetDistanceKm);
+    if (typeof lobbySettings.intervalMinutes === "number")
+      setIntervalMinutes(lobbySettings.intervalMinutes);
+    if (typeof lobbySettings.targetZone === "number")
+      setTargetZone(lobbySettings.targetZone);
+    if (typeof lobbySettings.durationMinutes === "number") {
+      setHzDuration(lobbySettings.durationMinutes);
+      setKingDuration(lobbySettings.durationMinutes);
+    }
+  }, [role, lobbySettings]);
 
   function addTeam() {
     const idx = teams.length;

@@ -19,6 +19,9 @@ public class Realm
     /// <summary>JSON blob of mode-specific config, set when the realm starts.</summary>
     public string? RealmConfig { get; set; }
 
+    /// <summary>JSON blob of lobby settings broadcast by the host before starting.</summary>
+    public string? LobbySettings { get; set; }
+
     public int MaxClients => Mode switch
     {
         RealmMode.Competition => 8,

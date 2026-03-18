@@ -25,6 +25,8 @@ interface Props {
   role?: RealmRole;
   hostSecret?: string;
   curatedLocations?: StreetViewLocation[] | null;
+  lobbySettings?: Record<string, unknown> | null;
+  onSettingsChange?: (settings: object) => void;
 }
 
 interface Suggestion {
@@ -75,7 +77,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations }: Props) {
+export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations, lobbySettings, onSettingsChange }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const proxy = usePlacesProxy();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
@@ -84,6 +86,26 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
   const [showSuggestions, setShowSuggestions] = useState(false);
   const locations = curatedLocations && curatedLocations.length > 0 ? curatedLocations : CURATED_LOCATIONS;
   const [randomLocations] = useState(() => pickRandom(locations, 5));
+
+  const isHost = role === "host" || role === "admin";
+  const settingsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isHost || !onSettingsChange || !location) return;
+    if (settingsDebounceRef.current) clearTimeout(settingsDebounceRef.current);
+    settingsDebounceRef.current = setTimeout(() => {
+      onSettingsChange({ location });
+    }, 300);
+    return () => { if (settingsDebounceRef.current) clearTimeout(settingsDebounceRef.current); };
+  }, [isHost, onSettingsChange, location]);
+
+  useEffect(() => {
+    if (role !== "guest" || !lobbySettings) return;
+    const loc = lobbySettings.location as StreetViewLocation | undefined;
+    if (loc && typeof loc.lat === "number" && typeof loc.lng === "number" && typeof loc.address === "string") {
+      setLocation(loc);
+      setQuery(loc.address);
+    }
+  }, [role, lobbySettings]);
 
   // Use server proxy when Maps JS SDK is unavailable (Chrome 74)
   const useProxy = !!mapsError;

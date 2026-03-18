@@ -93,13 +93,13 @@ describe("LobbyShell", () => {
       expect(screen.getByTestId("child-content")).toBeInTheDocument();
     });
 
-    it("hides children when role is guest", () => {
+    it("renders children as read-only when role is guest", () => {
       render(
         <LobbyShell {...baseProps} role="guest">
           <div data-testid="child-content">Child</div>
         </LobbyShell>
       );
-      expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+      expect(screen.getByTestId("child-content")).toBeInTheDocument();
     });
   });
 

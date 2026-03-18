@@ -52,6 +52,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
   const [latestData, setLatestData] = useState<WearableData | null>(null);
   const [realmConfig, setRealmConfig] = useState<Record<string, unknown> | null>(null);
   const [disconnectedClients, setDisconnectedClients] = useState<Set<string>>(new Set());
+  const [lobbySettings, setLobbySettings] = useState<Record<string, unknown> | null>(null);
 
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
@@ -68,6 +69,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     setLatestData(null);
     setRealmConfig(null);
     setDisconnectedClients(new Set());
+    setLobbySettings(null);
 
     if (!realmId || !resolvedUrl) return;
 
@@ -158,6 +160,10 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
       }
     });
 
+    connection.on("LobbySettingsUpdated", (settingsJson: string) => {
+      try { setLobbySettings(JSON.parse(settingsJson)); } catch { /* ignore */ }
+    });
+
     let active = true;
 
     connection
@@ -197,5 +203,9 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     connectionRef.current?.invoke("EndRealm", realmId, overrides ?? null);
   }, [realmId]);
 
-  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, disconnectedClients, startRealm, endRealm, notifyEliminated, kickClient };
+  const updateLobbySettings = useCallback((settings: object) => {
+    connectionRef.current?.invoke("UpdateLobbySettings", realmId, JSON.stringify(settings));
+  }, [realmId]);
+
+  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, lobbySettings, disconnectedClients, startRealm, endRealm, notifyEliminated, kickClient, updateLobbySettings };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
@@ -27,6 +27,8 @@ interface Props {
   role?: RealmRole;
   hostSecret?: string;
   defaults?: DungeonDefaults | null;
+  lobbySettings?: Record<string, unknown> | null;
+  onSettingsChange?: (settings: object) => void;
 }
 
 const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] = [
@@ -37,12 +39,31 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults }: Props) {
+export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange }: Props) {
   const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
     validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
   );
   const [timeframe, setTimeframe] = useState(defaults?.timeframeMinutes ?? 30);
+
+  const isHost = role === "host" || role === "admin";
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isHost || !onSettingsChange) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onSettingsChange({ difficulty, timeframe });
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [isHost, onSettingsChange, difficulty, timeframe]);
+
+  useEffect(() => {
+    if (role !== "guest" || !lobbySettings) return;
+    if (typeof lobbySettings.difficulty === "string" && validDifficulties.includes(lobbySettings.difficulty as DungeonDifficulty))
+      setDifficulty(lobbySettings.difficulty as DungeonDifficulty);
+    if (typeof lobbySettings.timeframe === "number")
+      setTimeframe(lobbySettings.timeframe);
+  }, [role, lobbySettings]);
 
   return (
     <LobbyShell
