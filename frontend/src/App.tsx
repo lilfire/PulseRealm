@@ -49,7 +49,7 @@ interface LobbyDefaults {
     difficulty: string;
     timeframeMinutes: number;
   };
-  streetViewLocations: { lat: number; lng: number; address: string }[];
+  streetViewLocations: { lat: number; lng: number; address: string; heading?: number; pitch?: number }[];
   youTubeVideos: { videoId: string; url: string; title: string; baseSpeedKmh: number }[];
 }
 

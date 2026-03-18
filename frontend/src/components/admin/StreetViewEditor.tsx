@@ -4,6 +4,8 @@ export interface StreetViewLocationItem {
   lat: number;
   lng: number;
   address: string;
+  heading?: number;
+  pitch?: number;
 }
 
 interface Props {
@@ -17,7 +19,7 @@ export function StreetViewEditor({ locations, onChange }: Props) {
   const [adding, setAdding] = useState(false);
 
   function startAdd() {
-    setDraft({ lat: 0, lng: 0, address: "" });
+    setDraft({ lat: 0, lng: 0, address: "", heading: 0, pitch: 0 });
     setAdding(true);
     setEditIdx(null);
   }
@@ -81,7 +83,7 @@ export function StreetViewEditor({ locations, onChange }: Props) {
               {loc.address}
             </a>
             <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>
-              {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}
+              {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)} | H:{loc.heading ?? 0}° P:{loc.pitch ?? 0}°
             </span>
             <button onClick={() => startEdit(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "var(--text)" }}>
               Edit
@@ -108,6 +110,16 @@ export function StreetViewEditor({ locations, onChange }: Props) {
               <div style={{ flex: 1 }}>
                 <label className="admin-label">Longitude</label>
                 <input className="admin-input" type="number" step="any" value={draft.lng} onChange={(e) => setDraft({ ...draft, lng: Number(e.target.value) })} />
+              </div>
+            </div>
+            <div className="fg-row" style={{ display: "flex", "--fg": "1rem" } as React.CSSProperties}>
+              <div style={{ flex: 1 }}>
+                <label className="admin-label">Heading (0–360°)</label>
+                <input className="admin-input" type="number" min={0} max={360} step="any" value={draft.heading ?? 0} onChange={(e) => setDraft({ ...draft, heading: Number(e.target.value) })} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="admin-label">Pitch (-90–90°)</label>
+                <input className="admin-input" type="number" min={-90} max={90} step="any" value={draft.pitch ?? 0} onChange={(e) => setDraft({ ...draft, pitch: Number(e.target.value) })} />
               </div>
             </div>
             <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>

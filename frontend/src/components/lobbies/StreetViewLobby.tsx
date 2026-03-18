@@ -8,6 +8,8 @@ export interface StreetViewLocation {
   lat: number;
   lng: number;
   address: string;
+  heading?: number;
+  pitch?: number;
 }
 
 interface Props {

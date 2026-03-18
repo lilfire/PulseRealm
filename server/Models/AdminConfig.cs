@@ -59,6 +59,8 @@ public class StreetViewLocationDto
     public double Lat { get; set; }
     public double Lng { get; set; }
     public string Address { get; set; } = "";
+    public double Heading { get; set; } = 0;
+    public double Pitch { get; set; } = 0;
 }
 
 public class YouTubeVideoDto

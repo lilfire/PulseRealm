@@ -44,7 +44,7 @@ export function StaticStreetViewMode({
   onEnd,
   role = "host",
 }: Props) {
-  const pitch = 0;
+  const pitch = startLocation.pitch ?? 0;
 
   // Double-buffered images
   const [frontSrc, setFrontSrc] = useState("");
@@ -60,7 +60,7 @@ export function StaticStreetViewMode({
   const movingRef = useRef(false);
   const latRef = useRef(startLocation.lat);
   const lngRef = useRef(startLocation.lng);
-  const headingRef = useRef(0);
+  const headingRef = useRef(startLocation.heading ?? 0);
   const showFrontRef = useRef(true);
   const pendingSwapRef = useRef<"front" | "back" | null>(null);
 
@@ -73,7 +73,7 @@ export function StaticStreetViewMode({
 
   // Initialize with the start location image
   useEffect(() => {
-    const url = buildUrl(startLocation.lat, startLocation.lng, 0);
+    const url = buildUrl(startLocation.lat, startLocation.lng, startLocation.heading ?? 0);
     setFrontSrc(url);
     setBackSrc(url);
   }, [startLocation, buildUrl]);

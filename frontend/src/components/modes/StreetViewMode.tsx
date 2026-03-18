@@ -71,7 +71,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const activePanoRef = useRef<"A" | "B">("A");
 
   const svServiceRef = useRef<google.maps.StreetViewService | null>(null);
-  const headingRef = useRef(0);
+  const headingRef = useRef(startLocation.heading ?? 0);
   const speedRef = useRef(0);
   const accumulatedDistanceRef = useRef(0);
   const movingRef = useRef(false);
@@ -188,7 +188,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
         const panoOptions: google.maps.StreetViewPanoramaOptions = {
           position: data.location.latLng,
-          pov: { heading: 0, pitch: 0 },
+          pov: { heading: startLocation.heading ?? 0, pitch: startLocation.pitch ?? 0 },
           zoom: 1,
           disableDefaultUI: true,
           showRoadLabels: false,
