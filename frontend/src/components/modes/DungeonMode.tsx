@@ -1058,11 +1058,11 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       {/* Top bar */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0.75rem 1rem", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid #222",
+        padding: "0.4rem 1rem", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid #222",
       }}>
         <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.75rem" } as React.CSSProperties}>
-          <span style={{ fontSize: "1.3rem" }}>&#128081;</span>
-          <span style={{ fontWeight: 700, fontSize: "1.1rem" }}>Dungeon</span>
+          <span style={{ fontSize: "1.05rem" }}>&#128081;</span>
+          <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>Dungeon</span>
           <span style={{ color: "#888", fontSize: "0.85rem" }}>
             {display.phase === "complete"
               ? "Complete"
@@ -1107,7 +1107,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       )}
 
       {/* Room progress bar */}
-      <div className="fg-row" style={{ display: "flex", padding: "0.5rem 1rem", "--fg": "3px", background: "#111" } as React.CSSProperties}>
+      <div className="fg-row" style={{ display: "flex", padding: "0.25rem 1rem", "--fg": "3px", background: "#111" } as React.CSSProperties}>
         {display.rooms.map((room, i) => {
           const isCurrent = i === display.currentRoom;
           const isCleared = i < display.currentRoom;
@@ -1129,7 +1129,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       </div>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1rem", overflow: "auto" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0.5rem 1rem", overflow: "auto" }}>
         {display.phase === "complete" && <CompleteView display={display} onEnd={handleEnd} role={role} />}
         {display.phase === "corridor" && <CorridorView display={display} />}
         {display.phase === "room" && currentRoomObj && (
@@ -1139,7 +1139,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
 
       {/* Bottom stats */}
       <div className="fg-wrap" style={{
-        padding: "0.75rem 1rem", background: "rgba(0,0,0,0.5)", borderTop: "1px solid #222",
+        padding: "0.4rem 1rem", background: "rgba(0,0,0,0.5)", borderTop: "1px solid #222",
         display: "flex", justifyContent: "space-around", flexWrap: "wrap", "--fg": "0.5rem",
       } as React.CSSProperties}>
         {display.clientStats.length === 0 ? (
@@ -1147,7 +1147,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         ) : display.clientStats.map((cs, i) => (
           <div key={i} style={{
             textAlign: "center", padding: "0.3rem 0.8rem", background: "#1a1a1a",
-            borderRadius: "6px", border: "1px solid #2a2a2a", minWidth: "120px",
+            borderRadius: "6px", border: "1px solid #2a2a2a", minWidth: "100px",
           }}>
             <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.15rem" }}>{cs.name}</div>
             <div style={{ fontSize: "0.75rem", color: "#888" }}>
@@ -1157,7 +1157,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         ))}
         <div style={{ textAlign: "center", padding: "0.3rem 0.8rem" }}>
           <div style={{ fontSize: "0.75rem", color: "#888" }}>Team cadence</div>
-          <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#33DFFF" }}>{display.teamCadence} spm</div>
+          <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#33DFFF" }}>{display.teamCadence} spm</div>
         </div>
       </div>
     </div>
@@ -1180,9 +1180,9 @@ function roomIcon(type: RoomType): string {
 function CorridorView({ display }: { display: Display }) {
   const pct = Math.round(display.corridorProgress * 100);
   return (
-    <div style={{ textAlign: "center", width: "100%", maxWidth: "500px" }}>
-      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>&#128694;</div>
-      <div style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "1rem" }}>{display.roomMessage}</div>
+    <div style={{ textAlign: "center", width: "100%", maxWidth: "700px" }}>
+      <div style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>&#128694;</div>
+      <div style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>{display.roomMessage}</div>
       <div style={{
         width: "100%", height: "24px", background: "#1a1a1a", borderRadius: "12px",
         border: "1px solid #333", overflow: "hidden",
@@ -1200,18 +1200,18 @@ function CorridorView({ display }: { display: Display }) {
 function CompleteView({ display, onEnd, role = "host" }: { display: Display; onEnd: () => void; role?: RealmRole }) {
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>&#127942;</div>
-      <div style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.5rem", color: "#22c55e" }}>
+      <div style={{ fontSize: "2.2rem", marginBottom: "0.25rem" }}>&#127942;</div>
+      <div style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: "0.25rem", color: "#22c55e" }}>
         Dungeon Complete!
       </div>
-      <div style={{ color: "#888", fontSize: "1rem", marginBottom: "1.5rem" }}>
+      <div style={{ color: "#888", fontSize: "0.9rem", marginBottom: "0.75rem" }}>
         {display.totalSteps} total steps pooled
       </div>
       {role !== "guest" && (
         <button
           onClick={onEnd}
           style={{
-            padding: "0.8rem 2rem", fontSize: "1.1rem", borderRadius: "8px", cursor: "pointer",
+            padding: "0.5rem 1.5rem", fontSize: "0.95rem", borderRadius: "8px", cursor: "pointer",
             background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid #22c55e",
           }}
         >
@@ -1224,10 +1224,10 @@ function CompleteView({ display, onEnd, role = "host" }: { display: Display; onE
 
 function RoomView({ display, roomType, roomLabel }: { display: Display; roomType: RoomType; roomLabel: string }) {
   return (
-    <div style={{ textAlign: "center", width: "100%", maxWidth: "500px" }}>
-      <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>{roomIcon(roomType)}</div>
-      <div style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.3rem" }}>{roomLabel}</div>
-      <div style={{ color: "#aaa", fontSize: "0.9rem", marginBottom: "1.5rem" }}>{display.roomMessage}</div>
+    <div style={{ textAlign: "center", width: "100%", maxWidth: "700px" }}>
+      <div style={{ fontSize: "1.5rem", marginBottom: "0.15rem" }}>{roomIcon(roomType)}</div>
+      <div style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.2rem" }}>{roomLabel}</div>
+      <div style={{ color: "#aaa", fontSize: "0.85rem", marginBottom: "0.75rem" }}>{display.roomMessage}</div>
 
       {roomType === "enemy" && <EnemyRoom display={display} />}
       {roomType === "trap" && <TrapRoom display={display} />}
@@ -1241,8 +1241,8 @@ function RoomView({ display, roomType, roomLabel }: { display: Display; roomType
 function HpBar({ current, max, color, label }: { current: number; max: number; color: string; label: string }) {
   const pct = max > 0 ? Math.round((current / max) * 100) : 0;
   return (
-    <div style={{ marginBottom: "1rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginBottom: "0.3rem" }}>
+    <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginBottom: "0.2rem" }}>
         <span>{label}</span>
         <span>{current} / {max}</span>
       </div>
@@ -1272,9 +1272,9 @@ function EnemyRoom({ display }: { display: Display }) {
 function TrapRoom({ display }: { display: Display }) {
   return (
     <div>
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{ marginBottom: "0.5rem" }}>
         <div style={{
-          display: "inline-block", padding: "0.3rem 1rem", borderRadius: "20px", fontSize: "1.5rem", fontWeight: 700,
+          display: "inline-block", padding: "0.25rem 0.75rem", borderRadius: "20px", fontSize: "1.2rem", fontWeight: 700,
           background: display.trapInWindow ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
           color: display.trapInWindow ? "#22c55e" : "#ef4444",
           border: `2px solid ${display.trapInWindow ? "#22c55e" : "#ef4444"}`,
@@ -1367,10 +1367,10 @@ function TreasureRoom({ display }: { display: Display }) {
 
   return (
     <div>
-      <div style={{ fontSize: "2.5rem", fontWeight: 700, color: "#fbbf24", marginBottom: "0.25rem" }}>
+      <div style={{ fontSize: "2rem", fontWeight: 700, color: "#fbbf24", marginBottom: "0.15rem" }}>
         {display.treasureTimeLeft}s
       </div>
-      <div style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+      <div style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "0.35rem" }}>
         {display.treasureSteps} steps
       </div>
       <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.5rem", fontSize: "0.8rem" } as React.CSSProperties}>
@@ -1399,7 +1399,7 @@ function BossRoom({ display }: { display: Display }) {
   return (
     <div>
       {/* Phase indicators */}
-      <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.5rem", marginBottom: "1.5rem" } as React.CSSProperties}>
+      <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.5rem", marginBottom: "0.75rem" } as React.CSSProperties}>
         {phases.map((label, i) => {
           const isActive = i === display.bossPhase;
           const isCleared = i < display.bossPhase;
@@ -1422,9 +1422,9 @@ function BossRoom({ display }: { display: Display }) {
       )}
       {display.bossPhase === 1 && (
         <div>
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={{ marginBottom: "0.5rem" }}>
             <div style={{
-              display: "inline-block", padding: "0.3rem 1rem", borderRadius: "20px", fontSize: "1.5rem", fontWeight: 700,
+              display: "inline-block", padding: "0.25rem 0.75rem", borderRadius: "20px", fontSize: "1.2rem", fontWeight: 700,
               background: display.bossInWindow ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
               color: display.bossInWindow ? "#22c55e" : "#ef4444",
               border: `2px solid ${display.bossInWindow ? "#22c55e" : "#ef4444"}`,
