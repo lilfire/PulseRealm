@@ -87,6 +87,9 @@ function App() {
   const [showAndroidQR, setShowAndroidQR] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Coming soon modal for unsupported platforms
+  const [comingSoonDevice, setComingSoonDevice] = useState<string | null>(null);
+
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
   const hubUrl = PRESET_API_URL
@@ -433,22 +436,18 @@ function App() {
               </p>
             )}
 
-            <div className="device-strip">
-              <span className="device-strip-label">Connect your device</span>
-              <div className="device-strip-buttons">
-                <button className="device-link" onClick={() => setShowAndroidQR(true)}>
-                  Android
-                </button>
-                <span className="device-link device-link--disabled">
-                  Apple
-                  <span className="device-coming-soon">Coming soon</span>
-                </span>
-                <span className="device-link device-link--disabled">
-                  Garmin
-                  <span className="device-coming-soon">Coming soon</span>
-                </span>
-              </div>
-            </div>
+          </div>
+          <div className="device-sidebar">
+            <span className="device-sidebar-label">Connect your device</span>
+            <button className="device-link" onClick={() => setShowAndroidQR(true)}>
+              Android
+            </button>
+            <button className="device-link" onClick={() => setComingSoonDevice("Apple")}>
+              Apple
+            </button>
+            <button className="device-link" onClick={() => setComingSoonDevice("Garmin")}>
+              Garmin
+            </button>
           </div>
         </div>
         <footer className="server-footer">
@@ -489,6 +488,15 @@ function App() {
                 Or open directly
               </a>
               <button className="qr-close" onClick={() => setShowAndroidQR(false)}>Close</button>
+            </div>
+          </div>
+        )}
+        {comingSoonDevice && (
+          <div className="qr-overlay" onClick={() => setComingSoonDevice(null)}>
+            <div className="qr-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>{comingSoonDevice}</h3>
+              <p>{comingSoonDevice} support is coming soon.</p>
+              <button className="qr-close" onClick={() => setComingSoonDevice(null)}>Close</button>
             </div>
           </div>
         )}
