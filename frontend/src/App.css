@@ -22,7 +22,12 @@
   flex-direction: row;
 }
 
-/* (spacer removed — device strip is now inline) */
+/* Left spacer to balance the sidebar and keep content centered */
+.home-body::before {
+  content: "";
+  width: 120px;
+  flex-shrink: 0;
+}
 
 .home-content {
   flex: 1;
@@ -330,31 +335,34 @@
   background: transparent;
 }
 
-/* --- Device Strip --- */
+/* --- Device Sidebar --- */
 
-.device-strip {
+.device-sidebar {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  margin-top: 1.5rem;
-  opacity: 0.6;
+  padding: 1rem 1.25rem;
+  font-size: 0.8rem;
+  color: var(--text, #9ca3af);
+  opacity: 0.5;
+  border-left: 1px solid var(--border, #2e303a);
+  width: 120px;
+  flex-shrink: 0;
   transition: opacity 0.2s;
 }
 
-.device-strip:hover {
+.device-sidebar:hover {
   opacity: 1;
 }
 
-.device-strip-label {
-  font-size: 0.75rem;
-  color: var(--text, #9ca3af);
+.device-sidebar-label {
+  white-space: nowrap;
+  opacity: 0.7;
+  font-size: 0.7rem;
   letter-spacing: 0.05em;
-}
-
-.device-strip-buttons {
-  display: flex;
-  gap: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .device-link {
@@ -362,13 +370,11 @@
   border: 1px solid var(--border, #2e303a);
   color: var(--text-h, #f3f4f6);
   font-size: 0.75rem;
-  padding: 0.25rem 0.85rem;
+  padding: 0.2rem 0.75rem;
   border-radius: 4px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
+  width: 80px;
+  text-align: center;
 }
 
 .device-link:hover {
@@ -379,7 +385,7 @@
 
 .device-link--disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .device-link--disabled:hover {
@@ -389,10 +395,10 @@
 }
 
 .device-coming-soon {
-  font-size: 0.55rem;
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.6rem;
+  opacity: 0.5;
+  font-style: italic;
+  margin-top: 0.15rem;
 }
 
 /* --- QR Code Modal --- */

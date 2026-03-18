@@ -433,22 +433,19 @@ function App() {
               </p>
             )}
 
-            <div className="device-strip">
-              <span className="device-strip-label">Connect your device</span>
-              <div className="device-strip-buttons">
-                <button className="device-link" onClick={() => setShowAndroidQR(true)}>
-                  Android
-                </button>
-                <span className="device-link device-link--disabled">
-                  Apple
-                  <span className="device-coming-soon">Coming soon</span>
-                </span>
-                <span className="device-link device-link--disabled">
-                  Garmin
-                  <span className="device-coming-soon">Coming soon</span>
-                </span>
-              </div>
-            </div>
+          </div>
+          <div className="device-sidebar">
+            <span className="device-sidebar-label">Connect your device</span>
+            <button className="device-link" onClick={() => setShowAndroidQR(true)}>
+              Android
+            </button>
+            <span className="device-link device-link--disabled">
+              Apple
+            </span>
+            <span className="device-link device-link--disabled">
+              Garmin
+            </span>
+            <span className="device-coming-soon">Coming soon</span>
           </div>
         </div>
         <footer className="server-footer">
