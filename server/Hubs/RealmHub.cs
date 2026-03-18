@@ -413,17 +413,29 @@ public class RealmHub : Hub
             {
                 var summary = _statsTracker.BuildSummaryForClient(realm!, mapping.ClientId);
                 await Clients.Caller.SendAsync("RealmEnded", summary);
-                _statsTracker.CleanupRealm(realm!.Id, new[] { mapping.ClientId });
             }
 
-            _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId, removeFromKnown: true);
+            // Remove from connected list but keep in KnownClientIds and keep stats
+            // so that TryAutoEndRealm can include this client in the final summary.
+            realm?.WithLock(r => r.ConnectedClientIds.Remove(mapping.ClientId));
             _lastData.TryRemove(mapping.ClientId, out _);
             _stepOffsets.TryRemove(mapping.ClientId, out _);
             _lastAcceptedTime.TryRemove(mapping.ClientId, out _);
 
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, mapping.RealmId);
             await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
-            await TryAutoEndRealm(mapping.RealmId);
+
+            // TryAutoEndRealm will build the full summary (including this client's stats)
+            // and handle cleanup if no connected clients remain.
+            var autoEnded = await TryAutoEndRealm(mapping.RealmId);
+
+            // If auto-end didn't fire (other clients still connected), clean up
+            // this client's stats now since they won't be needed for their personal summary.
+            if (!autoEnded)
+            {
+                _statsTracker.CleanupRealm(mapping.RealmId, new[] { mapping.ClientId });
+                _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId, removeFromKnown: true);
+            }
             return wasStarted;
         }
         return false;
@@ -474,11 +486,11 @@ public class RealmHub : Hub
     /// <summary>
     /// Checks if a realm has no connected clients left and, if so, ends it automatically.
     /// </summary>
-    private async Task TryAutoEndRealm(string realmId)
+    private async Task<bool> TryAutoEndRealm(string realmId)
     {
         var realm = _realmManager.GetById(realmId);
         if (realm is null)
-            return;
+            return false;
 
         var shouldEnd = realm.WithLock(r =>
         {
@@ -496,7 +508,10 @@ public class RealmHub : Hub
             CleanupRealmHubState(realmId, knownClientIds);
             _statsTracker.CleanupRealm(realmId, knownClientIds);
             await Clients.Group(realmId).SendAsync("RealmEnded", summary);
+            return true;
         }
+
+        return false;
     }
 
     /// <summary>
