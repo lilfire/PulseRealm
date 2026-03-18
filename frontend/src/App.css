@@ -16,6 +16,19 @@
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+.home-body {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+}
+
+/* Left spacer to balance the sidebar and keep content centered */
+.home-body::before {
+  content: "";
+  width: 60px;
+  flex-shrink: 0;
+}
+
 .home-content {
   flex: 1;
   display: flex;
@@ -82,36 +95,29 @@
   color: var(--text, #9ca3af);
 }
 
-/* --- Join Realm --- */
+/* --- Join Link & Modal --- */
 
-.join-realm-section {
-  margin-top: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.btn-join-realm {
-  background: transparent;
-  border: 2px solid var(--border, #2e303a);
-  color: var(--text, #9ca3af);
-  font-size: 1rem;
-  padding: 0.7rem 2rem;
-  border-radius: 8px;
+.btn-join-link {
+  background: none;
+  border: none;
+  color: var(--accent2, #33DFFF);
+  font-size: inherit;
+  font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  padding: 0;
+  margin: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.2s;
 }
 
-.btn-join-realm:hover {
-  border-color: var(--accent2, #33DFFF);
-  color: var(--text-h, #f3f4f6);
-  background: transparent;
+.btn-join-link:hover {
+  opacity: 0.8;
+  background: none;
 }
 
-.join-realm-form {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.join-modal {
+  max-width: 380px;
 }
 
 .input-join-code {
@@ -125,9 +131,28 @@
   border: 2px solid var(--border, #2e303a);
   background: var(--code-bg, #1f2028);
   color: var(--text-h, #f3f4f6);
+  display: block;
+  margin: 0 auto 0.75rem;
 }
 
 .input-join-code:focus {
+  outline: none;
+  border-color: var(--accent2, #33DFFF);
+}
+
+.input-host-key {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #2e303a);
+  background: var(--bg, #16171d);
+  color: var(--text-h, #f3f4f6);
+  margin-bottom: 0.75rem;
+  box-sizing: border-box;
+}
+
+.input-host-key:focus {
   outline: none;
   border-color: var(--accent2, #33DFFF);
 }
@@ -147,18 +172,27 @@
   opacity: 0.85;
 }
 
-.btn-join-cancel {
-  background: transparent;
-  border: none;
-  color: var(--text, #9ca3af);
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 0.3rem 0.5rem;
+.join-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
 }
 
-.btn-join-cancel:hover {
-  color: var(--text-h, #f3f4f6);
-  background: transparent;
+.join-modal-actions .btn-join-go,
+.join-modal-actions .qr-close {
+  margin-top: 0;
+}
+
+/* --- Tagline --- */
+
+.home-tagline {
+  font-size: 0.85rem;
+  color: var(--text, #9ca3af);
+  opacity: 0.5;
+  margin-top: 1.25rem;
+  max-width: 500px;
+  text-align: center;
+  line-height: 1.5;
 }
 
 /* --- Server Footer --- */
@@ -301,30 +335,36 @@
   background: transparent;
 }
 
-/* --- Device Connect Section --- */
+/* --- Device Sidebar --- */
 
-.device-section {
+.device-sidebar {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 1rem 1.5rem;
+  padding: 1rem 1.25rem;
   font-size: 0.8rem;
   color: var(--text, #9ca3af);
-  opacity: 0.6;
+  opacity: 0.5;
+  border-left: 1px solid var(--border, #2e303a);
+  width: 60px;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
 }
 
-.device-section:hover {
+.device-sidebar:hover {
   opacity: 1;
 }
 
-.device-section-label {
+.device-sidebar-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  white-space: nowrap;
   opacity: 0.7;
-}
-
-.device-section-links {
-  display: flex;
-  gap: 0.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
 }
 
 .device-link {
