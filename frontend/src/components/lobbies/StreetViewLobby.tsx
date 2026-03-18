@@ -3,6 +3,7 @@ import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { usePlacesProxy } from "../../hooks/usePlacesProxy";
 import { LobbyShell } from "./LobbyShell";
+import { OptionGrid } from "./OptionGrid";
 
 export interface StreetViewLocation {
   lat: number;
@@ -213,81 +214,86 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
       role={role}
       hostSecret={hostSecret}
     >
-      <div style={{ margin: "1.5rem 0" }}>
-        <h3>Starting Location</h3>
-        {!mapsLoaded && !mapsError ? (
-          <p style={{ color: "#888" }}>Loading maps...</p>
-        ) : (
-          <div style={{ position: "relative", display: "inline-block", width: "100%", maxWidth: "420px" }}>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => onInputChange(e.target.value)}
-              onFocus={() => (useProxy ? proxy.suggestions : suggestions).length > 0 && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              placeholder="Search for an address..."
-              style={{
-                padding: "0.6rem 0.75rem",
-                fontSize: "1rem",
-                borderRadius: "6px",
-                border: "2px solid " + (location ? "#00D4FF" : "#555"),
-                width: "100%",
-                background: "#1a1a1a",
-                color: "#fff",
-                boxSizing: "border-box",
-              }}
-            />
-            {showSuggestions && (useProxy ? proxy.suggestions : suggestions).length > 0 && (
-              <ul
-                role="listbox"
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingTop: "1.5rem", textAlign: "left" }}>
+        <div style={{ maxWidth: "420px", flexShrink: 0 }}>
+          <h3 style={{ marginTop: 0 }}>Starting Location</h3>
+          {!mapsLoaded && !mapsError ? (
+            <p style={{ color: "#888" }}>Loading maps...</p>
+          ) : (
+            <div style={{ position: "relative", width: "100%" }}>
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => onInputChange(e.target.value)}
+                onFocus={() => (useProxy ? proxy.suggestions : suggestions).length > 0 && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                placeholder="Search for an address..."
                 style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  margin: 0,
-                  padding: 0,
-                  listStyle: "none",
-                  background: "#222",
-                  border: "1px solid #555",
-                  borderRadius: "0 0 6px 6px",
-                  zIndex: 1000,
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  textAlign: "left",
+                  padding: "0.6rem 0.75rem",
+                  fontSize: "1rem",
+                  borderRadius: "6px",
+                  border: "2px solid " + (location ? "#00D4FF" : "#555"),
+                  width: "100%",
+                  background: "#1a1a1a",
+                  color: "#fff",
+                  boxSizing: "border-box",
                 }}
-              >
-                {(useProxy ? proxy.suggestions : suggestions).map((s) => (
-                  <li
-                    key={s.placeId}
-                    role="option"
-                    aria-selected={false}
-                    onMouseDown={() => selectSuggestion(s)}
-                    style={{
-                      padding: "0.5rem 0.75rem",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      borderBottom: "1px solid #333",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#333")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    {s.description}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {/* Hidden div for PlacesService */}
-            <div ref={placesDiv} style={{ display: "none" }} />
-          </div>
-        )}
-
-        <div style={{ marginTop: "1rem", textAlign: "left", maxWidth: "420px", display: "inline-block", width: "100%" }}>
-          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>Or pick a random location:</p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {randomLocations.map((loc) => (
-              <li
-                key={loc.address}
+              />
+              {showSuggestions && (useProxy ? proxy.suggestions : suggestions).length > 0 && (
+                <ul
+                  role="listbox"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    margin: 0,
+                    padding: 0,
+                    listStyle: "none",
+                    background: "#222",
+                    border: "1px solid #555",
+                    borderRadius: "0 0 6px 6px",
+                    zIndex: 1000,
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    textAlign: "left",
+                  }}
+                >
+                  {(useProxy ? proxy.suggestions : suggestions).map((s) => (
+                    <li
+                      key={s.placeId}
+                      role="option"
+                      aria-selected={false}
+                      onMouseDown={() => selectSuggestion(s)}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                        borderBottom: "1px solid #333",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#333")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      {s.description}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div ref={placesDiv} style={{ display: "none" }} />
+            </div>
+          )}
+          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a random location:</p>
+        </div>
+        <OptionGrid
+          items={randomLocations}
+          cardMinWidth={200}
+          cardHeight={64}
+          gap={12}
+          keyExtractor={(loc) => loc.address}
+          renderCard={(loc) => {
+            const isSelected = location?.address === loc.address;
+            return (
+              <div
                 onClick={() => {
                   setLocation(loc);
                   setQuery(loc.address);
@@ -298,24 +304,24 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
                   padding: "0.5rem 0.75rem",
                   cursor: "pointer",
                   fontSize: "0.9rem",
-                  borderRadius: "4px",
-                  border: location?.address === loc.address ? "1px solid #00D4FF" : "1px solid #333",
-                  marginBottom: "0.4rem",
-                  background: location?.address === loc.address ? "rgba(0,212,255,0.1)" : "#1a1a1a",
+                  borderRadius: "6px",
+                  border: isSelected ? "2px solid #00D4FF" : "1px solid #333",
+                  background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
+                  height: "100%",
+                  boxSizing: "border-box",
                   transition: "background 0.15s, border-color 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                  overflow: "hidden",
                 }}
-                onMouseEnter={(e) => {
-                  if (location?.address !== loc.address) e.currentTarget.style.background = "#2a2a2a";
-                }}
-                onMouseLeave={(e) => {
-                  if (location?.address !== loc.address) e.currentTarget.style.background = "#1a1a1a";
-                }}
+                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
+                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
               >
                 {loc.address}
-              </li>
-            ))}
-          </ul>
-        </div>
+              </div>
+            );
+          }}
+        />
       </div>
     </LobbyShell>
   );

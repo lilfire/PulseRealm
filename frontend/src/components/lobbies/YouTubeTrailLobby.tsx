@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
+import { OptionGrid } from "./OptionGrid";
 
 export interface YouTubeVideo {
   videoId: string;
@@ -225,116 +226,118 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
     >
       {/* Hidden container for duration-fetching player */}
       <div ref={durationContainerRef} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} />
-      <div style={{ margin: "1.5rem 0" }}>
-        <h3>YouTube Video</h3>
-        <div style={{ position: "relative", display: "inline-block", width: "100%", maxWidth: "420px" }}>
-          <input
-            type="text"
-            value={inputUrl}
-            onChange={(e) => onInputChange(e.target.value)}
-            placeholder="Paste a YouTube link..."
-            style={{
-              padding: "0.6rem 0.75rem",
-              fontSize: "1rem",
-              borderRadius: "6px",
-              border: `2px solid ${video ? "#00D4FF" : urlError ? "#f87171" : "#555"}`,
-              width: "100%",
-              background: "#1a1a1a",
-              color: "#fff",
-              boxSizing: "border-box",
-            }}
-          />
-          {urlError && (
-            <p style={{ color: "#f87171", fontSize: "0.8rem", margin: "0.25rem 0 0", textAlign: "left" }}>{urlError}</p>
-          )}
-        </div>
-
-        {video && (
-          <div style={{ marginTop: "0.75rem", maxWidth: "420px", display: "inline-block", width: "100%" }}>
-            <div
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingTop: "1.5rem", textAlign: "left" }}>
+        <div style={{ maxWidth: "420px", flexShrink: 0 }}>
+          <h3 style={{ marginTop: 0 }}>YouTube Video</h3>
+          <div style={{ position: "relative", width: "100%" }}>
+            <input
+              type="text"
+              value={inputUrl}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder="Paste a YouTube link..."
               style={{
-                position: "relative",
-                paddingBottom: "56.25%",
-                borderRadius: "8px",
-                overflow: "hidden",
-                background: "#000",
+                padding: "0.6rem 0.75rem",
+                fontSize: "1rem",
+                borderRadius: "6px",
+                border: `2px solid ${video ? "#00D4FF" : urlError ? "#f87171" : "#555"}`,
+                width: "100%",
+                background: "#1a1a1a",
+                color: "#fff",
+                boxSizing: "border-box",
               }}
-            >
-              <img
-                src={`https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`}
-                alt="Video thumbnail"
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
-              {videoDuration !== null && (
-                <span style={{
-                  position: "absolute",
-                  bottom: 8,
-                  right: 8,
-                  background: "rgba(0,0,0,0.8)",
-                  color: "#fff",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                }}>{formatDuration(videoDuration)}</span>
-              )}
-            </div>
-            {videoDuration !== null && (
-              <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0.4rem 0 0", textAlign: "left" }}>
-                Video length: {formatDuration(videoDuration)}
-              </p>
+            />
+            {urlError && (
+              <p style={{ color: "#f87171", fontSize: "0.8rem", margin: "0.25rem 0 0" }}>{urlError}</p>
             )}
           </div>
-        )}
 
-        <div style={{ marginTop: "1rem", textAlign: "left", maxWidth: "420px", display: "inline-block", width: "100%" }}>
-          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>Or pick a suggestion:</p>
-          <ul role="listbox" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {randomVideos.map((v) => (
-              <li
-                key={v.videoId}
-                role="option"
-                aria-selected={video?.videoId === v.videoId}
+          {video && (
+            <div style={{ marginTop: "0.75rem" }}>
+              <div
+                style={{
+                  position: "relative",
+                  paddingBottom: "56.25%",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  background: "#000",
+                }}
+              >
+                <img
+                  src={`https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`}
+                  alt="Video thumbnail"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+                {videoDuration !== null && (
+                  <span style={{
+                    position: "absolute",
+                    bottom: 8,
+                    right: 8,
+                    background: "rgba(0,0,0,0.8)",
+                    color: "#fff",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}>{formatDuration(videoDuration)}</span>
+                )}
+              </div>
+              {videoDuration !== null && (
+                <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0.4rem 0 0" }}>
+                  Video length: {formatDuration(videoDuration)}
+                </p>
+              )}
+            </div>
+          )}
+          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a suggestion:</p>
+        </div>
+        <OptionGrid
+          items={randomVideos}
+          cardMinWidth={200}
+          cardHeight={100}
+          gap={12}
+          keyExtractor={(v) => v.videoId}
+          renderCard={(v) => {
+            const isSelected = video?.videoId === v.videoId;
+            return (
+              <div
                 onClick={() => selectVideo(v)}
-                className="fg-row"
                 style={{
                   padding: "0.5rem 0.75rem",
                   cursor: "pointer",
                   fontSize: "0.9rem",
-                  borderRadius: "4px",
-                  border: video?.videoId === v.videoId ? "1px solid #00D4FF" : "1px solid #333",
-                  marginBottom: "0.4rem",
-                  background: video?.videoId === v.videoId ? "rgba(0,212,255,0.1)" : "#1a1a1a",
+                  borderRadius: "6px",
+                  border: isSelected ? "2px solid #00D4FF" : "1px solid #333",
+                  background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
+                  height: "100%",
+                  boxSizing: "border-box",
                   transition: "background 0.15s, border-color 0.15s",
                   display: "flex",
                   alignItems: "center",
-                  "--fg": "0.75rem",
-                } as React.CSSProperties}
-                onMouseEnter={(e) => {
-                  if (video?.videoId !== v.videoId) e.currentTarget.style.background = "#2a2a2a";
+                  overflow: "hidden",
                 }}
-                onMouseLeave={(e) => {
-                  if (video?.videoId !== v.videoId) e.currentTarget.style.background = "#1a1a1a";
-                }}
+                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
+                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
               >
                 <img
                   src={`https://img.youtube.com/vi/${v.videoId}/default.jpg`}
                   alt=""
-                  style={{ width: "60px", height: "45px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }}
+                  style={{ width: "80px", height: "60px", borderRadius: "4px", objectFit: "cover", flexShrink: 0, marginRight: "0.75rem" }}
                 />
-                <span style={{ flex: 1 }}>{v.title}</span>
-                <span style={{ fontSize: "0.75rem", color: "#888", whiteSpace: "nowrap" }}>{v.baseSpeedKmh} km/h = 1×</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.title}</div>
+                  <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{v.baseSpeedKmh} km/h = 1×</div>
+                </div>
+              </div>
+            );
+          }}
+        />
       </div>
     </LobbyShell>
   );
