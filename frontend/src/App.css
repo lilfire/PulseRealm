@@ -383,23 +383,6 @@
   color: var(--accent2, #33DFFF);
 }
 
-.device-link--disabled {
-  cursor: default;
-  opacity: 0.4;
-}
-
-.device-link--disabled:hover {
-  border-color: var(--border, #2e303a);
-  color: var(--text-h, #f3f4f6);
-  background: transparent;
-}
-
-.device-coming-soon {
-  font-size: 0.6rem;
-  opacity: 0.5;
-  font-style: italic;
-  margin-top: 0.15rem;
-}
 
 /* --- QR Code Modal --- */
 
