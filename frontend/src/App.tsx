@@ -17,6 +17,7 @@ import { SocialMode } from "./components/modes/SocialMode";
 import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
 import { AdminLogin } from "./components/admin/AdminLogin";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
+import { TermsOfService } from "./components/TermsOfService";
 import type { CompetitionConfig, Realm, RealmMode, RealmRole } from "./types/session";
 import "./App.css";
 
@@ -66,7 +67,7 @@ function App() {
   const [dungeonConfig, setDungeonConfig] = useState<DungeonConfig | null>(null);
 
   // Admin state
-  const [page, setPage] = useState<"home" | "admin-login" | "admin">("home");
+  const [page, setPage] = useState<"home" | "admin-login" | "admin" | "tos">("home");
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [adminEnabled, setAdminEnabled] = useState(false);
   const [lobbyDefaults, setLobbyDefaults] = useState<LobbyDefaults | null>(null);
@@ -174,6 +175,11 @@ function App() {
   }
   function isDungeonConfig(v: unknown): v is DungeonConfig {
     return typeof v === "object" && v !== null && "difficulty" in v;
+  }
+
+  // Terms of Service page
+  if (page === "tos") {
+    return <TermsOfService onBack={() => setPage("home")} />;
   }
 
   // Admin pages
@@ -489,6 +495,9 @@ function App() {
               &#9881;
             </button>
           )}
+          <button className="btn-tos-link" onClick={() => setPage("tos")}>
+            Terms of Service
+          </button>
         </footer>
         <span className="app-version">v{APP_VERSION}</span>
       </div>

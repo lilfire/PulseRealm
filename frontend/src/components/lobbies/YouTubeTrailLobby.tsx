@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { LobbyShell } from "./LobbyShell";
 
@@ -44,6 +44,14 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 function parseYouTubeUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -69,8 +77,87 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
+  const durationContainerRef = useRef<HTMLDivElement>(null);
+  const durationPlayerRef = useRef<YT.Player | null>(null);
   const videos = curatedVideos && curatedVideos.length > 0 ? curatedVideos : CURATED_VIDEOS;
   const [randomVideos] = useState(() => pickRandom(videos, 5));
+
+  // Fetch video duration using a hidden YT player
+  useEffect(() => {
+    if (!video) {
+      setVideoDuration(null);
+      return;
+    }
+
+    setVideoDuration(null);
+    const container = durationContainerRef.current;
+    if (!container) return;
+
+    const ytWindow = window as Window & { YT?: typeof YT; onYouTubeIframeAPIReady?: () => void };
+
+    let destroyed = false;
+
+    function create() {
+      if (destroyed || !container) return;
+      // Clear any previous hidden player
+      if (durationPlayerRef.current) {
+        durationPlayerRef.current.destroy();
+        durationPlayerRef.current = null;
+      }
+      container.innerHTML = "";
+      const div = document.createElement("div");
+      container.appendChild(div);
+
+      durationPlayerRef.current = new YT.Player(div, {
+        videoId: video!.videoId,
+        width: "1",
+        height: "1",
+        playerVars: { autoplay: 0, mute: 1 },
+        events: {
+          onReady: (event: YT.PlayerEvent) => {
+            if (destroyed) return;
+            // Duration may need a moment to become available
+            const tryGetDuration = () => {
+              const dur = event.target.getDuration();
+              if (dur > 0) {
+                setVideoDuration(dur);
+                // Clean up hidden player
+                event.target.destroy();
+                durationPlayerRef.current = null;
+              } else if (!destroyed) {
+                setTimeout(tryGetDuration, 300);
+              }
+            };
+            tryGetDuration();
+          },
+        },
+      });
+    }
+
+    if (ytWindow.YT?.Player) {
+      create();
+    } else {
+      const prevCallback = ytWindow.onYouTubeIframeAPIReady;
+      ytWindow.onYouTubeIframeAPIReady = () => {
+        prevCallback?.();
+        create();
+      };
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(tag);
+      }
+    }
+
+    return () => {
+      destroyed = true;
+      if (durationPlayerRef.current) {
+        durationPlayerRef.current.destroy();
+        durationPlayerRef.current = null;
+      }
+    };
+  }, [video?.videoId]);
 
   const onInputChange = useCallback((value: string) => {
     setInputUrl(value);
@@ -114,6 +201,8 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
       role={role}
       hostSecret={hostSecret}
     >
+      {/* Hidden container for duration-fetching player */}
+      <div ref={durationContainerRef} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} />
       <div style={{ margin: "1.5rem 0" }}>
         <h3>YouTube Video</h3>
         <div style={{ position: "relative", display: "inline-block", width: "100%", maxWidth: "420px" }}>
@@ -161,7 +250,25 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                   objectFit: "cover",
                 }}
               />
+              {videoDuration !== null && (
+                <span style={{
+                  position: "absolute",
+                  bottom: 8,
+                  right: 8,
+                  background: "rgba(0,0,0,0.8)",
+                  color: "#fff",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                }}>{formatDuration(videoDuration)}</span>
+              )}
             </div>
+            {videoDuration !== null && (
+              <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0.4rem 0 0", textAlign: "left" }}>
+                Video length: {formatDuration(videoDuration)}
+              </p>
+            )}
           </div>
         )}
 

@@ -545,6 +545,17 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 </span>
                 <span style={{ fontSize: 14, color: "var(--text)" }}>kcal</span>
               </div>
+
+              {/* Stride Length */}
+              <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
+                <span style={{
+                  fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
+                  color: "var(--text)",
+                }}>
+                  {clientProfiles[cid] ? Math.round(clientProfiles[cid].heightCm * getStrideFactor(clientProfiles[cid]) * 100) : "—"}
+                </span>
+                <span style={{ fontSize: 14, color: "var(--text)" }}>cm</span>
+              </div>
             </div>
           );
         })}

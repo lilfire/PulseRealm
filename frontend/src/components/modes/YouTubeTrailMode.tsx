@@ -16,6 +16,14 @@ const DEFAULT_BASE_SPEED_KMH = 5;
 const MIN_PLAYBACK_RATE = 0.25;
 const MAX_PLAYBACK_RATE = 2.0;
 
+function formatTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, onEnd, role = "host" }: Props) {
   const playerRef = useRef<YT.Player | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,6 +36,9 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
   const [muted, setMuted] = useState(true);
   const [currentRate, setCurrentRate] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
 
   // Enter browser fullscreen on mount
   useEffect(() => {
@@ -115,6 +126,11 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
             event.target.playVideo();
             setPlayerReady(true);
           },
+          onStateChange: (event: YT.OnStateChangeEvent) => {
+            if (event.data === YT.PlayerState.ENDED) {
+              onEnd(totalDistanceRef.current);
+            }
+          },
         },
       });
     }
@@ -131,6 +147,29 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
       }
     };
   }, [video.videoId]);
+
+  // Elapsed walking time (wall clock since mount)
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Poll video current time and duration
+  useEffect(() => {
+    if (!playerReady) return;
+    const id = setInterval(() => {
+      const player = playerRef.current;
+      if (!player) return;
+      const dur = player.getDuration?.();
+      const cur = player.getCurrentTime?.();
+      if (dur > 0) setVideoDuration(dur);
+      if (cur >= 0) setVideoCurrentTime(cur);
+    }, 500);
+    return () => clearInterval(id);
+  }, [playerReady]);
 
   // Adjust playback speed based on walking speed
   useEffect(() => {
@@ -255,7 +294,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
       <div
         style={{
           position: "absolute",
-          bottom: "1rem",
+          bottom: "3.5rem",
           left: "1rem",
           zIndex: 10,
           background: "rgba(0,0,0,0.75)",
@@ -302,7 +341,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
       <div
         style={{
           position: "absolute",
-          bottom: "1rem",
+          bottom: "3.5rem",
           right: "1rem",
           zIndex: 10,
           background: "rgba(0,0,0,0.75)",
@@ -318,6 +357,46 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
         <div style={{ fontSize: "1.2rem", fontWeight: 700 }}>
           {currentRate === 0 ? "Paused" : `${currentRate.toFixed(2)}x`}
         </div>
+      </div>
+
+      {/* Progress bar and time info */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          background: "rgba(0,0,0,0.8)",
+          padding: "0.4rem 1rem",
+          pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          fontSize: "0.8rem",
+          color: "#fff",
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap", color: "#aaa" }}>
+          {formatTime(elapsedSeconds)}
+        </span>
+        <span style={{ whiteSpace: "nowrap" }}>
+          {formatTime(videoCurrentTime)}
+        </span>
+        <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
+          <div
+            style={{
+              width: videoDuration > 0 ? `${(videoCurrentTime / videoDuration) * 100}%` : "0%",
+              height: "100%",
+              background: "#33DFFF",
+              borderRadius: 2,
+              transition: "width 0.5s linear",
+            }}
+          />
+        </div>
+        <span style={{ whiteSpace: "nowrap" }}>
+          {videoDuration > 0 ? formatTime(videoDuration) : "--:--"}
+        </span>
       </div>
     </div>
   );
