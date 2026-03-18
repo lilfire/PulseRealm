@@ -103,10 +103,11 @@ export function streetViewMetadataUrl(
   );
 }
 
-/** Build a Static Maps API URL with optional markers and path. */
+/** Build a Static Maps API URL with optional markers and path.
+ *  When center/zoom are omitted the API auto-fits to markers & path. */
 export function staticMapUrl(options: {
-  center: { lat: number; lng: number };
-  zoom: number;
+  center?: { lat: number; lng: number };
+  zoom?: number;
   width: number;
   height: number;
   apiKey: string;
@@ -118,15 +119,17 @@ export function staticMapUrl(options: {
   const { center, zoom, width, height, apiKey, markers, path, pathColor, playerMarker } = options;
   let url =
     `https://maps.googleapis.com/maps/api/staticmap` +
-    `?center=${center.lat},${center.lng}` +
-    `&zoom=${zoom}` +
-    `&size=${width}x${height}` +
+    `?size=${width}x${height}` +
     `&maptype=roadmap` +
     `&style=element:geometry|color:0x242f3e` +
     `&style=element:labels.text.fill|color:0x746855` +
     `&style=feature:road|element:geometry|color:0x38414e` +
     `&style=feature:water|element:geometry|color:0x17263c` +
     `&key=${apiKey}`;
+
+  if (center != null && zoom != null) {
+    url += `&center=${center.lat},${center.lng}&zoom=${zoom}`;
+  }
 
   if (markers) {
     for (const m of markers) {

@@ -46,11 +46,6 @@ export function StaticRouteMode({
   // Build the initial map URL
   useEffect(() => {
     const url = staticMapUrl({
-      center: {
-        lat: (route.from.lat + route.to.lat) / 2,
-        lng: (route.from.lng + route.to.lng) / 2,
-      },
-      zoom: 0, // auto-zoom via path
       width: IMG_W,
       height: IMG_H,
       apiKey,
@@ -121,8 +116,6 @@ export function StaticRouteMode({
       if (now - lastMapUpdateRef.current >= UPDATE_INTERVAL_MS) {
         lastMapUpdateRef.current = now;
         const url = staticMapUrl({
-          center: { lat: newLat, lng: newLng },
-          zoom: 0,
           width: IMG_W,
           height: IMG_H,
           apiKey,
