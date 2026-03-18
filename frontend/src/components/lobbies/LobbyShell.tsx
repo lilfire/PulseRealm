@@ -141,7 +141,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
             End Realm
           </button>
         )}
-        {isGuest && (
+        {(isGuest || role === "admin") && (
           <button
             onClick={onLeave}
             style={{
