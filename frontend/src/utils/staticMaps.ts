@@ -112,14 +112,17 @@ export function staticMapUrl(options: {
   playerMarker?: { lat: number; lng: number };
 }): string {
   const { center, zoom, width, height, markers, path, pathColor, playerMarker } = options;
+  // Use %7C instead of | — Google accepts both, but raw pipes get mangled
+  // when proxied through the ASP.NET Core server (HttpClient/Uri encoding).
+  const P = "%7C";
   let url =
     `/api/maps/static` +
     `?size=${width}x${height}` +
     `&maptype=roadmap` +
-    `&style=element:geometry|color:0x242f3e` +
-    `&style=element:labels.text.fill|color:0x746855` +
-    `&style=feature:road|element:geometry|color:0x38414e` +
-    `&style=feature:water|element:geometry|color:0x17263c`;
+    `&style=element:geometry${P}color:0x242f3e` +
+    `&style=element:labels.text.fill${P}color:0x746855` +
+    `&style=feature:road${P}element:geometry${P}color:0x38414e` +
+    `&style=feature:water${P}element:geometry${P}color:0x17263c`;
 
   if (center != null && zoom != null) {
     url += `&center=${center.lat},${center.lng}&zoom=${zoom}`;
@@ -129,18 +132,18 @@ export function staticMapUrl(options: {
     for (const m of markers) {
       const color = m.color || "red";
       const label = m.label || "";
-      url += `&markers=color:${color}|label:${label}|${m.lat},${m.lng}`;
+      url += `&markers=color:${color}${P}label:${label}${P}${m.lat},${m.lng}`;
     }
   }
 
   if (playerMarker) {
-    url += `&markers=color:yellow|label:P|${playerMarker.lat},${playerMarker.lng}`;
+    url += `&markers=color:yellow${P}label:P${P}${playerMarker.lat},${playerMarker.lng}`;
   }
 
   if (path && path.length >= 2) {
     const color = pathColor || "0x4285F4ff";
-    const coords = path.map((p) => `${p.lat},${p.lng}`).join("|");
-    url += `&path=color:${color}|weight:4|${coords}`;
+    const coords = path.map((p) => `${p.lat},${p.lng}`).join(P);
+    url += `&path=color:${color}${P}weight:4${P}${coords}`;
   }
 
   return url;

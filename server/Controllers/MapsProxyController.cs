@@ -70,6 +70,11 @@ public class MapsProxyController : ControllerBase
         var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
         var bytes = await response.Content.ReadAsByteArrayAsync();
 
+        if (!response.IsSuccessStatusCode || bytes.Length == 0)
+        {
+            return StatusCode((int)response.StatusCode, bytes.Length > 0 ? bytes : "Empty response from Google Maps API");
+        }
+
         return File(bytes, contentType);
     }
 }
