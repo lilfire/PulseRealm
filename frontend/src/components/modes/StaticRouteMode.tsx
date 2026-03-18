@@ -152,7 +152,7 @@ export function StaticRouteMode({
         >
           Map unavailable
         </div>
-      ) : (
+      ) : mapUrl ? (
         <img
           src={mapUrl}
           alt="Route Map"
@@ -166,7 +166,7 @@ export function StaticRouteMode({
             objectFit: "contain",
           }}
         />
-      )}
+      ) : null}
 
       {/* Limited mode notice */}
       <div
