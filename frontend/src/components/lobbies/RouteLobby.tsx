@@ -33,6 +33,19 @@ interface Suggestion {
   description: string;
 }
 
+const CURATED_ROUTES: RouteConfig[] = [
+  { from: { lat: 48.8584, lng: 2.2945, address: "Eiffel Tower, Paris" }, to: { lat: 48.8606, lng: 2.3376, address: "Louvre Museum, Paris" } },
+  { from: { lat: 40.7484, lng: -73.9857, address: "Empire State Building, NYC" }, to: { lat: 40.7580, lng: -73.9855, address: "Times Square, NYC" } },
+  { from: { lat: 51.5014, lng: -0.1419, address: "Big Ben, London" }, to: { lat: 51.5081, lng: -0.0759, address: "Tower of London" } },
+  { from: { lat: 41.8902, lng: 12.4922, address: "Colosseum, Rome" }, to: { lat: 41.9029, lng: 12.4534, address: "Vatican City, Rome" } },
+  { from: { lat: 35.6762, lng: 139.6503, address: "Shibuya, Tokyo" }, to: { lat: 35.6586, lng: 139.7454, address: "Tokyo Tower" } },
+  { from: { lat: 37.8199, lng: -122.4783, address: "Golden Gate Bridge, SF" }, to: { lat: 37.8083, lng: -122.4156, address: "Fisherman's Wharf, SF" } },
+  { from: { lat: 52.5163, lng: 13.3777, address: "Brandenburg Gate, Berlin" }, to: { lat: 52.5209, lng: 13.4094, address: "Alexanderplatz, Berlin" } },
+  { from: { lat: 59.9139, lng: 10.7522, address: "Karl Johans gate, Oslo" }, to: { lat: 59.9050, lng: 10.7505, address: "Aker Brygge, Oslo" } },
+  { from: { lat: -33.8568, lng: 151.2153, address: "Sydney Opera House" }, to: { lat: -33.8523, lng: 151.2108, address: "Sydney Harbour Bridge" } },
+  { from: { lat: 50.0755, lng: 14.4378, address: "Charles Bridge, Prague" }, to: { lat: 50.0865, lng: 14.4200, address: "Prague Castle" } },
+];
+
 function PlaceInput({
   label,
   placeholder,
@@ -209,7 +222,35 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
       <div style={{ margin: "1.5rem 0", maxWidth: "420px", width: "100%", textAlign: "left" }}>
         <h3>Plan Your Route</h3>
         {mapsError ? (
-          <p style={{ color: "#f87171" }}>{mapsError}</p>
+          <>
+            <p style={{ color: "#f59e0b", fontSize: "0.85rem" }}>Place search unavailable (limited browser). Pick a curated route:</p>
+            <ul style={{ listStyle: "none", padding: 0, margin: "0.75rem 0", maxHeight: "400px", overflowY: "auto" }}>
+              {CURATED_ROUTES.map((r, i) => {
+                const isSelected = from?.address === r.from.address && to?.address === r.to.address;
+                return (
+                  <li
+                    key={i}
+                    onClick={() => { setFrom(r.from); setTo(r.to); }}
+                    style={{
+                      padding: "0.6rem 0.75rem",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                      borderRadius: "4px",
+                      border: isSelected ? "1px solid #00D4FF" : "1px solid #333",
+                      marginBottom: "0.4rem",
+                      background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
+                      transition: "background 0.15s, border-color 0.15s",
+                    }}
+                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
+                    onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
+                  >
+                    <div>{r.from.address}</div>
+                    <div style={{ color: "#888", fontSize: "0.8rem" }}>to {r.to.address}</div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         ) : !mapsLoaded ? (
           <p style={{ color: "#888" }}>Loading maps...</p>
         ) : (

@@ -3,6 +3,7 @@ import type { ClientProfile, RealmRole, WearableData } from "../../types/session
 import type { RouteConfig } from "../lobbies/RouteLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
+import { StaticRouteMode } from "./StaticRouteMode";
 
 interface Props {
   clients: string[];
@@ -32,7 +33,7 @@ function extractDetailedPath(result: google.maps.DirectionsResult): google.maps.
 }
 
 export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, role = "host" }: Props) {
-  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
+  const { loaded: mapsLoaded, error: mapsError, apiKey } = useGoogleMaps();
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -310,6 +311,19 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   const profile = clientId ? clientProfiles[clientId] : null;
 
   if (!mapsLoaded) {
+    if (mapsError && apiKey) {
+      return (
+        <StaticRouteMode
+          clients={clients}
+          clientProfiles={clientProfiles}
+          latestData={latestData}
+          route={route}
+          onEnd={onEnd}
+          role={role}
+          apiKey={apiKey}
+        />
+      );
+    }
     return (
       <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
         {mapsError ? <div style={{ color: "#FF5C75" }}>Failed to load Google Maps: {mapsError}</div> : <div>Loading Google Maps…</div>}

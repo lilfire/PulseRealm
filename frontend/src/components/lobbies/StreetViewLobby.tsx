@@ -170,7 +170,7 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Starting Location</h3>
         {mapsError ? (
-          <p style={{ color: "#f87171" }}>{mapsError}</p>
+          <p style={{ color: "#f59e0b", fontSize: "0.85rem" }}>Place search unavailable (limited browser). Pick a location below:</p>
         ) : !mapsLoaded ? (
           <p style={{ color: "#888" }}>Loading maps...</p>
         ) : (
@@ -239,9 +239,9 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
         )}
 
         <div style={{ marginTop: "1rem", textAlign: "left", maxWidth: "420px", display: "inline-block", width: "100%" }}>
-          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>Or pick a random location:</p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {randomLocations.map((loc) => (
+          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>{mapsError ? "Pick a location:" : "Or pick a random location:"}</p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: mapsError ? "400px" : undefined, overflowY: mapsError ? "auto" : undefined }}>
+            {(mapsError ? locations : randomLocations).map((loc) => (
               <li
                 key={loc.address}
                 onClick={() => {

@@ -436,13 +436,13 @@ describe("RouteLobby (maps loading)", () => {
     expect(screen.getByText("Loading maps...")).toBeInTheDocument();
   });
 
-  it("shows error message when maps fail to load", async () => {
+  it("shows curated routes fallback when maps fail to load", async () => {
     vi.doMock("../../hooks/useGoogleMaps", () => ({
-      useGoogleMaps: () => ({ loaded: false, error: "Failed to load Google Maps API" }),
+      useGoogleMaps: () => ({ loaded: false, error: "Failed to load Google Maps API", apiKey: null }),
     }));
     const { RouteLobby: ErrorLobby } = await import("./RouteLobby");
     render(<ErrorLobby {...baseProps} />);
-    expect(screen.getByText("Failed to load Google Maps API")).toBeInTheDocument();
+    expect(screen.getByText(/Place search unavailable/)).toBeInTheDocument();
   });
 
   it("does not render place inputs when maps are loading", async () => {

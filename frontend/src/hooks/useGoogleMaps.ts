@@ -39,7 +39,19 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,routes`;
     script.async = true;
-    script.onload = () => resolve();
+    script.onload = () => {
+      // The script may load (network success) but fail to execute if the
+      // browser doesn't support the syntax used by the Google Maps API
+      // (e.g. Chrome 74 can't parse optional chaining).  Verify that the
+      // global actually appeared before declaring success.
+      const win = window as unknown as { google?: typeof google };
+      if (win.google?.maps) {
+        resolve();
+      } else {
+        loadPromise = null;
+        reject(new Error("Google Maps API failed to initialize — your browser may be too old"));
+      }
+    };
     script.onerror = () => {
       // Reset so the next call re-attempts appending the script rather than
       // permanently returning a rejected promise.
@@ -55,20 +67,22 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 export function useGoogleMaps() {
   const [loaded, setLoaded] = useState(!!(window as unknown as { google?: typeof google }).google?.maps);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (loaded) return;
 
     getApiKey()
-      .then((apiKey) => {
-        if (!apiKey) {
+      .then((key) => {
+        if (!key) {
           throw new Error("Google Maps API key not configured (GOOGLE_MAPS_API_KEY)");
         }
-        return loadGoogleMaps(apiKey);
+        setApiKey(key);
+        return loadGoogleMaps(key);
       })
       .then(() => setLoaded(true))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [loaded]);
 
-  return { loaded, error };
+  return { loaded, error, apiKey };
 }

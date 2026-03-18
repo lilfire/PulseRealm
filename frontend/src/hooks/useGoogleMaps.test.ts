@@ -21,13 +21,16 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-// Helper: simulate a script tag firing onload or onerror
+// Helper: simulate a script tag firing onload or onerror.
+// When success is true, we also set the window.google.maps global that the
+// hook now checks after onload (to detect silent script execution failures).
 function triggerScript(success: boolean) {
   const script = document.querySelector(
     'script[src*="maps.googleapis.com"]'
   ) as HTMLScriptElement | null;
   if (!script) throw new Error("No Google Maps script found in document.head");
   if (success) {
+    (window as unknown as { google: { maps: object } }).google = { maps: {} };
     script.dispatchEvent(new Event("load"));
   } else {
     script.dispatchEvent(new Event("error"));
@@ -207,6 +210,36 @@ describe("useGoogleMaps", () => {
     expect(result.current.error).toBeNull();
     // fetch should never be called because we returned early
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("sets error when script loads but google.maps is not defined (e.g. unsupported browser)", async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ googleMapsApiKey: "some-key" }),
+      } as Response)
+    );
+
+    const { useGoogleMaps } = await import("./useGoogleMaps");
+    const { result } = renderHook(() => useGoogleMaps());
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('script[src*="maps.googleapis.com"]')
+      ).not.toBeNull();
+    });
+
+    // Simulate: script loads but google global never appears (e.g. SyntaxError)
+    const script = document.querySelector(
+      'script[src*="maps.googleapis.com"]'
+    ) as HTMLScriptElement;
+    script.dispatchEvent(new Event("load"));
+
+    await waitFor(() => {
+      expect(result.current.error).not.toBeNull();
+    });
+    expect(result.current.error).toContain("failed to initialize");
+    expect(result.current.loaded).toBe(false);
   });
 
   it("handles non-ok response from /api/config by falling back to BUILD_TIME_KEY", async () => {

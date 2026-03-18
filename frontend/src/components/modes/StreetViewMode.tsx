@@ -3,6 +3,7 @@ import type { ClientProfile, RealmRole, WearableData } from "../../types/session
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
+import { StaticStreetViewMode } from "./StaticStreetViewMode";
 
 interface Props {
   clients: string[];
@@ -58,7 +59,7 @@ const arrowBtnStyle: React.CSSProperties = {
 const PRELOAD_COUNT = 3;
 
 export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd, role = "host" }: Props) {
-  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
+  const { loaded: mapsLoaded, error: mapsError, apiKey } = useGoogleMaps();
 
   // Two containers — one visible, one hidden preloading the next pano
   const containerARef = useRef<HTMLDivElement>(null);
@@ -544,6 +545,19 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const profile = clientId ? clientProfiles[clientId] : null;
 
   if (!mapsLoaded) {
+    if (mapsError && apiKey) {
+      return (
+        <StaticStreetViewMode
+          clients={clients}
+          clientProfiles={clientProfiles}
+          latestData={latestData}
+          startLocation={startLocation}
+          onEnd={onEnd}
+          role={role}
+          apiKey={apiKey}
+        />
+      );
+    }
     return (
       <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 100, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
         {mapsError ? <div style={{ color: "#FF5C75" }}>Failed to load Google Maps: {mapsError}</div> : <div>Loading Google Maps…</div>}
