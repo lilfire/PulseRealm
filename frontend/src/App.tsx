@@ -492,20 +492,23 @@ function App() {
             )}
           </div>
         </div>
+        <div className="device-section">
+          <span className="device-section-label">Connect your device</span>
+          <div className="device-section-links">
+            <button className="device-link" onClick={() => setShowAndroidQR(true)}>
+              Android
+            </button>
+          </div>
+        </div>
         <footer className="server-footer">
           <div className="footer-left">
             {!PRESET_API_URL && server.serverInfo && (
-              <>
-                <span>
-                  {server.serverInfo.name ?? server.serverUrl}
-                  {server.serverInfo.version && (
-                    <span className="server-version">v{server.serverInfo.version}</span>
-                  )}
-                </span>
-                <button className="btn-change-server" onClick={server.disconnect}>
-                  Change
-                </button>
-              </>
+              <button className="btn-server-name" onClick={server.disconnect} title="Change server">
+                {server.serverInfo.name ?? server.serverUrl}
+                {server.serverInfo.version && (
+                  <span className="server-version">v{server.serverInfo.version}</span>
+                )}
+              </button>
             )}
             {adminEnabled && (
               <button className="btn-admin-gear" onClick={() => setPage("admin-login")} title="Admin Settings">
@@ -516,9 +519,6 @@ function App() {
           <div className="footer-right">
             <button className="btn-tos-link" onClick={() => setPage("tos")}>
               Terms of Service
-            </button>
-            <button className="btn-android-download" onClick={() => setShowAndroidQR(true)}>
-              &#9662; Android App
             </button>
             <span className="app-version">v{APP_VERSION}</span>
           </div>
