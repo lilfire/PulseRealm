@@ -4,6 +4,7 @@ export interface YouTubeVideoItem {
   videoId: string;
   url: string;
   title: string;
+  baseSpeedKmh: number;
 }
 
 interface Props {
@@ -28,11 +29,11 @@ function extractVideoId(url: string): string | null {
 
 export function YouTubeEditor({ videos, onChange }: Props) {
   const [editIdx, setEditIdx] = useState<number | null>(null);
-  const [draft, setDraft] = useState<YouTubeVideoItem>({ videoId: "", url: "", title: "" });
+  const [draft, setDraft] = useState<YouTubeVideoItem>({ videoId: "", url: "", title: "", baseSpeedKmh: 5 });
   const [adding, setAdding] = useState(false);
 
   function startAdd() {
-    setDraft({ videoId: "", url: "", title: "" });
+    setDraft({ videoId: "", url: "", title: "", baseSpeedKmh: 5 });
     setAdding(true);
     setEditIdx(null);
   }
@@ -104,6 +105,7 @@ export function YouTubeEditor({ videos, onChange }: Props) {
             >
               {v.title}
             </a>
+            <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>{v.baseSpeedKmh} km/h = 1×</span>
             <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>{v.videoId}</span>
             <button onClick={() => startEdit(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "var(--text)" }}>
               Edit
@@ -125,6 +127,10 @@ export function YouTubeEditor({ videos, onChange }: Props) {
             <div>
               <label className="admin-label">YouTube URL</label>
               <input className="admin-input" value={draft.url} onChange={(e) => handleUrlChange(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." />
+            </div>
+            <div>
+              <label className="admin-label">Base Speed (km/h = 1× playback)</label>
+              <input className="admin-input" type="number" min="1" max="20" step="0.5" value={draft.baseSpeedKmh} onChange={(e) => setDraft({ ...draft, baseSpeedKmh: parseFloat(e.target.value) || 5 })} />
             </div>
             {draft.videoId && (
               <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text)" }}>

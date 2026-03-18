@@ -12,8 +12,7 @@ interface Props {
   role?: RealmRole;
 }
 
-// Average walking speed ~5 km/h → playback rate 1.0
-const BASE_WALKING_SPEED_KMH = 5;
+const DEFAULT_BASE_SPEED_KMH = 5;
 const MIN_PLAYBACK_RATE = 0.25;
 const MAX_PLAYBACK_RATE = 2.0;
 
@@ -148,7 +147,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
         return;
       } else {
         // Map walking speed to playback rate
-        rate = speedKmh / BASE_WALKING_SPEED_KMH;
+        rate = speedKmh / (video.baseSpeedKmh || DEFAULT_BASE_SPEED_KMH);
         rate = Math.max(MIN_PLAYBACK_RATE, Math.min(MAX_PLAYBACK_RATE, rate));
       }
 

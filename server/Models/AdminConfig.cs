@@ -66,4 +66,5 @@ public class YouTubeVideoDto
     public string VideoId { get; set; } = "";
     public string Url { get; set; } = "";
     public string Title { get; set; } = "";
+    public double BaseSpeedKmh { get; set; } = 5.0;
 }

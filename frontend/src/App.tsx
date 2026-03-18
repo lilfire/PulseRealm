@@ -50,7 +50,7 @@ interface LobbyDefaults {
     timeframeMinutes: number;
   };
   streetViewLocations: { lat: number; lng: number; address: string }[];
-  youTubeVideos: { videoId: string; url: string; title: string }[];
+  youTubeVideos: { videoId: string; url: string; title: string; baseSpeedKmh: number }[];
 }
 
 function App() {

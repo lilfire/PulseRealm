@@ -6,6 +6,7 @@ export interface YouTubeVideo {
   videoId: string;
   url: string;
   title: string;
+  baseSpeedKmh: number;
 }
 
 interface Props {
@@ -24,18 +25,18 @@ interface Props {
 }
 
 const CURATED_VIDEOS: YouTubeVideo[] = [
-  { videoId: "hld4uaO1MDE", url: "https://www.youtube.com/watch?v=hld4uaO1MDE", title: "Walking Tour - Tokyo, Japan" },
-  { videoId: "HDMd3ArOWQk", url: "https://www.youtube.com/watch?v=HDMd3ArOWQk", title: "Walking Tour - New York City" },
-  { videoId: "a2HxLLnOuLk", url: "https://www.youtube.com/watch?v=a2HxLLnOuLk", title: "Walking Tour - Paris, France" },
-  { videoId: "5FxMHnOEbPU", url: "https://www.youtube.com/watch?v=5FxMHnOEbPU", title: "Walking Tour - London, England" },
-  { videoId: "LXb3EKWsInQ", url: "https://www.youtube.com/watch?v=LXb3EKWsInQ", title: "Snowfall in New York City" },
-  { videoId: "wTcNtgA6gHs", url: "https://www.youtube.com/watch?v=wTcNtgA6gHs", title: "Walking Tour - Seoul, South Korea" },
-  { videoId: "F2fGMsOdLog", url: "https://www.youtube.com/watch?v=F2fGMsOdLog", title: "Walking Tour - Rome, Italy" },
-  { videoId: "Scxs7L0vhZ4", url: "https://www.youtube.com/watch?v=Scxs7L0vhZ4", title: "Walking Tour - Dubai" },
-  { videoId: "sz8Lo1NOkks", url: "https://www.youtube.com/watch?v=sz8Lo1NOkks", title: "Rainy Night Walk - Osaka, Japan" },
-  { videoId: "PdUiCJnRb_4", url: "https://www.youtube.com/watch?v=PdUiCJnRb_4", title: "Walking Tour - Barcelona, Spain" },
-  { videoId: "qSk4VWboaE4", url: "https://www.youtube.com/watch?v=qSk4VWboaE4", title: "Walking Tour - Istanbul, Turkey" },
-  { videoId: "F0VKx9G1Mig", url: "https://www.youtube.com/watch?v=F0VKx9G1Mig", title: "Walking Tour - Amsterdam, Netherlands" },
+  { videoId: "hld4uaO1MDE", url: "https://www.youtube.com/watch?v=hld4uaO1MDE", title: "Walking Tour - Tokyo, Japan", baseSpeedKmh: 5 },
+  { videoId: "HDMd3ArOWQk", url: "https://www.youtube.com/watch?v=HDMd3ArOWQk", title: "Walking Tour - New York City", baseSpeedKmh: 5 },
+  { videoId: "a2HxLLnOuLk", url: "https://www.youtube.com/watch?v=a2HxLLnOuLk", title: "Walking Tour - Paris, France", baseSpeedKmh: 5 },
+  { videoId: "5FxMHnOEbPU", url: "https://www.youtube.com/watch?v=5FxMHnOEbPU", title: "Walking Tour - London, England", baseSpeedKmh: 5 },
+  { videoId: "LXb3EKWsInQ", url: "https://www.youtube.com/watch?v=LXb3EKWsInQ", title: "Snowfall in New York City", baseSpeedKmh: 5 },
+  { videoId: "wTcNtgA6gHs", url: "https://www.youtube.com/watch?v=wTcNtgA6gHs", title: "Walking Tour - Seoul, South Korea", baseSpeedKmh: 5 },
+  { videoId: "F2fGMsOdLog", url: "https://www.youtube.com/watch?v=F2fGMsOdLog", title: "Walking Tour - Rome, Italy", baseSpeedKmh: 5 },
+  { videoId: "Scxs7L0vhZ4", url: "https://www.youtube.com/watch?v=Scxs7L0vhZ4", title: "Walking Tour - Dubai", baseSpeedKmh: 5 },
+  { videoId: "sz8Lo1NOkks", url: "https://www.youtube.com/watch?v=sz8Lo1NOkks", title: "Rainy Night Walk - Osaka, Japan", baseSpeedKmh: 5 },
+  { videoId: "PdUiCJnRb_4", url: "https://www.youtube.com/watch?v=PdUiCJnRb_4", title: "Walking Tour - Barcelona, Spain", baseSpeedKmh: 5 },
+  { videoId: "qSk4VWboaE4", url: "https://www.youtube.com/watch?v=qSk4VWboaE4", title: "Walking Tour - Istanbul, Turkey", baseSpeedKmh: 5 },
+  { videoId: "F0VKx9G1Mig", url: "https://www.youtube.com/watch?v=F0VKx9G1Mig", title: "Walking Tour - Amsterdam, Netherlands", baseSpeedKmh: 5 },
 ];
 
 function pickRandom<T>(arr: T[], n: number): T[] {
@@ -82,7 +83,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
 
     const videoId = parseYouTubeUrl(value.trim());
     if (videoId) {
-      setVideo({ videoId, url: value.trim(), title: "Custom Video" });
+      setVideo({ videoId, url: value.trim(), title: "Custom Video", baseSpeedKmh: 5 });
       setUrlError("");
     } else {
       setVideo(null);
@@ -199,7 +200,8 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                   alt=""
                   style={{ width: "60px", height: "45px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }}
                 />
-                <span>{v.title}</span>
+                <span style={{ flex: 1 }}>{v.title}</span>
+                <span style={{ fontSize: "0.75rem", color: "#888", whiteSpace: "nowrap" }}>{v.baseSpeedKmh} km/h = 1×</span>
               </li>
             ))}
           </ul>
