@@ -121,7 +121,7 @@ public class RealmManager
         foreach (var kvp in _realms)
         {
             var realm = kvp.Value;
-            if (realm.Status == RealmStatus.Ended && realm.CreatedAt < cutoff)
+            if (realm.Status == RealmStatus.Ended && (realm.EndedAt ?? realm.CreatedAt) < cutoff)
             {
                 if (_realms.TryRemove(kvp.Key, out _))
                 {
@@ -132,6 +132,46 @@ public class RealmManager
         }
 
         return removed;
+    }
+
+    /// <summary>
+    /// Finds realms in Lobby or Started status with no activity for longer than the given TTL
+    /// and no connected clients or host. Returns the abandoned realms so the caller can
+    /// perform hub-level cleanup (stats, SignalR state) before removal.
+    /// </summary>
+    public List<Realm> CleanupAbandonedRealms(TimeSpan inactivityTtl)
+    {
+        var cutoff = DateTime.UtcNow - inactivityTtl;
+        var abandoned = new List<Realm>();
+
+        foreach (var kvp in _realms)
+        {
+            var realm = kvp.Value;
+            if (realm.Status == RealmStatus.Ended)
+                continue;
+
+            var isAbandoned = realm.WithLock(r =>
+                r.LastActivityAt < cutoff
+                && r.ConnectedClientIds.Count == 0
+                && r.HostConnectionId is null);
+
+            if (isAbandoned)
+            {
+                realm.WithLock(r =>
+                {
+                    r.Status = RealmStatus.Ended;
+                    r.EndedAt = DateTime.UtcNow;
+                });
+
+                if (_realms.TryRemove(kvp.Key, out _))
+                {
+                    _joinCodes.TryRemove(realm.JoinCode, out _);
+                    abandoned.Add(realm);
+                }
+            }
+        }
+
+        return abandoned;
     }
 
     private static string GenerateJoinCode()

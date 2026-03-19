@@ -11,6 +11,8 @@ public class Realm
     public RealmMode Mode { get; set; }
     public RealmStatus Status { get; set; } = RealmStatus.Lobby;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
+    public DateTime? EndedAt { get; set; }
     public List<string> ConnectedClientIds { get; set; } = new();
     public HashSet<string> KnownClientIds { get; set; } = new();
     public Dictionary<string, ClientProfile> ClientProfiles { get; set; } = new();
@@ -44,6 +46,9 @@ public class Realm
         RealmMode.Social => 4,
         _ => 4,
     };
+
+    /// <summary>Updates LastActivityAt to now. Call under lock or from hub methods on activity.</summary>
+    public void TouchActivity() => LastActivityAt = DateTime.UtcNow;
 
     /// <summary>
     /// Executes the given action while holding the realm's lock.

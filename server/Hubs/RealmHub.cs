@@ -58,7 +58,11 @@ public class RealmHub : Hub
         if (realm.HostSecret != hostSecret)
             throw new HubException("Invalid host secret.");
 
-        realm.WithLock(r => r.HostConnectionId = Context.ConnectionId);
+        realm.WithLock(r =>
+        {
+            r.HostConnectionId = Context.ConnectionId;
+            r.TouchActivity();
+        });
         _hostConnectionMap[Context.ConnectionId] = realmId;
         return Task.CompletedTask;
     }
@@ -153,6 +157,7 @@ public class RealmHub : Hub
         }
 
         _realmManager.AddClient(realm.Id, clientId, profile);
+        realm.TouchActivity();
         _connectionMap[Context.ConnectionId] = (realm.Id, clientId);
         await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
 
@@ -186,6 +191,7 @@ public class RealmHub : Hub
         {
             r.Status = RealmStatus.Started;
             r.RealmConfig = config;
+            r.TouchActivity();
         });
 
         // Clear pre-start step data so steps begin at 0 for all clients
@@ -219,6 +225,8 @@ public class RealmHub : Hub
 
         var realm = _realmManager.GetById(realmId);
         if (realm is null) return;
+
+        realm.TouchActivity();
 
         var status = realm.WithLock(r => r.Status);
 
@@ -548,7 +556,11 @@ public class RealmHub : Hub
     {
         var realm = GetRealmAsHost(realmId);
 
-        realm.WithLock(r => r.Status = RealmStatus.Ended);
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Ended;
+            r.EndedAt = DateTime.UtcNow;
+        });
 
         var summary = _statsTracker.BuildSummary(realm);
 
@@ -737,7 +749,11 @@ public class RealmHub : Hub
 
         if (shouldEnd)
         {
-            realm.WithLock(r => r.Status = RealmStatus.Ended);
+            realm.WithLock(r =>
+            {
+                r.Status = RealmStatus.Ended;
+                r.EndedAt = DateTime.UtcNow;
+            });
             var summary = _statsTracker.BuildSummary(realm);
 
             var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));

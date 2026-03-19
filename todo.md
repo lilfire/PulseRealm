@@ -7,7 +7,7 @@
 - [ ] Lese over Terms of use
 - [ ] Settings ui
 - [ ] thumbnail youtube/streetview/routes
-- [ ] autoclose dead realms
+- [x] autoclose dead realms
 - [x] mer smoothing
 - [x] sridelength i sosial trenger label og hva som ville vært normalen  +/-
 - [x] fullscreen i home og lobbies

@@ -30,7 +30,7 @@ public class RealmCleanupServiceTests
     }
 
     private RealmCleanupService CreateService(RealmManager? manager = null) =>
-        new(manager ?? CreateRealmManager(), _loggerMock.Object);
+        new(manager ?? CreateRealmManager(), new RealmStatsTracker(), _loggerMock.Object);
 
     // -------------------------------------------------------------------------
     // Lifecycle: start and cancel
