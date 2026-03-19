@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { RouteConfig } from "../lobbies/RouteLobby";
-import { estimateCaloriesPerSecond } from "../../utils/wearable";
+import { estimateCaloriesPerSecond, formatDuration } from "../../utils/wearable";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { StaticRouteMode } from "./StaticRouteMode";
 import { BindControlsHud } from "./BindControlsHud";
@@ -57,6 +57,8 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   const [caloriesDisplay, setCaloriesDisplay] = useState(0);
 
   const [routeInfo, setRouteInfo] = useState<{ distanceText: string; durationText: string } | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const startTimeRef = useRef(Date.now());
   const [finished, setFinished] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
@@ -65,6 +67,14 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
   useEffect(() => {
     document.documentElement.requestFullscreen?.().catch(() => {});
     return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
+  // Elapsed time
+  useEffect(() => {
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
   }, []);
 
   // Track speed
@@ -408,6 +418,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
         >
           <div style={{ fontWeight: 600 }}>{routeInfo.distanceText}</div>
           <div style={{ color: "#aaa", fontSize: "0.75rem" }}>Est. {routeInfo.durationText}</div>
+          <div style={{ color: "#fff", fontSize: "0.8rem", marginTop: "0.2rem" }}>{formatDuration(elapsed)}</div>
           <div style={{ color: "#00D4FF", fontSize: "0.8rem", marginTop: "0.2rem" }}>{progressPct.toFixed(0)}%</div>
         </div>
       )}
