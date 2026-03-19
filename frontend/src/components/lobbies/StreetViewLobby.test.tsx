@@ -56,6 +56,7 @@ const fixedLocations: StreetViewLocation[] = [
 
 const baseProps = {
   joinCode: "321321",
+  mode: "streetview" as const,
   clients: ["c1"] as string[],
   clientProfiles: {
     c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 },
@@ -116,9 +117,10 @@ describe("StreetViewLobby (maps loaded)", () => {
         address: `Location ${i}`,
       }));
       render(<StreetViewLobby {...baseProps} clients={[]} clientProfiles={{}} curatedLocations={manyLocations} />);
-      // Should show exactly 5
-      const listItems = screen.getAllByRole("listitem");
-      expect(listItems.length).toBe(5);
+      // OptionGrid renders cards in a CSS grid (divs), not list items.
+      // Each location card renders the address text — count them to verify exactly 5 are shown.
+      const locationCards = screen.getAllByText(/^Location \d+$/);
+      expect(locationCards.length).toBe(5);
     });
   });
 
@@ -462,11 +464,17 @@ describe("StreetViewLobby (maps loaded)", () => {
   });
 
   describe("leave button", () => {
-    it("calls onLeave when leave button is clicked", () => {
+    it("calls onLeave when leave button is clicked as guest", () => {
       const onLeave = vi.fn();
-      render(<StreetViewLobby {...baseProps} onLeave={onLeave} />);
-      fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+      render(<StreetViewLobby {...baseProps} onLeave={onLeave} role="guest" />);
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not show Leave button when role is host", () => {
+      render(<StreetViewLobby {...baseProps} />);
+      expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Leave Realm" })).not.toBeInTheDocument();
     });
   });
 
@@ -476,9 +484,9 @@ describe("StreetViewLobby (maps loaded)", () => {
       expect(screen.queryByRole("button", { name: "Start Realm" })).not.toBeInTheDocument();
     });
 
-    it("shows Watching status when role is guest", () => {
+    it("shows GUEST badge when role is guest", () => {
       render(<StreetViewLobby {...baseProps} role="guest" />);
-      expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
     });
   });
 });

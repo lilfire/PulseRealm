@@ -4,8 +4,8 @@ import { vi } from "vitest";
 import { YouTubeEditor, type YouTubeVideoItem } from "./YouTubeEditor";
 
 const sampleVideos: YouTubeVideoItem[] = [
-  { videoId: "dQw4w9WgXcQ", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Never Gonna Give You Up" },
-  { videoId: "L_jWHffIx5E", url: "https://www.youtube.com/watch?v=L_jWHffIx5E", title: "Smells Like Teen Spirit" },
+  { videoId: "dQw4w9WgXcQ", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Never Gonna Give You Up", baseSpeedKmh: 5 },
+  { videoId: "L_jWHffIx5E", url: "https://www.youtube.com/watch?v=L_jWHffIx5E", title: "Smells Like Teen Spirit", baseSpeedKmh: 5 },
 ];
 
 function setup(videos: YouTubeVideoItem[] = [], onChangeMock?: ReturnType<typeof vi.fn>) {

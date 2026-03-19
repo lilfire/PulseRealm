@@ -151,19 +151,19 @@ describe("StreetViewMode", () => {
   it("shows speed when latestData is available", () => {
     const data = makeData("client-1", 140, 500, 6.5);
     render(<StreetViewMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("6.5 km/h")).toBeInTheDocument();
+    expect(screen.getByText("6.5")).toBeInTheDocument();
   });
 
   it("shows heart rate when latestData is available", () => {
     const data = makeData("client-1", 145, 500, 5);
     render(<StreetViewMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("145 bpm")).toBeInTheDocument();
+    expect(screen.getByText("145")).toBeInTheDocument();
   });
 
   it("shows steps when latestData is available", () => {
     const data = makeData("client-1", 140, 987, 5);
     render(<StreetViewMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("987 steps")).toBeInTheDocument();
+    expect(screen.getByText("987")).toBeInTheDocument();
   });
 
   it("shows forward navigation arrow button", () => {
@@ -234,7 +234,7 @@ describe("StreetViewMode", () => {
     const { rerender } = render(<StreetViewMode {...defaultProps} />);
     const data = makeData("client-1", 150, 1000, 7);
     rerender(<StreetViewMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("7.0 km/h")).toBeInTheDocument();
+    expect(screen.getByText("7.0")).toBeInTheDocument();
   });
 
   // ---------------------------------------------------------------------------
@@ -672,14 +672,14 @@ describe("StreetViewMode", () => {
     await act(async () => {
       rerender(<StreetViewMode {...defaultProps} latestData={makeData("client-1", 130, 300, 4.5)} />);
     });
-    expect(screen.getByText("4.5 km/h")).toBeInTheDocument();
-    expect(screen.getByText("130 bpm")).toBeInTheDocument();
+    expect(screen.getByText("4.5")).toBeInTheDocument();
+    expect(screen.getByText("130")).toBeInTheDocument();
 
     await act(async () => {
       rerender(<StreetViewMode {...defaultProps} latestData={makeData("client-1", 160, 800, 9.0)} />);
     });
-    expect(screen.getByText("9.0 km/h")).toBeInTheDocument();
-    expect(screen.getByText("160 bpm")).toBeInTheDocument();
+    expect(screen.getByText("9.0")).toBeInTheDocument();
+    expect(screen.getByText("160")).toBeInTheDocument();
   });
 
   it("panorama A has higher z-index when active is A, panorama B has higher z-index when active is B", async () => {

@@ -5,6 +5,7 @@ import type { ClientProfile } from "../../types/session";
 
 const baseProps = {
   joinCode: "111222",
+  mode: "social" as const,
   clients: [] as string[],
   clientProfiles: {} as Record<string, ClientProfile>,
   connected: true,
@@ -56,10 +57,10 @@ describe("DefaultLobby", () => {
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onLeave when leave button is clicked", () => {
+  it("calls onLeave when leave button is clicked as guest", () => {
     const onLeave = vi.fn();
-    render(<DefaultLobby {...baseProps} onLeave={onLeave} />);
-    fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+    render(<DefaultLobby {...baseProps} onLeave={onLeave} role="guest" />);
+    fireEvent.click(screen.getByRole("button", { name: "Leave" }));
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
@@ -69,12 +70,14 @@ describe("DefaultLobby", () => {
   });
 
   it("shows Waiting for players when connected and role is host", () => {
-    render(<DefaultLobby {...baseProps} connected={true} role="host" />);
-    expect(screen.getByText(/Waiting for players\.\.\./)).toBeInTheDocument();
+    render(<DefaultLobby {...baseProps} connected={true} clients={[]} role="host" />);
+    // No clients yet — the player list shows this placeholder
+    expect(screen.getByText("No players yet.")).toBeInTheDocument();
   });
 
   it("shows Connecting when not connected", () => {
     render(<DefaultLobby {...baseProps} connected={false} />);
-    expect(screen.getByText(/Connecting\.\.\./)).toBeInTheDocument();
+    // Start Realm button is disabled when not connected
+    expect(screen.getByRole("button", { name: "Start Realm" })).toBeDisabled();
   });
 });

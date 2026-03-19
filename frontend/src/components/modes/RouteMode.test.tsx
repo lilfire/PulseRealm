@@ -198,19 +198,19 @@ describe("RouteMode", () => {
   it("shows speed when latestData available", () => {
     const data = makeData("client-1", 140, 500, 6.5);
     render(<RouteMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("6.5 km/h")).toBeInTheDocument();
+    expect(screen.getByText("6.5")).toBeInTheDocument();
   });
 
   it("shows heart rate when latestData available", () => {
     const data = makeData("client-1", 145, 500, 5);
     render(<RouteMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("145 bpm")).toBeInTheDocument();
+    expect(screen.getByText("145")).toBeInTheDocument();
   });
 
   it("shows steps when latestData available", () => {
     const data = makeData("client-1", 140, 750, 5);
     render(<RouteMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("750 steps")).toBeInTheDocument();
+    expect(screen.getByText("750")).toBeInTheDocument();
   });
 
   it("shows 'Waiting for player...' when no clients", () => {

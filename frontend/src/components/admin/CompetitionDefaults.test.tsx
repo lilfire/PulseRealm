@@ -30,14 +30,12 @@ describe("CompetitionDefaults", () => {
     expect(screen.getByRole("button", { name: "King" })).toBeInTheDocument();
   });
 
-  it("highlights the current sub-mode with cyan border", () => {
+  it("highlights the current sub-mode with active class", () => {
     setup({ subMode: "elimination" });
     const eliminationBtn = screen.getByRole("button", { name: "Elimination" });
-    // Selected buttons have 2px border with accent2 color; check the inline style attribute directly
-    // because jsdom does not resolve CSS custom properties in toHaveStyle
-    expect(eliminationBtn.style.border).toContain("2px solid");
+    expect(eliminationBtn.className).toContain("admin-btn-option-active");
     const raceBtn = screen.getByRole("button", { name: "Race" });
-    expect(raceBtn.style.border).toContain("1px solid");
+    expect(raceBtn.className).not.toContain("admin-btn-option-active");
   });
 
   it("calls onChange('competitionSubMode', value) when sub-mode clicked", async () => {
@@ -68,9 +66,9 @@ describe("CompetitionDefaults", () => {
   it("highlights the current player format", () => {
     setup({ playerFormat: "team" });
     const teamBtn = screen.getByRole("button", { name: "Team" });
-    expect(teamBtn.style.border).toContain("2px solid");
+    expect(teamBtn.className).toContain("admin-btn-option-active");
     const individualBtn = screen.getByRole("button", { name: "Individual" });
-    expect(individualBtn.style.border).toContain("1px solid");
+    expect(individualBtn.className).not.toContain("admin-btn-option-active");
   });
 
   it("calls onChange('competitionPlayerFormat', value) when format clicked", async () => {
@@ -116,9 +114,9 @@ describe("CompetitionDefaults", () => {
   it("highlights the current interval", () => {
     setup({ intervalMinutes: 5 });
     const btn5 = screen.getByRole("button", { name: "5 min" });
-    expect(btn5.style.border).toContain("2px solid");
+    expect(btn5.className).toContain("admin-btn-option-active");
     const btn1 = screen.getByRole("button", { name: "1 min" });
-    expect(btn1.style.border).toContain("1px solid");
+    expect(btn1.className).not.toContain("admin-btn-option-active");
   });
 
   it("calls onChange('competitionIntervalMinutes', value) when interval clicked", async () => {
@@ -145,9 +143,9 @@ describe("CompetitionDefaults", () => {
   it("highlights the current target zone", () => {
     setup({ targetZone: 4 });
     const zone4 = screen.getByRole("button", { name: "Zone 4" });
-    expect(zone4.style.border).toContain("2px solid");
+    expect(zone4.className).toContain("admin-btn-option-active");
     const zone1 = screen.getByRole("button", { name: "Zone 1" });
-    expect(zone1.style.border).toContain("1px solid");
+    expect(zone1.className).not.toContain("admin-btn-option-active");
   });
 
   it("calls onChange('competitionTargetZone', value) when zone clicked", async () => {

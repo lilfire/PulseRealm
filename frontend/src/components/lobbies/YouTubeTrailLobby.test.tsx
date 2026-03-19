@@ -7,6 +7,7 @@ import type { YouTubeVideo } from "./YouTubeTrailLobby";
 
 const baseProps = {
   joinCode: "777888",
+  mode: "youtubetrail" as const,
   clients: ["c1"] as string[],
   clientProfiles: {
     c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 },
@@ -18,11 +19,11 @@ const baseProps = {
 
 // Five fixed curated videos used in tests to avoid randomness
 const fixedVideos: YouTubeVideo[] = [
-  { videoId: "vid1", url: "https://www.youtube.com/watch?v=vid1", title: "Video One" },
-  { videoId: "vid2", url: "https://www.youtube.com/watch?v=vid2", title: "Video Two" },
-  { videoId: "vid3", url: "https://www.youtube.com/watch?v=vid3", title: "Video Three" },
-  { videoId: "vid4", url: "https://www.youtube.com/watch?v=vid4", title: "Video Four" },
-  { videoId: "vid5", url: "https://www.youtube.com/watch?v=vid5", title: "Video Five" },
+  { videoId: "vid1", url: "https://www.youtube.com/watch?v=vid1", title: "Video One", baseSpeedKmh: 5 },
+  { videoId: "vid2", url: "https://www.youtube.com/watch?v=vid2", title: "Video Two", baseSpeedKmh: 5 },
+  { videoId: "vid3", url: "https://www.youtube.com/watch?v=vid3", title: "Video Three", baseSpeedKmh: 5 },
+  { videoId: "vid4", url: "https://www.youtube.com/watch?v=vid4", title: "Video Four", baseSpeedKmh: 5 },
+  { videoId: "vid5", url: "https://www.youtube.com/watch?v=vid5", title: "Video Five", baseSpeedKmh: 5 },
 ];
 
 beforeEach(() => {
@@ -52,21 +53,21 @@ describe("YouTubeTrailLobby", () => {
         videoId: `v${i}`,
         url: `https://www.youtube.com/watch?v=v${i}`,
         title: `Video ${i}`,
+        baseSpeedKmh: 5,
       }));
       render(<YouTubeTrailLobby {...baseProps} clients={[]} clientProfiles={{}} curatedVideos={manyVideos} />);
-      // With no players, only the video suggestion list items are rendered
-      const items = screen.getAllByRole("option");
-      // randomVideos picks 5
-      expect(items.length).toBe(5);
+      // OptionGrid renders exactly 5 video cards (randomVideos picks 5); each shows "Target speed: X km/h"
+      const speedLabels = screen.getAllByText(/Target speed:/);
+      expect(speedLabels.length).toBe(5);
     });
 
     it("uses custom curated videos when provided", () => {
       const custom: YouTubeVideo[] = [
-        { videoId: "customA", url: "https://www.youtube.com/watch?v=customA", title: "Custom Video A" },
-        { videoId: "customB", url: "https://www.youtube.com/watch?v=customB", title: "Custom Video B" },
-        { videoId: "customC", url: "https://www.youtube.com/watch?v=customC", title: "Custom Video C" },
-        { videoId: "customD", url: "https://www.youtube.com/watch?v=customD", title: "Custom Video D" },
-        { videoId: "customE", url: "https://www.youtube.com/watch?v=customE", title: "Custom Video E" },
+        { videoId: "customA", url: "https://www.youtube.com/watch?v=customA", title: "Custom Video A", baseSpeedKmh: 5 },
+        { videoId: "customB", url: "https://www.youtube.com/watch?v=customB", title: "Custom Video B", baseSpeedKmh: 5 },
+        { videoId: "customC", url: "https://www.youtube.com/watch?v=customC", title: "Custom Video C", baseSpeedKmh: 5 },
+        { videoId: "customD", url: "https://www.youtube.com/watch?v=customD", title: "Custom Video D", baseSpeedKmh: 5 },
+        { videoId: "customE", url: "https://www.youtube.com/watch?v=customE", title: "Custom Video E", baseSpeedKmh: 5 },
       ];
       render(<YouTubeTrailLobby {...baseProps} curatedVideos={custom} />);
       // At least one of the custom titles should appear
@@ -249,11 +250,18 @@ describe("YouTubeTrailLobby", () => {
   });
 
   describe("leave button", () => {
-    it("calls onLeave when leave button is clicked", () => {
+    it("calls onLeave when leave button is clicked as guest", () => {
       const onLeave = vi.fn();
-      render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} onLeave={onLeave} />);
-      fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+      render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} onLeave={onLeave} role="guest" />);
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not show Leave button when role is host", () => {
+      render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+      // Hosts do not have a Leave button — only Start Realm is shown
+      expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Leave Realm" })).not.toBeInTheDocument();
     });
   });
 });

@@ -195,8 +195,9 @@ describe("DungeonLobby", () => {
   describe("leave button", () => {
     it("calls onLeave when leave button is clicked", () => {
       const onLeave = vi.fn();
-      render(<DungeonLobby {...baseProps} onLeave={onLeave} />);
-      fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+      // Guest role renders the Leave button (host/admin do not get a Leave button)
+      render(<DungeonLobby {...baseProps} onLeave={onLeave} role="guest" />);
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
     });
   });
@@ -209,7 +210,8 @@ describe("DungeonLobby", () => {
 
     it("shows Watching status when role is guest", () => {
       render(<DungeonLobby {...baseProps} role="guest" />);
-      expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
+      // Guest role badge shows "GUEST" in the lobby footer
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
     });
   });
 });
