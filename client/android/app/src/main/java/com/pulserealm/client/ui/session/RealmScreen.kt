@@ -461,7 +461,7 @@ private fun PersonalSummaryPage(
                                     val actualDist = distanceInput.toDouble()
                                     val factor = actualDist * 100.0 / (steps * heightCm)
                                     if (factor < 0.2 || factor > 0.8) {
-                                        calibrationError = "Factor ${"%.3f".format(factor)} out of range (0.2-0.8)"
+                                        calibrationError = "Distance doesn't match your steps — check the value"
                                         return@Button
                                     }
                                     onCalibrate(factor)

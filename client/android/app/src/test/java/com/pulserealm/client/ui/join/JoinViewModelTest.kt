@@ -450,7 +450,7 @@ class JoinViewModelTest {
 
         assertFalse(viewModel.uiState.value.isJoined)
         assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("Network error", viewModel.uiState.value.errorMessage)
+        assertEquals("Could not join the realm", viewModel.uiState.value.errorMessage)
         verify { signalRClient.disconnect() }
     }
 
@@ -494,7 +494,7 @@ class JoinViewModelTest {
 
         assertFalse(viewModel.uiState.value.isJoined)
         assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("HTTP 404", viewModel.uiState.value.errorMessage)
+        assertEquals("Realm not found — check the join code", viewModel.uiState.value.errorMessage)
         verify { signalRClient.disconnect() }
     }
 

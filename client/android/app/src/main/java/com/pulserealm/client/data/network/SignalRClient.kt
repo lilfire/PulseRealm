@@ -114,7 +114,7 @@ class SignalRClient(
             _connectionState.value = ConnectionState.CONNECTED
         } catch (e: Exception) {
             _connectionState.value = ConnectionState.DISCONNECTED
-            _error.value = "Connection failed: ${e.message}"
+            _error.value = UserFriendlyErrors.fromException(e, "Could not connect to the server")
         }
     }
 
@@ -202,7 +202,7 @@ class SignalRClient(
             })
 
             on("Error", { message ->
-                _error.value = message
+                _error.value = UserFriendlyErrors.fromRawMessage(message, "Something went wrong")
             }, String::class.java)
 
             onClosed {
@@ -243,14 +243,9 @@ class SignalRClient(
         try {
             hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
         } catch (e: Exception) {
-            // HubException messages get wrapped by RxJava — search the cause chain
-            // for the most useful server message.
-            val serverMessage = generateSequence<Throwable>(e) { it.cause }
-                .mapNotNull { it.message }
-                .firstOrNull { it.isNotBlank() }
-                ?: "Join failed"
-            _error.value = serverMessage
-            throw Exception(serverMessage, e)
+            val friendlyMessage = UserFriendlyErrors.fromException(e, "Could not join the realm")
+            _error.value = friendlyMessage
+            throw Exception(friendlyMessage, e)
         }
     }
 

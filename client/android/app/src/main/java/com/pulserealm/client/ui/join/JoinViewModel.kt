@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.SignalRClient
+import com.pulserealm.client.data.network.UserFriendlyErrors
 import com.pulserealm.client.data.model.RealmInfo
 import com.pulserealm.client.data.network.RealmApi
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -213,7 +214,7 @@ class JoinViewModel @Inject constructor(
                 signalRClient.connect(state.serverUrl)
 
                 if (signalRClient.connectionState.value != ConnectionState.CONNECTED) {
-                    val err = signalRClient.error.value ?: "Connection failed"
+                    val err = signalRClient.error.value ?: "Could not connect to the server"
                     _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = err)
                     return@launch
                 }
@@ -251,7 +252,7 @@ class JoinViewModel @Inject constructor(
                 signalRClient.disconnect()
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "Failed to join realm"
+                    errorMessage = UserFriendlyErrors.fromException(e, "Could not join the realm")
                 )
             }
         }
