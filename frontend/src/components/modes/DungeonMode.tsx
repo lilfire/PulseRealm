@@ -3,6 +3,7 @@ import type { ClientProfile, RealmRole, WearableData } from "../../types/session
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
 import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { BindControlsHud } from "./BindControlsHud";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1058,10 +1059,28 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       background: "#0d0d0d", color: "#e0e0e0", display: "flex", flexDirection: "column",
       fontFamily: "'Segoe UI', system-ui, sans-serif",
     }}>
+      {/* End button */}
+      {role !== "guest" && (
+        <button
+          onClick={() => onEnd(0)}
+          style={{
+            position: "fixed", top: 12, left: 12,
+            background: "rgba(255,61,90,0.15)",
+            border: "1px solid rgba(255,61,90,0.4)",
+            borderRadius: 8, padding: "8px 16px",
+            color: "#FF5C75", fontSize: 13, fontWeight: 600,
+            cursor: "pointer", zIndex: 150,
+          }}
+        >
+          End Realm
+        </button>
+      )}
+
       {/* Top bar */}
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", alignItems: "center", justifyContent: "center",
         padding: "0.4rem 1rem", background: "rgba(0,0,0,0.5)", borderBottom: "1px solid #222",
+        position: "relative",
       }}>
         <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.75rem" } as React.CSSProperties}>
           <span style={{ fontSize: "1.05rem" }}>&#128081;</span>
@@ -1072,7 +1091,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
               : `Room ${display.currentRoom + 1} / ${display.rooms.length}`}
           </span>
         </div>
-        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "1rem" } as React.CSSProperties}>
+        <div className="fg-row" style={{ position: "absolute", right: "1rem", display: "flex", alignItems: "center", "--fg": "0.5rem" } as React.CSSProperties}>
           <span style={{ fontSize: "0.8rem", color: "#FF5C75", background: "rgba(255,92,117,0.1)", padding: "0.2rem 0.6rem", borderRadius: "4px" }}>
             {display.teamCalories} / {display.nextCalorieMilestone} kcal
           </span>
@@ -1080,17 +1099,6 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
             <span style={{ fontSize: "0.8rem", color: "#fbbf24", background: "rgba(251,191,36,0.1)", padding: "0.2rem 0.6rem", borderRadius: "4px" }}>
               {display.buffDesc}
             </span>
-          )}
-          {role !== "guest" && (
-            <button
-              onClick={() => onEnd(0)}
-              style={{
-                background: "rgba(255,61,90,0.15)", color: "#ff3d5a", border: "1px solid rgba(255,61,90,0.3)",
-                borderRadius: "6px", padding: "0.4rem 0.8rem", fontSize: "0.85rem", cursor: "pointer",
-              }}
-            >
-              End Realm
-            </button>
           )}
         </div>
       </div>
@@ -1140,6 +1148,17 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         )}
       </div>
 
+      {/* Bind controls */}
+      {boundClientId && onSetIncline && (
+        <div style={{ flexShrink: 0, padding: "8px 1rem", borderTop: "1px solid #222" }}>
+          <BindControlsHud
+            boundClientId={boundClientId}
+            clientInclines={clientInclines}
+            onSetIncline={onSetIncline}
+          />
+        </div>
+      )}
+
       {/* Bottom stats */}
       <div className="fg-wrap" style={{
         padding: "0.4rem 1rem", background: "rgba(0,0,0,0.5)", borderTop: "1px solid #222",
@@ -1149,7 +1168,6 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           <span style={{ color: "#555" }}>Waiting for player data...</span>
         ) : display.clientStats.map((cs, i) => {
           const incline = clientInclines?.[cs.clientId];
-          const isBound = boundClientId === cs.clientId && onSetIncline != null;
           return (
             <div key={i} style={{
               textAlign: "center", padding: "0.3rem 0.8rem", background: "#1a1a1a",
@@ -1163,17 +1181,6 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
                 <div style={{ fontSize: "0.7rem", color: "#f59e0b", marginTop: "0.15rem" }}>
                   {incline}% incline
                 </div>
-              )}
-              {isBound && (
-                <input
-                  type="range"
-                  min={0}
-                  max={15}
-                  step={0.5}
-                  value={incline ?? 0}
-                  onChange={(e) => onSetIncline!(cs.clientId, parseFloat(e.target.value))}
-                  style={{ width: "100%", accentColor: "#f59e0b", marginTop: "0.2rem" }}
-                />
               )}
             </div>
           );

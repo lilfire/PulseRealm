@@ -1,10 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
-import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { estimateCaloriesPerSecond } from "../../utils/wearable";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { StaticStreetViewMode } from "./StaticStreetViewMode";
 import { BindControlsHud } from "./BindControlsHud";
+import { PlayerHud } from "./PlayerHud";
 
 interface Props {
   clients: string[];
@@ -47,12 +48,21 @@ function findBestLink(
   return fallback ? best : null;
 }
 
-const arrowBtnStyle: React.CSSProperties = {
-  width: "34px",
-  height: "34px",
-  background: "rgba(0,0,0,0.65)",
+/** Shared panel style for all HUD overlays in fullscreen modes. */
+export const overlayPanel: React.CSSProperties = {
+  background: "rgba(0,0,0,0.75)",
+  backdropFilter: "blur(8px)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 8,
   color: "#fff",
-  border: "1px solid rgba(255,255,255,0.3)",
+};
+
+const arrowBtnStyle: React.CSSProperties = {
+  width: "36px",
+  height: "36px",
+  background: "rgba(255,255,255,0.08)",
+  color: "#fff",
+  border: "1px solid rgba(255,255,255,0.15)",
   borderRadius: "6px",
   fontSize: "16px",
   cursor: "pointer",
@@ -604,110 +614,92 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         }}
       />
 
-      {/* End realm button */}
-      {role !== "guest" && (
-        <button
-          onClick={() => onEnd(totalDistanceRef.current)}
-          style={{
-            position: "absolute",
-            top: "1rem",
-            left: "1rem",
-            zIndex: 10,
-            background: "rgba(0,0,0,0.75)",
-            color: "#fff",
-            border: "1px solid rgba(255,61,90,0.5)",
-            borderRadius: "8px",
-            padding: "0.5rem 1rem",
-            fontSize: "0.9rem",
-            cursor: "pointer",
-          }}
-        >
-          End Realm
-        </button>
-      )}
-
-      {/* HUD overlay */}
+      {/* Left panel: End button + HUD stats */}
       <div
         style={{
+          ...overlayPanel,
           position: "absolute",
-          bottom: "1rem",
+          top: "1rem",
           left: "1rem",
           zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
           padding: "0.75rem 1rem",
-          borderRadius: "8px",
           fontSize: "0.95rem",
           lineHeight: 1.8,
-          pointerEvents: "none",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
         }}
       >
-        <div style={{ fontWeight: 600 }}>{profile?.name || clientId || "Waiting for player..."}</div>
-        {latestData ? (
-          <>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
-            <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: -4 }}>{formatPace(latestData.speedKmh)}</div>
-            <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
-              <span>{latestData.heartRate} bpm</span>
-              {latestData.heartRate > 0 && (() => {
-                const maxHr = getMaxHrForAge(profile?.age);
-                const zone = getZoneForHr(latestData.heartRate, maxHr);
-                return (
-                  <span style={{
-                    background: ZONE_COLORS[zone - 1],
-                    color: zone <= 2 ? "#111" : "#fff",
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    padding: "1px 6px",
-                    borderRadius: 4,
-                  }}>Z{zone}</span>
-                );
-              })()}
-            </div>
-            <div>{latestData.steps} steps</div>
-            {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
-            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay.toFixed(0)} m</div>
-          </>
-        ) : (
-          <div style={{ color: "#888" }}>No data yet</div>
+        <PlayerHud
+          name={profile?.name || clientId || "Waiting for player..."}
+          latestData={latestData}
+          profile={profile ?? null}
+          caloriesDisplay={caloriesDisplay}
+          totalDistanceDisplay={totalDistanceDisplay.toFixed(0)}
+        />
+        {role !== "guest" && (
+          <button
+            onClick={() => onEnd(totalDistanceRef.current)}
+            style={{
+              marginTop: "0.25rem",
+              background: "rgba(255,61,90,0.15)",
+              color: "#FF5C75",
+              border: "1px solid rgba(255,61,90,0.4)",
+              borderRadius: 6,
+              padding: "0.35rem 0.75rem",
+              fontSize: "0.8rem",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            End Realm
+          </button>
         )}
       </div>
 
-      {/* Direction arrows overlay */}
+      {/* Right panel: Direction arrows + bind controls */}
       <div
         style={{
+          ...overlayPanel,
           position: "absolute",
           bottom: "1rem",
           right: "1rem",
           zIndex: 10,
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gridTemplateRows: "repeat(3, 1fr)",
-          gap: "2px",
-          width: "108px",
-          height: "108px",
+          padding: "0.75rem",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5rem",
         }}
       >
-        <div />
-        <button onClick={() => moveInDirection(0)} style={arrowBtnStyle} title="Forward">&#9650;</button>
-        <div />
-        <button onClick={() => moveInDirection(-90)} style={arrowBtnStyle} title="Left">&#9664;</button>
-        <div />
-        <button onClick={() => moveInDirection(90)} style={arrowBtnStyle} title="Right">&#9654;</button>
-        <div />
-        <div />
-        <div />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "2px",
+          }}
+        >
+          <div />
+          <button onClick={() => moveInDirection(0)} style={arrowBtnStyle} title="Forward">&#9650;</button>
+          <div />
+          <button onClick={() => moveInDirection(-90)} style={arrowBtnStyle} title="Left">&#9664;</button>
+          <div />
+          <button onClick={() => moveInDirection(90)} style={arrowBtnStyle} title="Right">&#9654;</button>
+        </div>
       </div>
+
+      {boundClientId && (
+        <div style={{ position: "absolute", bottom: "1rem", left: "1rem", zIndex: 50 }}>
+          <BindControlsHud
+            boundClientId={boundClientId}
+            clientInclines={clientInclines}
+            onSetIncline={onSetIncline}
+            clientSpeedOverrides={clientSpeedOverrides}
+            onSetSpeedOverride={onSetSpeedOverride}
+          />
+        </div>
+      )}
     </div>
-    {boundClientId && (
-      <BindControlsHud
-        boundClientId={boundClientId}
-        clientInclines={clientInclines}
-        onSetIncline={onSetIncline}
-        clientSpeedOverrides={clientSpeedOverrides}
-        onSetSpeedOverride={onSetSpeedOverride}
-      />
-    )}
     </>
   );
 }

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { YouTubeVideo } from "../lobbies/YouTubeTrailLobby";
-import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
+import { overlayPanel } from "./StreetViewMode";
+import { PlayerHud } from "./PlayerHud";
 
 interface Props {
   clients: string[];
@@ -253,107 +255,74 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
         }}
       />
 
-      {/* End realm button */}
-      {role !== "guest" && (
-        <button
-          onClick={() => onEnd(totalDistanceRef.current)}
-          style={{
-            position: "absolute",
-            top: "1rem",
-            left: "1rem",
-            zIndex: 10,
-            background: "rgba(0,0,0,0.75)",
-            color: "#fff",
-            border: "1px solid rgba(255,61,90,0.5)",
-            borderRadius: "8px",
-            padding: "0.5rem 1rem",
-            fontSize: "0.9rem",
-            cursor: "pointer",
-          }}
-        >
-          End Realm
-        </button>
-      )}
-
-      {/* Mute toggle */}
-      <button
-        onClick={toggleMute}
+      {/* Left panel: HUD stats + mute + End Realm */}
+      <div
         style={{
+          ...overlayPanel,
+          position: "absolute",
+          top: "1rem",
+          left: "1rem",
+          zIndex: 10,
+          padding: "0.75rem 1rem",
+          fontSize: "0.95rem",
+          lineHeight: 1.8,
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+        }}
+      >
+        <PlayerHud
+          name={profile?.name || clientId || "Waiting for player..."}
+          latestData={latestData}
+          profile={profile ?? null}
+          caloriesDisplay={caloriesDisplay}
+          totalDistanceDisplay={totalDistanceDisplay.toFixed(0)}
+        />
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+          <button
+            onClick={toggleMute}
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 6,
+              padding: "0.3rem 0.6rem",
+              fontSize: "1rem",
+              cursor: "pointer",
+            }}
+            title={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? "\u{1F507}" : "\u{1F50A}"}
+          </button>
+          {role !== "guest" && (
+            <button
+              onClick={() => onEnd(totalDistanceRef.current)}
+              style={{
+                background: "rgba(255,61,90,0.15)",
+                color: "#FF5C75",
+                border: "1px solid rgba(255,61,90,0.4)",
+                borderRadius: 6,
+                padding: "0.35rem 0.75rem",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              End Realm
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Right panel: Playback speed */}
+      <div
+        style={{
+          ...overlayPanel,
           position: "absolute",
           top: "1rem",
           right: "1rem",
           zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.3)",
-          borderRadius: "8px",
-          padding: "0.5rem 1rem",
-          fontSize: "1.2rem",
-          cursor: "pointer",
-        }}
-        title={muted ? "Unmute" : "Mute"}
-      >
-        {muted ? "\u{1F507}" : "\u{1F50A}"}
-      </button>
-
-      {/* HUD overlay */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "3.5rem",
-          left: "1rem",
-          zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
-          padding: "0.75rem 1rem",
-          borderRadius: "8px",
-          fontSize: "0.95rem",
-          lineHeight: 1.8,
-          pointerEvents: "none",
-        }}
-      >
-        <div style={{ fontWeight: 600 }}>{profile?.name || clientId || "Waiting for player..."}</div>
-        {latestData ? (
-          <>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
-            <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: -4 }}>{formatPace(latestData.speedKmh)}</div>
-            <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
-              <span>{latestData.heartRate} bpm</span>
-              {latestData.heartRate > 0 && (() => {
-                const maxHr = getMaxHrForAge(profile?.age);
-                const zone = getZoneForHr(latestData.heartRate, maxHr);
-                return (
-                  <span style={{
-                    background: ZONE_COLORS[zone - 1],
-                    color: zone <= 2 ? "#111" : "#fff",
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    padding: "1px 6px",
-                    borderRadius: 4,
-                  }}>Z{zone}</span>
-                );
-              })()}
-            </div>
-            <div>{latestData.steps} steps</div>
-            {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
-            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay.toFixed(0)} m</div>
-          </>
-        ) : (
-          <div style={{ color: "#888" }}>No data yet</div>
-        )}
-      </div>
-
-      {/* Playback speed indicator */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "3.5rem",
-          right: "1rem",
-          zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
           padding: "0.5rem 0.75rem",
-          borderRadius: "8px",
           fontSize: "0.85rem",
           pointerEvents: "none",
           textAlign: "center",
@@ -406,13 +375,15 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
         </span>
       </div>
       {boundClientId && (
-        <BindControlsHud
-          boundClientId={boundClientId}
-          clientInclines={clientInclines}
-          onSetIncline={onSetIncline}
-          clientSpeedOverrides={clientSpeedOverrides}
-          onSetSpeedOverride={onSetSpeedOverride}
-        />
+        <div style={{ position: "absolute", bottom: "3.5rem", left: "1rem", zIndex: 50 }}>
+          <BindControlsHud
+            boundClientId={boundClientId}
+            clientInclines={clientInclines}
+            onSetIncline={onSetIncline}
+            clientSpeedOverrides={clientSpeedOverrides}
+            onSetSpeedOverride={onSetSpeedOverride}
+          />
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,24 @@ interface Props {
   onSetSpeedOverride?: (clientId: string, speedKmh: number) => void;
 }
 
+const btnStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.15)",
+  borderRadius: 6, width: 32, height: 32, cursor: "pointer",
+  fontSize: 20, fontWeight: 700,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  padding: 0,
+};
+
+const valueStyle: React.CSSProperties = {
+  fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)",
+  width: 72, textAlign: "center", whiteSpace: "nowrap",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12, fontWeight: 600, width: 52,
+};
+
 export function BindControlsHud({ boundClientId, clientInclines, onSetIncline, clientSpeedOverrides, onSetSpeedOverride }: Props) {
   if (!onSetIncline && !onSetSpeedOverride) return null;
 
@@ -15,44 +33,23 @@ export function BindControlsHud({ boundClientId, clientInclines, onSetIncline, c
 
   return (
     <div style={{
-      position: "fixed", bottom: 16, right: 16,
-      background: "rgba(15,23,42,0.92)",
-      border: "1px solid var(--border)",
-      borderRadius: 12, padding: "12px 16px",
-      display: "flex", flexDirection: "column", gap: 10,
+      background: "rgba(0,0,0,0.75)",
       backdropFilter: "blur(8px)",
-      zIndex: 50,
-      minWidth: 180,
+      border: "1px solid rgba(255,255,255,0.12)",
+      borderRadius: 8, padding: "10px 14px",
+      display: "flex", flexDirection: "column", gap: 8,
+      color: "#fff",
     }}>
-      <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>
+      <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>
         Controls
       </div>
 
       {onSetIncline && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600, width: 52 }}>Incline</span>
-          <button
-            onClick={() => onSetIncline(boundClientId, Math.max(0, incline - 0.5))}
-            style={{
-              background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
-              borderRadius: 6, width: 32, height: 32, cursor: "pointer",
-              color: "#f59e0b", fontSize: 20, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >−</button>
-          <span style={{
-            fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
-            color: "#f59e0b", minWidth: 52, textAlign: "center",
-          }}>{incline.toFixed(1)}%</span>
-          <button
-            onClick={() => onSetIncline(boundClientId, Math.min(15, incline + 0.5))}
-            style={{
-              background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
-              borderRadius: 6, width: 32, height: 32, cursor: "pointer",
-              color: "#f59e0b", fontSize: 20, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >+</button>
+          <span style={{ ...labelStyle, color: "#f59e0b" }}>Incline</span>
+          <button onClick={() => onSetIncline(boundClientId, Math.max(0, incline - 0.5))} style={{ ...btnStyle, color: "#f59e0b" }}>−</button>
+          <span style={{ ...valueStyle, color: "#f59e0b" }}>{incline.toFixed(1)}%</span>
+          <button onClick={() => onSetIncline(boundClientId, Math.min(15, incline + 0.5))} style={{ ...btnStyle, color: "#f59e0b" }}>+</button>
         </div>
       )}
 
@@ -61,42 +58,27 @@ export function BindControlsHud({ boundClientId, clientInclines, onSetIncline, c
           <button
             onClick={() => onSetSpeedOverride(boundClientId, hasOverride ? 0 : 5)}
             style={{
+              ...labelStyle,
               background: hasOverride ? "rgba(51,223,255,0.15)" : "rgba(255,255,255,0.08)",
-              border: `1px solid ${hasOverride ? "#33DFFF" : "var(--border)"}`,
-              borderRadius: 6, padding: "2px 8px", cursor: "pointer",
-              color: hasOverride ? "#33DFFF" : "var(--text)",
-              fontSize: 11, fontWeight: 600, width: 52, textAlign: "center",
+              border: `1px solid ${hasOverride ? "#33DFFF" : "rgba(255,255,255,0.15)"}`,
+              borderRadius: 6, padding: "2px 0", cursor: "pointer",
+              color: hasOverride ? "#33DFFF" : "#888",
+              fontSize: 10, textAlign: "center", whiteSpace: "nowrap",
             }}
-          >{hasOverride ? "Override" : "Auto"}</button>
-          {hasOverride ? (
-            <>
-              <button
-                onClick={() => onSetSpeedOverride(boundClientId, Math.max(0.5, overrideSpeed - 0.5))}
-                style={{
-                  background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
-                  borderRadius: 6, width: 32, height: 32, cursor: "pointer",
-                  color: "#33DFFF", fontSize: 20, fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >−</button>
-              <span style={{
-                fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
-                color: "#33DFFF", minWidth: 52, textAlign: "center",
-              }}>{overrideSpeed.toFixed(1)}</span>
-              <button
-                onClick={() => onSetSpeedOverride(boundClientId, Math.min(30, overrideSpeed + 0.5))}
-                style={{
-                  background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
-                  borderRadius: 6, width: 32, height: 32, cursor: "pointer",
-                  color: "#33DFFF", fontSize: 20, fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >+</button>
-              <span style={{ fontSize: 12, color: "var(--text)" }}>km/h</span>
-            </>
-          ) : (
-            <span style={{ fontSize: 12, color: "var(--text)" }}>Speed: auto</span>
-          )}
+          >{hasOverride ? "Manual" : "Auto"}</button>
+          <button
+            onClick={() => hasOverride && onSetSpeedOverride(boundClientId, Math.max(0.5, overrideSpeed - 0.5))}
+            style={{ ...btnStyle, color: "#33DFFF", opacity: hasOverride ? 1 : 0.3, cursor: hasOverride ? "pointer" : "default" }}
+            disabled={!hasOverride}
+          >−</button>
+          <span style={{ ...valueStyle, color: hasOverride ? "#33DFFF" : "#555" }}>
+            {hasOverride ? `${overrideSpeed.toFixed(1)} km/h` : "— km/h"}
+          </span>
+          <button
+            onClick={() => hasOverride && onSetSpeedOverride(boundClientId, Math.min(30, overrideSpeed + 0.5))}
+            style={{ ...btnStyle, color: "#33DFFF", opacity: hasOverride ? 1 : 0.3, cursor: hasOverride ? "pointer" : "default" }}
+            disabled={!hasOverride}
+          >+</button>
         </div>
       )}
     </div>

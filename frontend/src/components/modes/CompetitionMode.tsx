@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
 import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { BindControlsHud } from "./BindControlsHud";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -750,14 +751,32 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       fontFamily: "var(--sans)",
       overflow: "hidden",
     }}>
+      {/* End button */}
+      {role !== "guest" && (
+        <button
+          onClick={handleEnd}
+          style={{
+            position: "fixed", top: 12, left: 12,
+            background: "rgba(255,61,90,0.15)",
+            border: "1px solid rgba(255,61,90,0.4)",
+            borderRadius: 8, padding: "8px 16px",
+            color: "#FF5C75", fontSize: 13, fontWeight: 600,
+            cursor: "pointer", zIndex: 50,
+          }}
+        >
+          End Realm
+        </button>
+      )}
+
       {/* ── Top bar ──────────────────────────────────────────────── */}
       <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
+        display: "flex", justifyContent: "center", alignItems: "center",
         padding: "10px 24px",
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
+        gap: 16,
       }}>
-        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "16px" } as React.CSSProperties}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "8px" } as React.CSSProperties}>
           <div style={{
             fontSize: 13, fontWeight: 600, textTransform: "uppercase",
             letterSpacing: 1, color: "var(--accent2, #33DFFF)",
@@ -777,6 +796,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           )}
         </div>
 
+        <span style={{ color: "var(--border)" }}>·</span>
+
         {/* Timer / countdown */}
         <div style={{ textAlign: "center" }}>
           {config.subMode === "race" && (
@@ -785,36 +806,34 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             </div>
           )}
           {config.subMode === "elimination" && (
-            <div style={{ textAlign: "center" }}>
+            <>
               <div style={{
-                fontSize: 20, fontWeight: 700, fontFamily: "var(--mono)",
+                fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
                 color: elimCountdown <= 10 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
                 {formatDuration(elimCountdown)}
               </div>
-              <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
+              <div style={{ fontSize: 10, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
                 until elimination
               </div>
-            </div>
+            </>
           )}
           {(config.subMode === "heartzone" || config.subMode === "king") && (
-            <div style={{ textAlign: "center" }}>
+            <>
               <div style={{
-                fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
+                fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)",
                 color: remainingSecs <= 60 ? "#ef4444" : "var(--text-h)",
                 transition: "color 0.3s",
               }}>
                 {formatDuration(remainingSecs)}
               </div>
-              <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
+              <div style={{ fontSize: 10, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1 }}>
                 remaining
               </div>
-            </div>
+            </>
           )}
         </div>
-
-        <div style={{ width: 100 }} /> {/* spacer for balance */}
       </div>
 
       {/* ── Heartzone target display ─────────────────────────────── */}
@@ -1010,23 +1029,12 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                 )}
 
                 {/* Incline indicator */}
-                {clientInclines && entry.id in clientInclines && (
+                {clientInclines && entry.id in clientInclines && (clientInclines[entry.id] ?? 0) > 0 && (
                   <div style={{ textAlign: "right", minWidth: 60 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--mono)", color: "#f59e0b" }}>
                       {clientInclines[entry.id]}%
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text)" }}>incline</div>
-                    {boundClientId === entry.id && onSetIncline && (
-                      <input
-                        type="range"
-                        min={0}
-                        max={15}
-                        step={0.5}
-                        value={clientInclines[entry.id]}
-                        onChange={(e) => onSetIncline(entry.id, parseFloat(e.target.value))}
-                        style={{ width: 60, accentColor: "#f59e0b", marginTop: 4 }}
-                      />
-                    )}
                   </div>
                 )}
 
@@ -1106,6 +1114,17 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         </div>
       </div>
 
+      {/* ── Bind controls ────────────────────────────────────────── */}
+      {boundClientId && onSetIncline && (
+        <div style={{ flexShrink: 0, padding: "8px 24px", borderTop: "1px solid var(--border)" }}>
+          <BindControlsHud
+            boundClientId={boundClientId}
+            clientInclines={clientInclines}
+            onSetIncline={onSetIncline}
+          />
+        </div>
+      )}
+
       {/* ── Bottom bar ───────────────────────────────────────────── */}
       <div style={{
         flexShrink: 0,
@@ -1126,22 +1145,6 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         </div>
       </div>
 
-      {/* End button */}
-      {role !== "guest" && (
-        <button
-          onClick={handleEnd}
-          style={{
-            position: "fixed", top: 12, right: 12,
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid var(--border)",
-            borderRadius: 8, padding: "8px 16px",
-            color: "var(--text)", fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          End Realm
-        </button>
-      )}
     </div>
   );
 }
