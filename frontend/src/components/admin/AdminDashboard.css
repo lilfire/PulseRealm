@@ -4,8 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  min-height: 100svh;
+  min-height: calc(var(--vh, 1vh) * 100);
   font-family: system-ui, -apple-system, sans-serif;
   padding: 2rem;
 }
@@ -23,8 +22,7 @@
 .admin-screen {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100svh;
+  height: calc(var(--vh, 1vh) * 100);
   font-family: system-ui, -apple-system, sans-serif;
   padding: 2rem;
   max-width: 800px;

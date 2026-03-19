@@ -10,7 +10,7 @@
 - [ ] autoclose dead realms
 - [x] mer smoothing
 - [ ] sridelength i sosial trenger label og hva som ville vært normalen  +/-
-- [ ] fullscreen i home og lobbies
+- [x] fullscreen i home og lobbies
 - [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
 
 ## BUGS

@@ -42,7 +42,7 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
 
   return (
     <div className="realm-summary" style={{
-      minHeight: "100vh",
+      minHeight: "calc(var(--vh, 1vh) * 100)",
       width: "100%",
       overflow: "hidden",
       display: "flex",

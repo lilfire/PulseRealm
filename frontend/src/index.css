@@ -56,8 +56,7 @@
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  min-height: 100vh;
-  min-height: 100svh;
+  min-height: calc(var(--vh, 1vh) * 100);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
