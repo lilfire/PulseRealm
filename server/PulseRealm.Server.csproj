@@ -12,4 +12,8 @@
     <Compile Remove="PulseRealm.Server.Tests\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="PulseRealm.Server.Tests" />
+  </ItemGroup>
+
 </Project>

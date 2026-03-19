@@ -175,4 +175,98 @@ public class RealmControllerTests
 
         Assert.IsType<OkObjectResult>(result);
     }
+
+    // -------------------------------------------------------------------------
+    // Create — error paths
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Create_MaxConcurrentReached_Returns429()
+    {
+        // Create a manager with max 1 concurrent realm
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
+            .Build();
+        var logger = new Mock<ILogger<AdminConfigService>>().Object;
+        var adminConfig = new AdminConfigService(config, logger);
+        var cfg = adminConfig.GetConfig();
+        cfg.MaxConcurrentRealms = 1;
+        adminConfig.UpdateConfig(cfg);
+        var limitedManager = new RealmManager(adminConfig);
+        var controller = new RealmController(limitedManager);
+
+        controller.Create(new CreateRealmRequest(RealmMode.Competition));
+        var result = controller.Create(new CreateRealmRequest(RealmMode.Dungeon));
+
+        var statusResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(429, statusResult.StatusCode);
+    }
+
+    [Fact]
+    public void Create_ReturnsHostSecret()
+    {
+        var result = _controller.Create(new CreateRealmRequest(RealmMode.Competition));
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("HostSecret", json);
+    }
+
+    // -------------------------------------------------------------------------
+    // ClaimHost
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void ClaimHost_ValidSecret_ReturnsRealmDetails()
+    {
+        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+
+        var result = _controller.ClaimHost(realm.JoinCode, new ClaimHostRequest(realm.HostSecret));
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains(realm.Id, json);
+        Assert.Contains("Lobby", json);
+    }
+
+    [Fact]
+    public void ClaimHost_InvalidSecret_Returns401()
+    {
+        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+
+        var result = _controller.ClaimHost(realm.JoinCode, new ClaimHostRequest("WRONGKEY1"));
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public void ClaimHost_EndedRealm_ReturnsBadRequest()
+    {
+        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+        realm.Status = RealmStatus.Ended;
+
+        var result = _controller.ClaimHost(realm.JoinCode, new ClaimHostRequest(realm.HostSecret));
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public void ClaimHost_InvalidJoinCode_Returns404()
+    {
+        var result = _controller.ClaimHost("000000", new ClaimHostRequest("WHATEVER"));
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public void ClaimHost_CaseInsensitiveSecret_Returns200()
+    {
+        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+
+        var result = _controller.ClaimHost(realm.JoinCode,
+            new ClaimHostRequest(realm.HostSecret.ToLowerInvariant()));
+
+        Assert.IsType<OkObjectResult>(result);
+    }
 }

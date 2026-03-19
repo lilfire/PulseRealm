@@ -7,6 +7,17 @@ using Xunit;
 
 namespace PulseRealm.Server.Tests.Services;
 
+/// <summary>Testable subclass with short intervals for integration testing.</summary>
+internal class FastCleanupService : RealmCleanupService
+{
+    protected override TimeSpan CleanupInterval => TimeSpan.FromMilliseconds(50);
+    protected override TimeSpan EndedRealmTtl => TimeSpan.FromMilliseconds(1);
+    protected override TimeSpan AbandonedRealmTtl => TimeSpan.FromMilliseconds(1);
+
+    public FastCleanupService(RealmManager realmManager, RealmStatsTracker statsTracker,
+        ILogger<RealmCleanupService> logger) : base(realmManager, statsTracker, logger) { }
+}
+
 public class RealmCleanupServiceTests
 {
     private readonly Mock<ILogger<RealmCleanupService>> _loggerMock = new();
@@ -213,5 +224,219 @@ public class RealmCleanupServiceTests
     {
         var exception = Record.Exception(() => CreateService());
         Assert.Null(exception);
+    }
+
+    // -------------------------------------------------------------------------
+    // CleanupAbandonedRealms
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CleanupAbandonedRealms_RemovesAbandonedRealm()
+    {
+        var manager = CreateRealmManager();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.LastActivityAt = DateTime.UtcNow.AddMinutes(-20);
+        // No connected clients, no host = abandoned
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+
+        Assert.Single(abandoned);
+        Assert.Equal(RealmStatus.Ended, realm.Status);
+        Assert.Null(manager.GetById(realm.Id));
+    }
+
+    [Fact]
+    public void CleanupAbandonedRealms_DoesNotRemoveRealmWithActivity()
+    {
+        var manager = CreateRealmManager();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.LastActivityAt = DateTime.UtcNow; // recent activity
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+
+        Assert.Empty(abandoned);
+        Assert.NotNull(manager.GetById(realm.Id));
+    }
+
+    [Fact]
+    public void CleanupAbandonedRealms_DoesNotRemoveRealmWithClients()
+    {
+        var manager = CreateRealmManager();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.LastActivityAt = DateTime.UtcNow.AddMinutes(-20);
+        manager.AddClient(realm.Id, "client1");
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+
+        Assert.Empty(abandoned);
+    }
+
+    [Fact]
+    public void CleanupAbandonedRealms_DoesNotRemoveRealmWithHost()
+    {
+        var manager = CreateRealmManager();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.LastActivityAt = DateTime.UtcNow.AddMinutes(-20);
+        realm.HostConnectionId = "host-conn-id";
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+
+        Assert.Empty(abandoned);
+    }
+
+    [Fact]
+    public void CleanupAbandonedRealms_SkipsEndedRealms()
+    {
+        var manager = CreateRealmManager();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.Status = RealmStatus.Ended;
+        realm.LastActivityAt = DateTime.UtcNow.AddMinutes(-20);
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+
+        Assert.Empty(abandoned);
+    }
+
+    [Fact]
+    public void CleanupAbandonedRealms_SetsEndedAtTimestamp()
+    {
+        var manager = CreateRealmManager();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.LastActivityAt = DateTime.UtcNow.AddMinutes(-20);
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+
+        Assert.Single(abandoned);
+        Assert.NotNull(realm.EndedAt);
+    }
+
+    // -------------------------------------------------------------------------
+    // Integration: cleanup loop cleans stats
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CleanupAbandonedRealms_Integration_CleanupStatsAfterAbandoned()
+    {
+        var manager = CreateRealmManager();
+        var statsTracker = new RealmStatsTracker();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.KnownClientIds.Add("c1");
+        realm.LastActivityAt = DateTime.UtcNow.AddMinutes(-20);
+
+        // Record some stats
+        statsTracker.Record(realm.Id, "c1", 100, 120, 5.0,
+            new ClientProfile { Name = "Test", HeightCm = 170, WeightKg = 70 });
+
+        var abandoned = manager.CleanupAbandonedRealms(TimeSpan.FromMinutes(15));
+        foreach (var r in abandoned)
+        {
+            var clientIds = r.WithLock(rl => new List<string>(rl.KnownClientIds));
+            statsTracker.CleanupRealm(r.Id, clientIds);
+        }
+
+        Assert.Single(abandoned);
+    }
+
+    // -------------------------------------------------------------------------
+    // ExecuteAsync integration: actually run the loop
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ExecuteAsync_CleansUpAbandonedRealms()
+    {
+        var manager = CreateRealmManager();
+        var statsTracker = new RealmStatsTracker();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.LastActivityAt = DateTime.UtcNow.AddHours(-1); // well past any TTL
+
+        var service = new FastCleanupService(manager, statsTracker, _loggerMock.Object);
+        using var cts = new CancellationTokenSource();
+
+        await service.StartAsync(cts.Token);
+        // Give the fast loop time to execute at least one cycle
+        await Task.Delay(200);
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+        service.Dispose();
+
+        Assert.Null(manager.GetById(realm.Id));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CleansUpEndedRealms()
+    {
+        var manager = CreateRealmManager();
+        var statsTracker = new RealmStatsTracker();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.Status = RealmStatus.Ended;
+        realm.EndedAt = DateTime.UtcNow.AddHours(-2);
+
+        var service = new FastCleanupService(manager, statsTracker, _loggerMock.Object);
+        using var cts = new CancellationTokenSource();
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(200);
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+        service.Dispose();
+
+        Assert.Null(manager.GetById(realm.Id));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LogsCleanupCounts()
+    {
+        var manager = CreateRealmManager();
+        var statsTracker = new RealmStatsTracker();
+
+        // Create an abandoned realm
+        var abandoned = manager.CreateRealm(RealmMode.Competition);
+        abandoned.LastActivityAt = DateTime.UtcNow.AddHours(-1);
+
+        // Create an ended realm
+        var ended = manager.CreateRealm(RealmMode.Dungeon);
+        ended.Status = RealmStatus.Ended;
+        ended.EndedAt = DateTime.UtcNow.AddHours(-2);
+
+        var service = new FastCleanupService(manager, statsTracker, _loggerMock.Object);
+        using var cts = new CancellationTokenSource();
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(200);
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+        service.Dispose();
+
+        // Should have logged cleanup messages
+        _loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains("abandoned realm")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PreservesActiveRealms()
+    {
+        var manager = CreateRealmManager();
+        var statsTracker = new RealmStatsTracker();
+        var activeRealm = manager.CreateRealm(RealmMode.Competition);
+        // Active realm: has a host connected (so not considered abandoned)
+        activeRealm.HostConnectionId = "host-conn";
+
+        var service = new FastCleanupService(manager, statsTracker, _loggerMock.Object);
+        using var cts = new CancellationTokenSource();
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(200);
+        await cts.CancelAsync();
+        await service.StopAsync(CancellationToken.None);
+        service.Dispose();
+
+        Assert.NotNull(manager.GetById(activeRealm.Id));
     }
 }

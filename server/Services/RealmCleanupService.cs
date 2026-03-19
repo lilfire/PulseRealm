@@ -7,9 +7,9 @@ namespace PulseRealm.Server.Services;
 /// </summary>
 public class RealmCleanupService : BackgroundService
 {
-    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan EndedRealmTtl = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan AbandonedRealmTtl = TimeSpan.FromMinutes(15);
+    protected virtual TimeSpan CleanupInterval { get; } = TimeSpan.FromMinutes(5);
+    protected virtual TimeSpan EndedRealmTtl { get; } = TimeSpan.FromMinutes(30);
+    protected virtual TimeSpan AbandonedRealmTtl { get; } = TimeSpan.FromMinutes(15);
 
     private readonly RealmManager _realmManager;
     private readonly RealmStatsTracker _statsTracker;

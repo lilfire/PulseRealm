@@ -72,6 +72,31 @@ public class RealmHubTests
         return (hub, manager, mockClients, mockProxy, mockGroups);
     }
 
+    /// <summary>Creates a hub wired as a different client connection for multi-client scenarios.</summary>
+    private static (
+        RealmHub Hub,
+        Mock<ISingleClientProxy> MockProxy)
+        CreateHubForClient(RealmManager manager, string clientId, Realm realm)
+    {
+        var adminConfig = CreateAdminConfigService();
+        var hub = new RealmHub(manager, adminConfig, new RealmStatsTracker());
+
+        var mockClients = new Mock<IHubCallerClients>();
+        var mockProxy = new Mock<ISingleClientProxy>();
+        var mockGroups = new Mock<IGroupManager>();
+        var mockContext = new Mock<HubCallerContext>();
+
+        mockContext.Setup(c => c.ConnectionId).Returns(Guid.NewGuid().ToString());
+        mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockProxy.Object);
+        mockClients.Setup(c => c.Caller).Returns(mockProxy.Object);
+
+        hub.Context = mockContext.Object;
+        hub.Clients = mockClients.Object;
+        hub.Groups = mockGroups.Object;
+
+        return (hub, mockProxy);
+    }
+
     // -------------------------------------------------------------------------
     // JoinRealm — guard conditions
     // -------------------------------------------------------------------------
@@ -918,5 +943,633 @@ public class RealmHubTests
         var ex = await Record.ExceptionAsync(() => hub.OnDisconnectedAsync(null));
 
         Assert.Null(ex);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — kicked client
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealm_KickedClient_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        realm.WithLock(r => r.KickedClientIds.Add(clientId));
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, clientId));
+
+        Assert.Contains("kicked", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — profile validation: age
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(121)]
+    public async Task JoinRealm_AgeOutOfRange_ThrowsHubException(int age)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = "Test", Age = age, HeightCm = 170, WeightKg = 70 };
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
+        Assert.Contains("Age", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(120)]
+    public async Task JoinRealm_AgeAtBoundary_Succeeds(int age)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var profile = new ClientProfile { Name = "Test", Age = age, HeightCm = 170, WeightKg = 70 };
+
+        var ex = await Record.ExceptionAsync(
+            () => hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString(), profile));
+
+        Assert.Null(ex);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — profile validation: stride factor
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealm_InvalidStrideFactor_ResetsToDefault()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile
+        {
+            Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70,
+            StrideFactor = 0.2 // Below 0.3 minimum
+        };
+
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
+
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.Equal(0.415, stored!.StrideFactor);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — profile validation: zone bounds
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealm_InvalidZoneBounds_SetsToNull()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile
+        {
+            Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70,
+            ZoneBounds = new[] { 0.5, 0.4, 0.7, 0.9 } // Not strictly increasing
+        };
+
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
+
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.Null(stored!.ZoneBounds);
+    }
+
+    [Fact]
+    public async Task JoinRealm_WrongLengthZoneBounds_SetsToNull()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile
+        {
+            Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70,
+            ZoneBounds = new[] { 0.5, 0.7, 0.9 } // Wrong length
+        };
+
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
+
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.Null(stored!.ZoneBounds);
+    }
+
+    [Fact]
+    public async Task JoinRealm_ValidZoneBounds_AreKept()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile
+        {
+            Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70,
+            ZoneBounds = new[] { 0.50, 0.60, 0.70, 0.80 }
+        };
+
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
+
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.NotNull(stored!.ZoneBounds);
+        Assert.Equal(4, stored.ZoneBounds!.Length);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — profile validation: MaxHr
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(99)]
+    [InlineData(251)]
+    public async Task JoinRealm_InvalidMaxHr_ResetsToZero(int maxHr)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile
+        {
+            Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70,
+            MaxHr = maxHr
+        };
+
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
+
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.Equal(0, stored!.MaxHr);
+    }
+
+    [Theory]
+    [InlineData(100)]
+    [InlineData(250)]
+    public async Task JoinRealm_ValidMaxHr_IsKept(int maxHr)
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        var profile = new ClientProfile
+        {
+            Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70,
+            MaxHr = maxHr
+        };
+
+        await hub.JoinRealm(realm.JoinCode, clientId, profile);
+
+        var stored = manager.GetClientProfile(realm.Id, clientId);
+        Assert.Equal(maxHr, stored!.MaxHr);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — lobby settings
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealm_WithLobbySettings_SendsSettingsToJoiner()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.LobbySettings = """{"someConfig":true}""");
+
+        await hub.JoinRealm(realm.JoinCode, Guid.NewGuid().ToString());
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "LobbySettingsUpdated", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // UpdateLobbySettings
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task UpdateLobbySettings_AsHost_StoresAndBroadcasts()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+        var settings = """{"subMode":"interval"}""";
+
+        await hub.UpdateLobbySettings(realm.Id, settings);
+
+        Assert.Equal(settings, realm.LobbySettings);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "LobbySettingsUpdated", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateLobbySettings_NotHost_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.UpdateLobbySettings(realm.Id, "{}"));
+
+        Assert.Contains("Not authorized", ex.Message);
+    }
+
+    // -------------------------------------------------------------------------
+    // SendWearableData — rate limiting
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendWearableData_RateLimited_DropsExcessMessages()
+    {
+        // Create a hub with rate limiting enabled
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DATA_DIR"] = tempDir })
+            .Build();
+        var adminConfig = new AdminConfigService(config, new Mock<Microsoft.Extensions.Logging.ILogger<AdminConfigService>>().Object);
+        var cfg = adminConfig.GetConfig();
+        cfg.MaxConcurrentRealms = 0;
+        cfg.MaxWearableMessagesPerSecond = 2; // 2 per second = 500ms min interval
+        adminConfig.UpdateConfig(cfg);
+        var realmManager = new RealmManager(adminConfig);
+        var hub = new RealmHub(realmManager, adminConfig, new RealmStatsTracker());
+
+        var mockClients = new Mock<IHubCallerClients>();
+        var mockProxy = new Mock<ISingleClientProxy>();
+        var mockGroups = new Mock<IGroupManager>();
+        var mockContext = new Mock<HubCallerContext>();
+        mockContext.Setup(c => c.ConnectionId).Returns(Guid.NewGuid().ToString());
+        mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockProxy.Object);
+        mockClients.Setup(c => c.Caller).Returns(mockProxy.Object);
+        hub.Context = mockContext.Object;
+        hub.Clients = mockClients.Object;
+        hub.Groups = mockGroups.Object;
+
+        var realm = realmManager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
+        var clientId = Guid.NewGuid().ToString();
+
+        // First message should go through
+        await hub.SendWearableData(realm.Id, new WearableData { ClientId = clientId, HeartRate = 120, Steps = 0 });
+        // Immediate second message should be rate-limited (dropped)
+        await hub.SendWearableData(realm.Id, new WearableData { ClientId = clientId, HeartRate = 125, Steps = 5 });
+
+        // Only 1 WearableDataReceived call (the first one)
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "WearableDataReceived", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task SendWearableData_NullRealm_NoException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+        var data = new WearableData { ClientId = Guid.NewGuid().ToString(), HeartRate = 120, Steps = 0 };
+
+        var ex = await Record.ExceptionAsync(
+            () => hub.SendWearableData("nonexistent-realm-id", data));
+
+        Assert.Null(ex);
+    }
+
+    // -------------------------------------------------------------------------
+    // SendWearableData — speed override
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendWearableData_WithSpeedOverride_UsesOverrideSpeed()
+    {
+        var (hub, manager, _, mockProxy, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Started;
+            r.ClientSpeedOverrides["runner"] = 8.5;
+        });
+
+        var data = new WearableData { ClientId = "runner", HeartRate = 130, Steps = 50 };
+        await hub.SendWearableData(realm.Id, data);
+
+        Assert.Equal(8.5, data.SpeedKmh);
+    }
+
+    // -------------------------------------------------------------------------
+    // EndRealm — with overrides
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task EndRealm_WithDistanceOverride_UsesOverrideDistance()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        RealmSummary? capturedSummary = null;
+        mockProxy.Setup(p => p.SendCoreAsync("RealmEnded", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) =>
+            {
+                if (args.Length > 0 && args[0] is RealmSummary s)
+                    capturedSummary = s;
+            })
+            .Returns(Task.CompletedTask);
+
+        var overrides = new RealmSummary { TotalDistanceMeters = 5000 };
+        await hub.EndRealm(realm.Id, overrides);
+
+        Assert.NotNull(capturedSummary);
+        Assert.Equal(5000, capturedSummary!.TotalDistanceMeters);
+    }
+
+    [Fact]
+    public async Task EndRealm_WithTeamFormat_SetsIsTeamFormat()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        RealmSummary? capturedSummary = null;
+        mockProxy.Setup(p => p.SendCoreAsync("RealmEnded", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) =>
+            {
+                if (args.Length > 0 && args[0] is RealmSummary s)
+                    capturedSummary = s;
+            })
+            .Returns(Task.CompletedTask);
+
+        var overrides = new RealmSummary { IsTeamFormat = true };
+        await hub.EndRealm(realm.Id, overrides);
+
+        Assert.NotNull(capturedSummary);
+        Assert.True(capturedSummary!.IsTeamFormat);
+    }
+
+    [Fact]
+    public async Task EndRealm_WithClientSummaryOverrides_MergesTeamInfo()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        var clientId = Guid.NewGuid().ToString();
+        var clientHub = CreateHubForClient(manager, clientId, realm);
+        var profile = new ClientProfile { Name = "Player", Age = 25, HeightCm = 175, WeightKg = 70 };
+        await clientHub.Hub.JoinRealm(realm.JoinCode, clientId, profile);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
+
+        // Record stats so the client appears in the summary
+        var statsTracker = new RealmStatsTracker();
+        statsTracker.Record(realm.Id, clientId, 100, 120, 5.0, profile);
+
+        // Use hub.EndRealm which builds summary from the hub's own stats tracker
+        // Instead, send wearable data through the client hub to register stats
+        var data = new WearableData { ClientId = clientId, HeartRate = 120, Steps = 100 };
+        await clientHub.Hub.SendWearableData(realm.Id, data);
+
+        RealmSummary? capturedSummary = null;
+        mockProxy.Setup(p => p.SendCoreAsync("RealmEnded", It.IsAny<object?[]>(), default))
+            .Callback<string, object?[], CancellationToken>((_, args, _) =>
+            {
+                if (args.Length > 0 && args[0] is RealmSummary s)
+                    capturedSummary = s;
+            })
+            .Returns(Task.CompletedTask);
+
+        var overrides = new RealmSummary
+        {
+            ClientSummaries = new List<ClientSummaryDto>
+            {
+                new() { ClientId = clientId, TeamName = "Red Team", TeamColor = "#FF0000", DistanceMeters = 1500 }
+            }
+        };
+        await hub.EndRealm(realm.Id, overrides);
+
+        Assert.NotNull(capturedSummary);
+        var cs = capturedSummary!.ClientSummaries?.FirstOrDefault(c => c.ClientId == clientId);
+        Assert.NotNull(cs);
+        Assert.Equal("Red Team", cs!.TeamName);
+        Assert.Equal("#FF0000", cs.TeamColor);
+        Assert.Equal(1500, cs.DistanceMeters);
+    }
+
+    // -------------------------------------------------------------------------
+    // KickClient — successful kick
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task KickClient_AsHost_RemovesClientAndBroadcasts()
+    {
+        var hostConnId = Guid.NewGuid().ToString();
+        var clientConnId = Guid.NewGuid().ToString();
+        var (hub, manager, mockClients, mockProxy, mockGroups) = CreateHub(hostConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        // Join a client using a separate hub instance with the client connection
+        var clientMockContext = new Mock<HubCallerContext>();
+        clientMockContext.Setup(c => c.ConnectionId).Returns(clientConnId);
+        var clientHub = new RealmHub(manager, CreateAdminConfigService(), new RealmStatsTracker());
+        clientHub.Context = clientMockContext.Object;
+        clientHub.Clients = mockClients.Object;
+        clientHub.Groups = mockGroups.Object;
+
+        var clientId = Guid.NewGuid().ToString();
+        await clientHub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Victim", Age = 25, HeightCm = 170, WeightKg = 70 });
+
+        // Now kick from host hub
+        var mockClientProxy = new Mock<ISingleClientProxy>();
+        mockClients.Setup(c => c.Client(clientConnId)).Returns(mockClientProxy.Object);
+
+        await hub.KickClient(realm.Id, clientId);
+
+        Assert.DoesNotContain(clientId, realm.ConnectedClientIds);
+        Assert.Contains(clientId, realm.KickedClientIds);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientKicked", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // OnDisconnectedAsync — host disconnect
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task OnDisconnectedAsync_HostDisconnects_ClearsHostConnectionId()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        Assert.Equal(connId, realm.HostConnectionId);
+
+        await hub.OnDisconnectedAsync(null);
+
+        Assert.Null(realm.HostConnectionId);
+    }
+
+    // -------------------------------------------------------------------------
+    // LeaveRealm — started realm
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task LeaveRealm_StartedRealm_SendsSummary()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Runner", Age = 25, HeightCm = 175, WeightKg = 70 });
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Started;
+            // Keep a host so TryAutoEndRealm doesn't fire a second RealmEnded
+            r.HostConnectionId = Guid.NewGuid().ToString();
+        });
+
+        var result = await hub.LeaveRealm();
+
+        Assert.True(result);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmEnded", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task LeaveRealm_NotInRealm_ReturnsFalse()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var result = await hub.LeaveRealm();
+
+        Assert.False(result);
+    }
+
+    // -------------------------------------------------------------------------
+    // SetIncline / SetSpeedOverride — basic tests
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SetIncline_NotBound_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SetIncline(realm.Id, "c1", 5.0));
+
+        Assert.Contains("Not bound", ex.Message);
+    }
+
+    [Fact]
+    public async Task SetSpeedOverride_NotBound_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SetSpeedOverride(realm.Id, "c1", 8.0));
+
+        Assert.Contains("Not bound", ex.Message);
+    }
+
+    [Fact]
+    public async Task SetIncline_InvalidRealm_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SetIncline("nonexistent", "c1", 5.0));
+
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SetSpeedOverride_InvalidRealm_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SetSpeedOverride("nonexistent", "c1", 8.0));
+
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // -------------------------------------------------------------------------
+    // RequestBind / RespondBind / CancelBind
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RequestBind_InvalidRealm_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.RequestBind("nonexistent", "c1"));
+
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RequestBind_StartedRealm_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.Status = RealmStatus.Started);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.RequestBind(realm.Id, "c1"));
+
+        Assert.Contains("started", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RequestBind_AlreadyBound_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        realm.WithLock(r => r.ClientBindings["c1"] = "some-dashboard");
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.RequestBind(realm.Id, "c1"));
+
+        Assert.Contains("already bound", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelBind_NullRealm_DoesNotThrow()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Record.ExceptionAsync(
+            () => hub.CancelBind("nonexistent", "c1"));
+
+        Assert.Null(ex);
+    }
+
+    // -------------------------------------------------------------------------
+    // StartRealm — clears step data
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task StartRealm_ClearsPreStartStepData()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        // Send pre-start data
+        var lobbyData = new WearableData { ClientId = clientId, HeartRate = 80, Steps = 500 };
+        await hub.SendWearableData(realm.Id, lobbyData);
+
+        await hub.StartRealm(realm.Id, null);
+
+        // After start, first data packet should get speed 0 (fresh start)
+        var data = new WearableData { ClientId = clientId, HeartRate = 100, Steps = 10 };
+        await hub.SendWearableData(realm.Id, data);
+
+        Assert.Equal(0, data.SpeedKmh); // First packet after start => speed 0
     }
 }

@@ -129,7 +129,7 @@ public class ServerDiscoveryService : BackgroundService
         }
     }
 
-    private string BuildPayload()
+    internal string BuildPayload()
     {
         var serverUrls = _configuration["ASPNETCORE_URLS"]
             ?? _configuration["urls"]
@@ -151,7 +151,7 @@ public class ServerDiscoveryService : BackgroundService
     /// Validates that a received UDP message is a properly structured discovery request.
     /// Expected format: {"discover":"PulseRealm"}
     /// </summary>
-    private static bool IsDiscoveryRequest(string message)
+    internal static bool IsDiscoveryRequest(string message)
     {
         try
         {
@@ -171,7 +171,7 @@ public class ServerDiscoveryService : BackgroundService
     /// For example, an interface with IP 10.0.5.2 and mask 255.0.0.0 (/8) gets
     /// broadcast address 10.255.255.255. Also includes the limited broadcast 255.255.255.255.
     /// </summary>
-    private static List<IPEndPoint> GetBroadcastEndpoints(int port)
+    internal static List<IPEndPoint> GetBroadcastEndpoints(int port)
     {
         var endpoints = new List<IPEndPoint>
         {
