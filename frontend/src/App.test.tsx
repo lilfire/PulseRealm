@@ -763,6 +763,7 @@ describe("summary screen", () => {
   it("renders RealmSummaryScreen when ended with realmSummary", async () => {
     mockUseRealmHub.mockReturnValue({
       ...baseRealmHub,
+      started: true,
       ended: true,
       realmSummary: mockSummary,
     });
@@ -786,6 +787,7 @@ describe("summary screen", () => {
   it("Back to Home from summary resets to home screen", async () => {
     mockUseRealmHub.mockReturnValue({
       ...baseRealmHub,
+      started: true,
       ended: true,
       realmSummary: mockSummary,
     });
@@ -805,7 +807,7 @@ describe("summary screen", () => {
     mockUseRealmHub.mockReturnValue({ ...baseRealmHub });
 
     fireEvent.click(screen.getByRole("button", { name: "Back to Home" }));
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 
   it("does not show summary screen when ended is true but realmSummary is null", async () => {
@@ -845,7 +847,7 @@ describe("/api/config fetch", () => {
     render(<App />);
     // Give React time to run effects
     await new Promise((r) => setTimeout(r, 50));
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 
   it("sets lobbyDefaults from config.defaults when present", async () => {
@@ -858,7 +860,7 @@ describe("/api/config fetch", () => {
     mockConfigFetch({ adminEnabled: false, defaults });
     await renderApp();
     // No crash; defaults are stored internally and passed to lobby components.
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 });
 
@@ -869,7 +871,7 @@ describe("join realm as view-only", () => {
     mockConfigFetch();
     await renderApp();
 
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "123456" } });
 
@@ -889,7 +891,7 @@ describe("join realm as view-only", () => {
     mockConfigFetch();
     await renderApp();
 
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "555555" } });
 
@@ -915,7 +917,7 @@ describe("join code input keyboard interaction", () => {
     const user = userEvent.setup();
     await renderApp();
 
-    await user.click(screen.getByRole("button", { name: "Join a Realm" }));
+    await user.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
 
     (globalThis.fetch as Mock).mockResolvedValueOnce({

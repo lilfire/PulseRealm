@@ -1147,11 +1147,12 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
     act(() => { vi.advanceTimersByTime(600); });
     // Corridor 1 → trap
     cum = fillCorridor(rerender, props, cum);
-    // Clear trap (90 spm in-window, 60 data points)
-    for (let i = 0; i < 60; i++) {
+    // Clear trap: easy cadence window is 100–160 spm, so send 1 step/500ms = 120 spm.
+    // trapSafeTarget = round(120 * 0.5) = 60. Need ~15 warmup + 60 safe = 80 data points.
+    for (let i = 0; i < 80; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
-      act(() => { vi.advanceTimersByTime(667); });
+      act(() => { vi.advanceTimersByTime(500); });
     }
     // Corridor 2 → rest room
     cum = fillCorridor(rerender, props, cum);
@@ -1252,8 +1253,8 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    // Boss enters phase 1 (Precision/trap phase): shows cadence window
-    expect(screen.getAllByText(/75.*105 spm/).length).toBeGreaterThan(0);
+    // Boss enters phase 1 (Precision/trap phase): shows cadence window (easy: 105–155 spm)
+    expect(screen.getAllByText(/105.*155 spm/).length).toBeGreaterThan(0);
   });
 });
 
@@ -1301,13 +1302,13 @@ describe("DungeonMode — treasure room rendering (deterministic)", () => {
     cum += 300;
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
     act(() => { vi.advanceTimersByTime(600); });
-    // Corridor 1 → trap: clear with in-window cadence (90 spm = 1 step/667ms)
-    // Normal trapSafeTarget=120, need ~15 warmup + 120 safe = 150 points.
+    // Corridor 1 → trap: clear with in-window cadence (120 spm = 1 step/500ms)
+    // Normal cadence window: 110–150 spm. trapSafeTarget=120, need ~15 warmup + 120 safe = 150 points.
     cum = fillCorridorNormal(rerender, props, cum);
     for (let i = 0; i < 150; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
-      act(() => { vi.advanceTimersByTime(667); });
+      act(() => { vi.advanceTimersByTime(500); });
     }
     // Corridor 2 → rest room: hold HR=100 < 114 for 30s (65 * 500ms = 32.5s)
     cum = fillCorridorNormal(rerender, props, cum);
