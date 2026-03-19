@@ -8,6 +8,7 @@ export interface YouTubeVideo {
   url: string;
   title: string;
   baseSpeedKmh: number;
+  thumbnailUrl?: string;
 }
 
 interface Props {
@@ -32,6 +33,7 @@ interface Props {
   bindResult?: "approved" | "declined" | null;
   boundClientId?: string | null;
   clientBindings?: Record<string, boolean>;
+  serverUrl?: string;
 }
 
 const CURATED_VIDEOS: YouTubeVideo[] = [
@@ -83,7 +85,12 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
+function resolveThumbUrl(url: string | undefined, serverUrl: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith("/") && serverUrl ? `${serverUrl}${url}` : url;
+}
+
+export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings, serverUrl }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -343,7 +350,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                 }}
               >
                 <img
-                  src={`https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`}
+                  src={resolveThumbUrl(video.thumbnailUrl, serverUrl) ?? `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`}
                   alt="Video thumbnail"
                   style={{
                     position: "absolute",
@@ -406,7 +413,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                 onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
               >
                 <img
-                  src={`https://img.youtube.com/vi/${v.videoId}/default.jpg`}
+                  src={resolveThumbUrl(v.thumbnailUrl, serverUrl) ?? `https://img.youtube.com/vi/${v.videoId}/default.jpg`}
                   alt=""
                   style={{ width: "80px", height: "60px", borderRadius: "4px", objectFit: "cover", flexShrink: 0, marginRight: "0.75rem" }}
                 />

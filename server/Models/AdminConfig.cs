@@ -76,6 +76,7 @@ public class StreetViewLocationDto
     public string Address { get; set; } = "";
     public double Heading { get; set; } = 0;
     public double Pitch { get; set; } = 0;
+    public string? ThumbnailUrl { get; set; }
 }
 
 public class YouTubeVideoDto
@@ -84,6 +85,7 @@ public class YouTubeVideoDto
     public string Url { get; set; } = "";
     public string Title { get; set; } = "";
     public double BaseSpeedKmh { get; set; } = 5.0;
+    public string? ThumbnailUrl { get; set; }
 }
 
 public class CuratedRouteDto
@@ -94,4 +96,5 @@ public class CuratedRouteDto
     public double ToLat { get; set; }
     public double ToLng { get; set; }
     public string ToAddress { get; set; } = "";
+    public string? ThumbnailUrl { get; set; }
 }

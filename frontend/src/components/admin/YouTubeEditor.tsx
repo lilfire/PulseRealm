@@ -5,11 +5,18 @@ export interface YouTubeVideoItem {
   url: string;
   title: string;
   baseSpeedKmh: number;
+  thumbnailUrl?: string;
 }
 
 interface Props {
   videos: YouTubeVideoItem[];
   onChange: (videos: YouTubeVideoItem[]) => void;
+  serverUrl: string;
+  authToken: string;
+}
+
+function resolveUrl(url: string, serverUrl: string): string {
+  return url.startsWith("/") ? `${serverUrl}${url}` : url;
 }
 
 function extractVideoId(url: string): string | null {
@@ -27,7 +34,7 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-export function YouTubeEditor({ videos, onChange }: Props) {
+export function YouTubeEditor({ videos, onChange, serverUrl, authToken }: Props) {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [draft, setDraft] = useState<YouTubeVideoItem>({ videoId: "", url: "", title: "", baseSpeedKmh: 5 });
   const [adding, setAdding] = useState(false);
@@ -47,6 +54,20 @@ export function YouTubeEditor({ videos, onChange }: Props) {
   function handleUrlChange(url: string) {
     const videoId = extractVideoId(url);
     setDraft({ ...draft, url, videoId: videoId ?? draft.videoId });
+  }
+
+  async function uploadThumbnail(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${serverUrl}/api/admin/thumbnails`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: form,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setDraft({ ...draft, thumbnailUrl: data.url });
+    }
   }
 
   function save() {
@@ -91,7 +112,7 @@ export function YouTubeEditor({ videos, onChange }: Props) {
             } as React.CSSProperties}
           >
             <img
-              src={`https://img.youtube.com/vi/${v.videoId}/default.jpg`}
+              src={v.thumbnailUrl ? resolveUrl(v.thumbnailUrl, serverUrl) : `https://img.youtube.com/vi/${v.videoId}/default.jpg`}
               alt=""
               style={{ width: "48px", height: "36px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }}
             />
@@ -137,6 +158,46 @@ export function YouTubeEditor({ videos, onChange }: Props) {
                 Video ID: <span style={{ color: "var(--accent2, #33DFFF)" }}>{draft.videoId}</span>
               </p>
             )}
+            <div>
+              <label className="admin-label">Thumbnail</label>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.4rem" }}>
+                <img
+                  src={draft.thumbnailUrl ? resolveUrl(draft.thumbnailUrl, serverUrl) : (draft.videoId ? `https://img.youtube.com/vi/${draft.videoId}/default.jpg` : "")}
+                  alt=""
+                  style={{
+                    width: "96px",
+                    height: "72px",
+                    borderRadius: "4px",
+                    objectFit: "cover",
+                    background: "var(--border, #2e303a)",
+                    display: draft.thumbnailUrl || draft.videoId ? "block" : "none",
+                  }}
+                />
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  <label style={{ display: "inline-block", padding: "0.25rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px", border: "1px solid #555", color: "var(--text)", background: "transparent", cursor: "pointer" }}>
+                    Upload image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadThumbnail(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {draft.thumbnailUrl && (
+                    <button
+                      onClick={() => setDraft({ ...draft, thumbnailUrl: undefined })}
+                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px", border: "1px solid #555", color: "#f87171", background: "transparent", cursor: "pointer" }}
+                    >
+                      Remove custom thumbnail
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
               <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
                 {adding ? "Add" : "Update"}

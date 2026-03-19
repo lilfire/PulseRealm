@@ -587,6 +587,7 @@ function App() {
       bindResult,
       boundClientId,
       clientBindings,
+      serverUrl: apiUrl,
     };
 
     if (realm.mode === "competition") {

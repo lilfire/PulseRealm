@@ -190,6 +190,8 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           <StreetViewEditor
             locations={config.streetViewLocations}
             onChange={(locs) => setConfig({ ...config, streetViewLocations: locs })}
+            serverUrl={apiUrl}
+            authToken={token}
           />
         )}
 
@@ -197,6 +199,8 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           <YouTubeEditor
             videos={config.youTubeVideos}
             onChange={(vids) => setConfig({ ...config, youTubeVideos: vids })}
+            serverUrl={apiUrl}
+            authToken={token}
           />
         )}
 
@@ -204,6 +208,8 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
           <RouteEditor
             routes={config.curatedRoutes}
             onChange={(routes) => setConfig({ ...config, curatedRoutes: routes })}
+            serverUrl={apiUrl}
+            authToken={token}
           />
         )}
 

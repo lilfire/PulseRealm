@@ -11,7 +11,7 @@ const sampleVideos: YouTubeVideoItem[] = [
 function setup(videos: YouTubeVideoItem[] = [], onChangeMock?: ReturnType<typeof vi.fn>) {
   const onChange = onChangeMock ?? vi.fn();
   const user = userEvent.setup();
-  render(<YouTubeEditor videos={videos} onChange={onChange} />);
+  render(<YouTubeEditor videos={videos} onChange={onChange} serverUrl="http://localhost:5062" authToken="test-token" />);
   return { onChange, user };
 }
 

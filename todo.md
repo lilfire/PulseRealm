@@ -6,7 +6,7 @@
 - [ ] Android custom zone i profil 
 - [ ] Lese over Terms of use
 - [ ] Settings ui
-- [ ] thumbnail youtube/streetview/routes
+- [x] thumbnail youtube/streetview/routes
 - [x] autoclose dead realms
 - [x] mer smoothing
 - [x] sridelength i sosial trenger label og hva som ville vært normalen  +/-

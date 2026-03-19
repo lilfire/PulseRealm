@@ -11,6 +11,7 @@ export interface StreetViewLocation {
   address: string;
   heading?: number;
   pitch?: number;
+  thumbnailUrl?: string;
 }
 
 interface Props {
@@ -35,11 +36,17 @@ interface Props {
   bindResult?: "approved" | "declined" | null;
   boundClientId?: string | null;
   clientBindings?: Record<string, boolean>;
+  serverUrl?: string;
 }
 
 interface Suggestion {
   placeId: string;
   description: string;
+}
+
+function resolveThumbUrl(url: string | undefined, serverUrl: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith("/") && serverUrl ? `${serverUrl}${url}` : url;
 }
 
 const CURATED_LOCATIONS: StreetViewLocation[] = [
@@ -85,7 +92,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
+export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings, serverUrl }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const proxy = usePlacesProxy();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
@@ -300,12 +307,13 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
         </div>
         <OptionGrid
           items={randomLocations}
-          cardMinWidth={200}
-          cardHeight={64}
+          cardMinWidth={240}
+          cardHeight={80}
           gap={12}
           keyExtractor={(loc) => loc.address}
           renderCard={(loc) => {
             const isSelected = location?.address === loc.address;
+            const thumb = resolveThumbUrl(loc.thumbnailUrl, serverUrl);
             return (
               <div
                 onClick={() => {
@@ -331,7 +339,14 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
                 onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
                 onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
               >
-                {loc.address}
+                {thumb && (
+                  <img
+                    src={thumb}
+                    alt=""
+                    style={{ width: "80px", height: "60px", borderRadius: "4px", objectFit: "cover", flexShrink: 0, marginRight: "0.75rem" }}
+                  />
+                )}
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.address}</div>
               </div>
             );
           }}

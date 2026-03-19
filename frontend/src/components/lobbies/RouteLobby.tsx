@@ -14,6 +14,7 @@ export interface RouteEndpoint {
 export interface RouteConfig {
   from: RouteEndpoint;
   to: RouteEndpoint;
+  thumbnailUrl?: string;
 }
 
 export interface CuratedRouteItem {
@@ -23,6 +24,7 @@ export interface CuratedRouteItem {
   toLat: number;
   toLng: number;
   toAddress: string;
+  thumbnailUrl?: string;
 }
 
 interface Props {
@@ -47,11 +49,17 @@ interface Props {
   bindResult?: "approved" | "declined" | null;
   boundClientId?: string | null;
   clientBindings?: Record<string, boolean>;
+  serverUrl?: string;
 }
 
 interface Suggestion {
   placeId: string;
   description: string;
+}
+
+function resolveThumbUrl(url: string | undefined, serverUrl: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith("/") && serverUrl ? `${serverUrl}${url}` : url;
 }
 
 const CURATED_ROUTES: RouteConfig[] = [
@@ -242,7 +250,7 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedRoutes, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
+export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedRoutes, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings, serverUrl }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
@@ -251,6 +259,7 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
     ? curatedRoutes.map((r) => ({
         from: { lat: r.fromLat, lng: r.fromLng, address: r.fromAddress },
         to: { lat: r.toLat, lng: r.toLng, address: r.toAddress },
+        thumbnailUrl: r.thumbnailUrl,
       }))
     : CURATED_ROUTES;
 
@@ -332,12 +341,13 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
         {(mapsLoaded || mapsError) && (
           <OptionGrid
             items={routes}
-            cardMinWidth={240}
+            cardMinWidth={280}
             cardHeight={90}
             gap={12}
             keyExtractor={(_, i) => String(i)}
             renderCard={(r) => {
               const isSelected = from?.address === r.from.address && to?.address === r.to.address;
+              const thumb = resolveThumbUrl(r.thumbnailUrl, serverUrl);
               return (
                 <div
                   onClick={() => { setFrom(r.from); setTo(r.to); }}
@@ -352,12 +362,23 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
                     boxSizing: "border-box",
                     transition: "background 0.15s, border-color 0.15s",
                     overflow: "hidden",
+                    display: "flex",
+                    alignItems: "center",
                   }}
                   onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#2a2a2a"; }}
                   onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1a"; }}
                 >
-                  <div style={{ fontWeight: 500 }}>{r.from.address}</div>
-                  <div style={{ color: "#888", fontSize: "0.8rem", marginTop: "0.25rem" }}>to {r.to.address}</div>
+                  {thumb && (
+                    <img
+                      src={thumb}
+                      alt=""
+                      style={{ width: "80px", height: "60px", borderRadius: "4px", objectFit: "cover", flexShrink: 0, marginRight: "0.75rem" }}
+                    />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.from.address}</div>
+                    <div style={{ color: "#888", fontSize: "0.8rem", marginTop: "0.25rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>to {r.to.address}</div>
+                  </div>
                 </div>
               );
             }}

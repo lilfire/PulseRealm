@@ -11,7 +11,7 @@ const sampleLocations: StreetViewLocationItem[] = [
 function setup(locations: StreetViewLocationItem[] = [], onChangeMock?: ReturnType<typeof vi.fn>) {
   const onChange = onChangeMock ?? vi.fn();
   const user = userEvent.setup();
-  const { rerender } = render(<StreetViewEditor locations={locations} onChange={onChange} />);
+  const { rerender } = render(<StreetViewEditor locations={locations} onChange={onChange} serverUrl="http://localhost:5062" authToken="test-token" />);
   return { onChange, user, rerender };
 }
 
@@ -169,7 +169,7 @@ describe("StreetViewEditor", () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(
-      <StreetViewEditor locations={sampleLocations} onChange={onChange} />
+      <StreetViewEditor locations={sampleLocations} onChange={onChange} serverUrl="http://localhost:5062" authToken="test-token" />
     );
 
     const editButtons = screen.getAllByRole("button", { name: /^edit$/i });

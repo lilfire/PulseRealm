@@ -16,14 +16,16 @@ public class AdminController : ControllerBase
     private readonly RealmManager _realmManager;
     private readonly IHubContext<RealmHub> _hubContext;
     private readonly RealmStatsTracker _statsTracker;
+    private readonly IConfiguration _configuration;
 
-    public AdminController(AdminAuthService auth, AdminConfigService configService, RealmManager realmManager, IHubContext<RealmHub> hubContext, RealmStatsTracker statsTracker)
+    public AdminController(AdminAuthService auth, AdminConfigService configService, RealmManager realmManager, IHubContext<RealmHub> hubContext, RealmStatsTracker statsTracker, IConfiguration configuration)
     {
         _auth = auth;
         _configService = configService;
         _realmManager = realmManager;
         _hubContext = hubContext;
         _statsTracker = statsTracker;
+        _configuration = configuration;
     }
 
     [HttpPost("login")]
@@ -121,6 +123,34 @@ public class AdminController : ControllerBase
         await _hubContext.Clients.Group(realmId).SendAsync("ClientKicked", clientId);
 
         return Ok(new { message = "Client kicked" });
+    }
+
+    [HttpPost("thumbnails")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> UploadThumbnail(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file provided" });
+
+        if (file.Length > 5 * 1024 * 1024)
+            return BadRequest(new { error = "File exceeds 5 MB limit" });
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string[] allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+        if (!allowedExtensions.Contains(extension))
+            return BadRequest(new { error = "Only jpg, png, webp, and gif images are allowed" });
+
+        var dataDir = _configuration["DATA_DIR"] ?? "data";
+        var thumbnailsDir = Path.Combine(dataDir, "thumbnails");
+        Directory.CreateDirectory(thumbnailsDir);
+
+        var filename = $"{Guid.NewGuid()}{extension}";
+        var filePath = Path.Combine(thumbnailsDir, filename);
+
+        await using var stream = System.IO.File.Create(filePath);
+        await file.CopyToAsync(stream);
+
+        return Ok(new { url = $"/thumbnails/{filename}" });
     }
 }
 

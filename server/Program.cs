@@ -39,6 +39,17 @@ app.Use(async (context, next) =>
 
 app.UseCors();
 app.UseDefaultFiles();
+
+var dataDir = app.Configuration["DATA_DIR"] ?? "data";
+var thumbnailsDir = Path.Combine(dataDir, "thumbnails");
+Directory.CreateDirectory(thumbnailsDir);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+        Path.GetFullPath(thumbnailsDir)),
+    RequestPath = "/thumbnails"
+});
+
 app.UseStaticFiles();
 app.MapControllers();
 app.MapHub<RealmHub>("/hubs/realm");
