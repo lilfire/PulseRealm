@@ -12,6 +12,9 @@
 - [ ] sridelength i sosial trenger label og hva som ville vært normalen 
 - [ ] fullscreen i home og lobbies
 
+Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet 
+
+
 ## BUGS
 
 - [ ] dugeonmode balansering øke spm krav litt, samt ikke 2 hvile rom etter hverandre, lengere korridor. Reward på boss må være relevant
