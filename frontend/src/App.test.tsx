@@ -232,7 +232,7 @@ describe("home screen", () => {
   it("renders home screen when connected and no realm", async () => {
     mockConfigFetch();
     await renderApp();
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 
   it("shows all 6 mode cards", async () => {
@@ -249,7 +249,7 @@ describe("home screen", () => {
   it("shows Join a Realm button", async () => {
     mockConfigFetch();
     await renderApp();
-    expect(screen.getByRole("button", { name: "Join a Realm" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "join an existing realm" })).toBeInTheDocument();
   });
 
   it("shows app version in footer", async () => {
@@ -268,13 +268,13 @@ describe("home screen", () => {
   it("shows Change button in footer for server disconnection", async () => {
     mockConfigFetch();
     await renderApp();
-    expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change server" })).toBeInTheDocument();
   });
 
   it("Change button calls server.disconnect", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change server" }));
     expect(mockDisconnect).toHaveBeenCalledTimes(1);
   });
 });
@@ -315,14 +315,14 @@ describe("join realm", () => {
   it("clicking Join a Realm shows the join code input", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
   });
 
   it("join code input enforces 6-character limit", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     expect(input).toHaveAttribute("maxLength", "6");
   });
@@ -330,7 +330,7 @@ describe("join realm", () => {
   it("Watch button is disabled until 6 digits are entered", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     expect(screen.getByRole("button", { name: "Watch" })).toBeDisabled();
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "12345" } });
@@ -342,17 +342,17 @@ describe("join realm", () => {
   it("Cancel button hides the join input", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByPlaceholderText("000000")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Join a Realm" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "join an existing realm" })).toBeInTheDocument();
   });
 
   it("shows error when realm is not found (404)", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "999999" } });
 
@@ -371,7 +371,7 @@ describe("join realm", () => {
   it("shows error when realm has already ended", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "888888" } });
 
@@ -390,7 +390,7 @@ describe("join realm", () => {
   it("shows error on network failure during join", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "777777" } });
 
@@ -406,7 +406,7 @@ describe("join realm", () => {
   it("shows generic error for non-404 failure responses", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Join a Realm" }));
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
     const input = screen.getByPlaceholderText("000000");
     fireEvent.change(input, { target: { value: "666666" } });
 
