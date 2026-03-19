@@ -169,30 +169,31 @@ function getDifficultyParams(difficulty: DungeonDifficulty, timeframe: number): 
   };
 
   // Cadence windows: difficulty only (not timeframe)
+  // Typical walking ~100-130 spm, brisk walk ~130-150, jogging 150-180+
   switch (difficulty) {
     case "easy":
       return {
         ...base,
-        trapCadenceMin: 70,
-        trapCadenceMax: 110,
-        bossTrapCadenceMin: 75,
-        bossTrapCadenceMax: 105,
+        trapCadenceMin: 100,
+        trapCadenceMax: 160,
+        bossTrapCadenceMin: 105,
+        bossTrapCadenceMax: 155,
       };
     case "hard":
       return {
         ...base,
-        trapCadenceMin: 85,
-        trapCadenceMax: 95,
-        bossTrapCadenceMin: 88,
-        bossTrapCadenceMax: 92,
+        trapCadenceMin: 120,
+        trapCadenceMax: 145,
+        bossTrapCadenceMin: 125,
+        bossTrapCadenceMax: 140,
       };
     default: // normal
       return {
         ...base,
-        trapCadenceMin: 80,
-        trapCadenceMax: 100,
-        bossTrapCadenceMin: 85,
-        bossTrapCadenceMax: 95,
+        trapCadenceMin: 110,
+        trapCadenceMax: 150,
+        bossTrapCadenceMin: 115,
+        bossTrapCadenceMax: 145,
       };
   }
 }
@@ -277,7 +278,7 @@ interface Props {
 
 const STEPS_PER_TILE = 10;
 const TICK_MS = 500;
-const ENEMY_REGEN_CADENCE_THRESHOLD = 60;
+const ENEMY_REGEN_CADENCE_THRESHOLD = 80;
 const REST_IDLE_TIMEOUT_MS = 5000;
 const ENEMY_REGEN_DELAY_MS = 5000;
 const ENEMY_REGEN_PER_TICK = 5; // 10 HP/sec at 500ms ticks
@@ -956,9 +957,40 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           const skip = Math.round((g.corridorTarget - g.corridorSteps) * 0.25);
           g.corridorSteps += skip;
           setBurstNotification(`Calorie Burst! Skipped ${skip} corridor steps!`);
+        } else if (g.phase === "room" && room?.type === "trap" && g.trapSafeSteps < g.trapSafeTarget) {
+          const skip = Math.round((g.trapSafeTarget - g.trapSafeSteps) * 0.25);
+          g.trapSafeSteps += skip;
+          setBurstNotification(`Calorie Burst! +${skip} safe steps!`);
+        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 1 && g.bossTrapSafe < g.bossTrapSafeTarget) {
+          const skip = Math.round((g.bossTrapSafeTarget - g.bossTrapSafe) * 0.25);
+          g.bossTrapSafe += skip;
+          setBurstNotification(`Calorie Burst! +${skip} safe steps!`);
+        } else if (g.phase === "room" && room?.type === "rest") {
+          const activeClients = clients.length > 0 ? clients : [...trackers.current.keys()];
+          for (const cid of activeClients) {
+            const t = getTracker(cid);
+            if (!t.restReady && t.restHrBelowSince !== null) {
+              // Jump hold timer forward by 25% of the total hold duration
+              t.restHrBelowSince -= p.restHoldSeconds * 1000 * 0.25;
+            }
+          }
+          setBurstNotification(`Calorie Burst! Rest timer reduced!`);
+        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 2) {
+          const activeClients = clients.length > 0 ? clients : [...trackers.current.keys()];
+          for (const cid of activeClients) {
+            const t = getTracker(cid);
+            if (!t.enduranceReady && t.enduranceHrAboveSince !== null) {
+              t.enduranceHrAboveSince -= p.bossEnduranceSeconds * 1000 * 0.25;
+            }
+          }
+          setBurstNotification(`Calorie Burst! Endurance timer reduced!`);
+        } else if (g.phase === "room" && room?.type === "treasure") {
+          const bonus = Math.round(50 * playerScale());
+          g.treasureSteps += bonus;
+          setBurstNotification(`Calorie Burst! +${bonus} bonus treasure steps!`);
         } else {
           g.calorieBurstStored++;
-          setBurstNotification(`Calorie Burst stored! (x${g.calorieBurstStored}) — will activate on next enemy or corridor`);
+          setBurstNotification(`Calorie Burst stored! (x${g.calorieBurstStored}) — will activate on next room`);
         }
       }
 

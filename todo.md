@@ -15,5 +15,5 @@
 
 ## BUGS
 
-- [ ] dugeonmode balansering øke spm krav litt, samt ikke 2 hvile rom etter hverandre, lengere korridor. Reward på boss må være relevant
+- [x] dugeonmode balansering øke spm krav litt, samt ikke 2 hvile rom etter hverandre, lengere korridor. Reward på boss må være relevant
 - [ ] route mangler duration 
