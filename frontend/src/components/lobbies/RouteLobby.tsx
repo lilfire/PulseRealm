@@ -40,6 +40,13 @@ interface Props {
   curatedRoutes?: CuratedRouteItem[] | null;
   lobbySettings?: Record<string, unknown> | null;
   onSettingsChange?: (settings: object) => void;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
 interface Suggestion {
@@ -235,7 +242,7 @@ function PlaceInput({
   );
 }
 
-export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedRoutes, lobbySettings, onSettingsChange }: Props) {
+export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedRoutes, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [from, setFrom] = useState<RouteEndpoint | null>(null);
   const [to, setTo] = useState<RouteEndpoint | null>(null);
@@ -282,6 +289,13 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
       onKick={onKick}
       role={role}
       hostSecret={hostSecret}
+      onRequestBind={onRequestBind}
+      onCancelBind={onCancelBind}
+      bindCode={bindCode}
+      bindPending={bindPending}
+      bindResult={bindResult}
+      boundClientId={boundClientId}
+      clientBindings={clientBindings}
     >
       <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingTop: "1.5rem", textAlign: "left" }}>
         <div style={{ maxWidth: "420px", flexShrink: 0 }}>

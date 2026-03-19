@@ -16,6 +16,18 @@ public class Realm
     public Dictionary<string, ClientProfile> ClientProfiles { get; set; } = new();
     public HashSet<string> KickedClientIds { get; set; } = new();
 
+    /// <summary>Maps clientId to the dashboard connectionId that is bound to it.</summary>
+    public Dictionary<string, string> ClientBindings { get; set; } = new();
+
+    /// <summary>Maps clientId to current incline percent (0–15).</summary>
+    public Dictionary<string, double> ClientInclines { get; set; } = new();
+
+    /// <summary>Maps clientId to dashboard-set speed override in km/h (0 = no override, use calculated).</summary>
+    public Dictionary<string, double> ClientSpeedOverrides { get; set; } = new();
+
+    /// <summary>Maps clientId to (4-digit code, requesting dashboard connectionId).</summary>
+    public Dictionary<string, (string Code, string DashboardConnectionId)> PendingBindCodes { get; set; } = new();
+
     /// <summary>JSON blob of mode-specific config, set when the realm starts.</summary>
     public string? RealmConfig { get; set; }
 
@@ -89,6 +101,7 @@ public class RealmSummary
     public double ActivePeriodSeconds { get; set; }
     public int ParticipantCount { get; set; }
     public bool IsTeamFormat { get; set; }
+    public double ElevationGainMeters { get; set; }
     public List<ClientSummaryDto>? ClientSummaries { get; set; }
 }
 
@@ -105,6 +118,7 @@ public class ClientSummaryDto
     public double AverageSpeedKmh { get; set; }
     public double PeakSpeedKmh { get; set; }
     public Dictionary<string, int> TimeInZone { get; set; } = new();
+    public double ElevationGainMeters { get; set; }
     public string? TeamName { get; set; }
     public string? TeamColor { get; set; }
 }

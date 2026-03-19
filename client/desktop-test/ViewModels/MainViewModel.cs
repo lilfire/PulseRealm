@@ -42,6 +42,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _sendCount;
     [ObservableProperty] private int _sendIntervalMs = 1000;
     [ObservableProperty] private bool _isSimulating;
+    [ObservableProperty] private double _incline;
+
+    // Bind request state
+    [ObservableProperty] private bool _showBindRequest;
+    [ObservableProperty] private string _bindCode = "";
 
     // Discovery state
     [ObservableProperty] private bool _isSearching;
@@ -83,6 +88,29 @@ public partial class MainViewModel : ObservableObject
                 Steps = 0;
                 _prevStepsSnapshot = 0;
                 AddLog("Realm started — steps reset.", "info");
+            });
+
+        _signalR.BindRequested += code =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                BindCode = code;
+                ShowBindRequest = true;
+                AddLog($"Bind request received — code: {code}", "info");
+            });
+
+        _signalR.BindCancelled += () =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                ShowBindRequest = false;
+                BindCode = "";
+                AddLog("Bind request cancelled by dashboard.", "info");
+            });
+
+        _signalR.InclineChanged += (cid, incline) =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (cid == ClientId)
+                    Incline = incline;
             });
 
         // HR target update — every 1 second, recompute target from activity
@@ -279,6 +307,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task ApproveBind()
+    {
+        ShowBindRequest = false;
+        await _signalR.RespondBindAsync(true);
+        AddLog("Bind approved.", "info");
+        BindCode = "";
+    }
+
+    [RelayCommand]
+    private async Task DeclineBind()
+    {
+        ShowBindRequest = false;
+        await _signalR.RespondBindAsync(false);
+        AddLog("Bind declined.", "warn");
+        BindCode = "";
+    }
+
+    [RelayCommand]
     private void ToggleSimulation()
     {
         if (IsSimulating)
@@ -451,6 +497,20 @@ public partial class MainViewModel : ObservableObject
         SendCount = 0;
         JoinCode = "";
         AddLog("Disconnected.", "warn");
+    }
+
+    [RelayCommand]
+    private async Task InclineUp()
+    {
+        Incline = Math.Min(25, Math.Round(Incline + 1, 1));
+        await _signalR.SendInclineAsync(Incline);
+    }
+
+    [RelayCommand]
+    private async Task InclineDown()
+    {
+        Incline = Math.Max(0, Math.Round(Incline - 1, 1));
+        await _signalR.SendInclineAsync(Incline);
     }
 
     partial void OnSendIntervalMsChanged(int value)

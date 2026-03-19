@@ -47,6 +47,7 @@ interface ClientTracker {
   speedSum: number;
   speedCount: number;
   peakSpeedKmh: number;
+  currentSpeedKmh: number;
 }
 
 function newTracker(): ClientTracker {
@@ -69,6 +70,7 @@ function newTracker(): ClientTracker {
     speedSum: 0,
     speedCount: 0,
     peakSpeedKmh: 0,
+    currentSpeedKmh: 0,
   };
 }
 
@@ -97,11 +99,16 @@ interface Props {
   latestData: WearableData | null;
   onEnd: (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
   role?: RealmRole;
+  boundClientId?: string | null;
+  clientInclines?: Record<string, number>;
+  onSetIncline?: (clientId: string, percent: number) => void;
+  clientSpeedOverrides?: Record<string, number>;
+  onSetSpeedOverride?: (clientId: string, speedKmh: number) => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = "host" }: Props) {
+export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = "host", boundClientId, clientInclines, onSetIncline, clientSpeedOverrides, onSetSpeedOverride }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
   const totalDistRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -157,6 +164,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     t.steps = steps;
 
     // Speed tracking
+    t.currentSpeedKmh = latestData.speedKmh ?? 0;
     if (latestData.speedKmh > 0) {
       t.speedSum += latestData.speedKmh;
       t.speedCount++;
@@ -546,15 +554,27 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 <span style={{ fontSize: 14, color: "var(--text)" }}>kcal</span>
               </div>
 
-              {/* Stride Length */}
+              {/* Speed */}
               <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
                 <span style={{
                   fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
-                  color: "var(--text)",
+                  color: active && (t?.currentSpeedKmh ?? 0) > 0 ? "var(--text-h)" : "var(--text)",
+                  transition: "all 0.4s ease",
                 }}>
-                  {clientProfiles[cid] ? Math.round(clientProfiles[cid].heightCm * getStrideFactor(clientProfiles[cid]) * 100) : "—"}
+                  {active && (t?.currentSpeedKmh ?? 0) > 0 ? t!.currentSpeedKmh.toFixed(1) : "—"}
                 </span>
-                <span style={{ fontSize: 14, color: "var(--text)" }}>cm</span>
+                <span style={{ fontSize: 14, color: "var(--text)" }}>km/h</span>
+              </div>
+
+              {/* Incline (read-only value) */}
+              <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
+                <span style={{
+                  fontSize: 20, fontWeight: 600, fontFamily: "var(--mono)",
+                  color: (clientInclines?.[cid] ?? 0) > 0 ? "#f59e0b" : "var(--text)",
+                }}>
+                  {(clientInclines?.[cid] ?? 0) > 0 ? `${clientInclines![cid]}%` : "0%"}
+                </span>
+                <span style={{ fontSize: 14, color: "var(--text)" }}>incline</span>
               </div>
             </div>
           );
@@ -612,6 +632,103 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           End Realm
         </button>
       )}
+
+      {/* ── Floating controls HUD (bound client) ─────────────── */}
+      {boundClientId && (onSetIncline || onSetSpeedOverride) && (() => {
+        const incline = clientInclines?.[boundClientId] ?? 0;
+        const overrideSpeed = clientSpeedOverrides?.[boundClientId] ?? 0;
+        const hasOverride = overrideSpeed > 0;
+        return (
+          <div style={{
+            position: "fixed", bottom: 16, right: 16,
+            background: "rgba(15,23,42,0.92)",
+            border: "1px solid var(--border)",
+            borderRadius: 12, padding: "12px 16px",
+            display: "flex", flexDirection: "column", gap: 10,
+            backdropFilter: "blur(8px)",
+            zIndex: 50,
+            minWidth: 180,
+          }}>
+            <div style={{ fontSize: 11, color: "var(--text)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>
+              Controls
+            </div>
+
+            {/* Incline */}
+            {onSetIncline && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600, width: 52 }}>Incline</span>
+                <button
+                  onClick={() => onSetIncline(boundClientId, Math.max(0, incline - 0.5))}
+                  style={{
+                    background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
+                    borderRadius: 6, width: 32, height: 32, cursor: "pointer",
+                    color: "#f59e0b", fontSize: 20, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >−</button>
+                <span style={{
+                  fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
+                  color: "#f59e0b", minWidth: 52, textAlign: "center",
+                }}>{incline.toFixed(1)}%</span>
+                <button
+                  onClick={() => onSetIncline(boundClientId, Math.min(15, incline + 0.5))}
+                  style={{
+                    background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
+                    borderRadius: 6, width: 32, height: 32, cursor: "pointer",
+                    color: "#f59e0b", fontSize: 20, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >+</button>
+              </div>
+            )}
+
+            {/* Speed override */}
+            {onSetSpeedOverride && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  onClick={() => onSetSpeedOverride(boundClientId, hasOverride ? 0 : 5)}
+                  style={{
+                    background: hasOverride ? "rgba(51,223,255,0.15)" : "rgba(255,255,255,0.08)",
+                    border: `1px solid ${hasOverride ? "#33DFFF" : "var(--border)"}`,
+                    borderRadius: 6, padding: "2px 8px", cursor: "pointer",
+                    color: hasOverride ? "#33DFFF" : "var(--text)",
+                    fontSize: 11, fontWeight: 600, width: 52, textAlign: "center",
+                  }}
+                >{hasOverride ? "Override" : "Auto"}</button>
+                {hasOverride ? (
+                  <>
+                    <button
+                      onClick={() => onSetSpeedOverride(boundClientId, Math.max(0.5, overrideSpeed - 0.5))}
+                      style={{
+                        background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
+                        borderRadius: 6, width: 32, height: 32, cursor: "pointer",
+                        color: "#33DFFF", fontSize: 20, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >−</button>
+                    <span style={{
+                      fontSize: 18, fontWeight: 700, fontFamily: "var(--mono)",
+                      color: "#33DFFF", minWidth: 52, textAlign: "center",
+                    }}>{overrideSpeed.toFixed(1)}</span>
+                    <button
+                      onClick={() => onSetSpeedOverride(boundClientId, Math.min(30, overrideSpeed + 0.5))}
+                      style={{
+                        background: "rgba(255,255,255,0.08)", border: "1px solid var(--border)",
+                        borderRadius: 6, width: 32, height: 32, cursor: "pointer",
+                        color: "#33DFFF", fontSize: 20, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >+</button>
+                    <span style={{ fontSize: 12, color: "var(--text)" }}>km/h</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 12, color: "var(--text)" }}>Speed: auto</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

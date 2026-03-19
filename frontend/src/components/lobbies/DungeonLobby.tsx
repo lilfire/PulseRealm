@@ -29,6 +29,13 @@ interface Props {
   defaults?: DungeonDefaults | null;
   lobbySettings?: Record<string, unknown> | null;
   onSettingsChange?: (settings: object) => void;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
 const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] = [
@@ -39,7 +46,7 @@ const difficulties: { value: DungeonDifficulty; label: string; desc: string }[] 
 
 const timeframes = [15, 30, 45, 60];
 
-export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange }: Props) {
+export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
     validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
@@ -79,6 +86,13 @@ export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connecte
       onKick={onKick}
       role={role}
       hostSecret={hostSecret}
+      onRequestBind={onRequestBind}
+      onCancelBind={onCancelBind}
+      bindCode={bindCode}
+      bindPending={bindPending}
+      bindResult={bindResult}
+      boundClientId={boundClientId}
+      clientBindings={clientBindings}
     >
       <div style={{ margin: "1.5rem 0" }}>
         <h3>Difficulty</h3>

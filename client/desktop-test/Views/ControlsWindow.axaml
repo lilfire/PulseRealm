@@ -1,0 +1,182 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PulseRealm.DesktopTest.ViewModels"
+        xmlns:svc="using:PulseRealm.DesktopTest.Services"
+        x:Class="PulseRealm.DesktopTest.Views.ControlsWindow"
+        x:DataType="vm:MainViewModel"
+        Title="PulseRealm — Controls"
+        Icon="avares://PulseRealm.DesktopTest/Assets/logo.png"
+        Width="700" Height="550"
+        MinWidth="500" MinHeight="400"
+        CanResize="True"
+        Background="#0f172a">
+
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="#e2e8f0" />
+      <Setter Property="FontFamily" Value="Segoe UI, Inter, sans-serif" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="#0f172a" />
+      <Setter Property="Foreground" Value="#e2e8f0" />
+      <Setter Property="BorderBrush" Value="#475569" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="6" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Background" Value="#38bdf8" />
+      <Setter Property="Foreground" Value="#0f172a" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="6,4" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+    <!-- Header -->
+    <Border DockPanel.Dock="Top" Background="#1e293b" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="16,10">
+      <StackPanel Spacing="8">
+        <!-- Row 1: Branding + Connection status + action buttons -->
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Image Source="avares://PulseRealm.DesktopTest/Assets/logo.png" Width="28" Height="28" />
+            <TextBlock Text="PulseRealm" FontSize="18" FontWeight="SemiBold" Foreground="#38bdf8" />
+            <Border Background="#854d0e" CornerRadius="9999" Padding="8,2">
+              <TextBlock Text="TEST CLIENT" FontSize="11" FontWeight="SemiBold" Foreground="#fde047" />
+            </Border>
+            <Border CornerRadius="9999" Padding="8,2"
+                    Background="{Binding IsConnected, Converter={x:Static vm:MainViewModel.ConnectedBgConverter}}">
+              <TextBlock FontSize="11" FontWeight="SemiBold"
+                         Text="{Binding IsConnected, Converter={x:Static vm:MainViewModel.ConnectedTextConverter}}"
+                         Foreground="{Binding IsConnected, Converter={x:Static vm:MainViewModel.ConnectedFgConverter}}" />
+            </Border>
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Button Content="Join" Command="{Binding JoinRealmCommand}" IsVisible="{Binding !IsConnected}" Padding="16,4" />
+            <Button Content="Leave" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}"
+                    Background="#ef4444" Foreground="White" Padding="16,4" />
+            <Button Content="Simulate Drop" Command="{Binding SimulateConnectionLostCommand}" IsVisible="{Binding IsConnected}"
+                    Background="#854d0e" Foreground="#fde047" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="Server:" FontSize="13" Foreground="#94a3b8" VerticalAlignment="Center" />
+            <TextBox Text="{Binding ServerUrl}" Width="200" FontSize="13" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" />
+            <TextBlock Text="Code:" FontSize="13" Foreground="#94a3b8" VerticalAlignment="Center" />
+            <TextBox Text="{Binding JoinCode}" Width="80" FontSize="14" FontFamily="Consolas, monospace"
+                     MaxLength="6" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" />
+          </StackPanel>
+        </DockPanel>
+
+        <!-- Row 2: Player config -->
+        <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="ID:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <TextBox Text="{Binding ClientId}" Width="180" FontSize="12" FontFamily="Consolas, monospace"
+                     VerticalAlignment="Center" IsEnabled="{Binding !IsConnected}" Watermark="Client ID" />
+          </StackPanel>
+          <TextBlock Text="·" Foreground="#334155" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Name:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <TextBox Text="{Binding PlayerName}" Width="100" FontSize="12" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" Watermark="Player name" />
+          </StackPanel>
+          <TextBlock Text="·" Foreground="#334155" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Age:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <TextBox Text="{Binding Age}" Width="40" FontSize="12" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Height:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <TextBox Text="{Binding HeightCm}" Width="50" FontSize="12" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" Watermark="cm" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Weight:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <TextBox Text="{Binding WeightKg}" Width="50" FontSize="12" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" Watermark="kg" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Stride:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <TextBox Text="{Binding StrideFactor}" Width="50" FontSize="12" VerticalAlignment="Center"
+                     IsEnabled="{Binding !IsConnected}" />
+          </StackPanel>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Stats bar -->
+    <Border DockPanel.Dock="Top" Background="#1e293b" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="16,6">
+      <StackPanel Orientation="Horizontal" Spacing="24" HorizontalAlignment="Center">
+        <!-- Heart Rate -->
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="&#x2764;" FontSize="14" Foreground="#f87171" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding HeartRate}" FontSize="22" FontWeight="Bold" Foreground="#f87171" VerticalAlignment="Bottom" />
+          <TextBlock Text="bpm" FontSize="11" Foreground="#64748b" VerticalAlignment="Bottom" />
+        </StackPanel>
+        <Border Width="1" Background="#334155" VerticalAlignment="Stretch" Margin="0,4" />
+        <!-- Steps -->
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Steps}" FontSize="22" FontWeight="Bold" Foreground="#34d399" VerticalAlignment="Bottom" />
+          <TextBlock Text="steps" FontSize="11" Foreground="#64748b" VerticalAlignment="Bottom" />
+        </StackPanel>
+        <Border Width="1" Background="#334155" VerticalAlignment="Stretch" Margin="0,4" />
+        <!-- Sent -->
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="{Binding SendCount}" FontSize="22" FontWeight="Bold" Foreground="#a78bfa" VerticalAlignment="Bottom" />
+          <TextBlock Text="sent" FontSize="11" Foreground="#64748b" VerticalAlignment="Bottom" />
+        </StackPanel>
+        <Border Width="1" Background="#334155" VerticalAlignment="Stretch" Margin="0,4" />
+        <!-- Interval -->
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="Interval" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+          <Slider Value="{Binding SendIntervalMs}" Minimum="200" Maximum="5000" Width="120"
+                  VerticalAlignment="Center" TickFrequency="100" IsSnapToTickEnabled="True" />
+          <TextBlock Text="{Binding SendIntervalMs, Converter={x:Static vm:MainViewModel.IntervalTextConverter}}"
+                     FontSize="14" FontWeight="SemiBold" Foreground="#fbbf24" VerticalAlignment="Center" Width="40" />
+        </StackPanel>
+        <Border Width="1" Background="#334155" VerticalAlignment="Stretch" Margin="0,4"
+                IsVisible="{Binding IsConnected}" />
+        <!-- Simulation toggle -->
+        <Button Command="{Binding ToggleSimulationCommand}" IsVisible="{Binding IsConnected}"
+                Content="{Binding IsSimulating, Converter={x:Static vm:MainViewModel.SimTextConverter}}"
+                Background="{Binding IsSimulating, Converter={x:Static vm:MainViewModel.SimBgConverter}}"
+                Foreground="{Binding IsSimulating, Converter={x:Static vm:MainViewModel.SimFgConverter}}"
+                VerticalAlignment="Center" FontWeight="Bold" Padding="12,4" />
+        <Border Width="1" Background="#334155" VerticalAlignment="Stretch" Margin="0,4" />
+        <!-- Incline control -->
+        <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+          <TextBlock Text="Incline" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <Button Content="&#x2212;" Command="{Binding InclineDownCommand}"
+                  Background="#1e293b" Foreground="#fbbf24" BorderBrush="#475569" BorderThickness="1"
+                  Width="28" Height="28" Padding="0" FontSize="16" FontWeight="Bold" />
+          <TextBlock Text="{Binding Incline, StringFormat='{}{0:F1}%'}"
+                     FontSize="14" FontWeight="SemiBold" Foreground="#fbbf24"
+                     VerticalAlignment="Center" Width="52" TextAlignment="Center" />
+          <Button Content="&#x2B;" Command="{Binding InclineUpCommand}"
+                  Background="#1e293b" Foreground="#fbbf24" BorderBrush="#475569" BorderThickness="1"
+                  Width="28" Height="28" Padding="0" FontSize="16" FontWeight="Bold" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Log panel -->
+    <Border Background="#0c0f1a" BorderBrush="#334155" BorderThickness="0,1,0,0">
+      <ListBox ItemsSource="{Binding LogEntries}" x:Name="LogList"
+               Background="Transparent" BorderThickness="0" Padding="8"
+               ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:LogEntry">
+            <TextBlock Text="{Binding Text}" FontFamily="Consolas, monospace" FontSize="12"
+                       Foreground="{Binding Level, Converter={x:Static vm:MainViewModel.LogColorConverter}}" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+  </DockPanel>
+</Window>

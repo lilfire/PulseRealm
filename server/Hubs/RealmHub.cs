@@ -242,7 +242,18 @@ public class RealmHub : Hub
             _stepOffsets.AddOrUpdate(data.ClientId, previous.RawSteps, (_, existing) => existing + previous.RawSteps);
         }
 
-        data.SpeedKmh = EstimateSpeed(realmId, rawSteps, data.ClientId);
+        // Dashboard speed override takes priority; otherwise estimate from step cadence.
+        var speedOverride = realm.WithLock(r =>
+            r.ClientSpeedOverrides.TryGetValue(data.ClientId, out var s) ? s : 0);
+        if (speedOverride > 0)
+        {
+            data.SpeedKmh = speedOverride;
+            _lastData[data.ClientId] = (rawSteps, DateTime.UtcNow, speedOverride, DateTime.UtcNow);
+        }
+        else
+        {
+            data.SpeedKmh = EstimateSpeed(realmId, rawSteps, data.ClientId);
+        }
 
         // Apply offset to outgoing steps
         data.Steps = rawSteps + _stepOffsets.GetValueOrDefault(data.ClientId, 0);
@@ -320,6 +331,161 @@ public class RealmHub : Hub
 
         _lastData[clientId] = (rawSteps, now, decayed, previous.LastStepTime);
         return Math.Round(decayed, 1);
+    }
+
+    /// <summary>
+    /// Called by a dashboard to request binding to a specific wearable client.
+    /// Generates a 4-digit code and sends it to both the dashboard and the wearable client.
+    /// </summary>
+    public async Task RequestBind(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        var (status, alreadyBound) = realm.WithLock(r => (r.Status, r.ClientBindings.ContainsKey(clientId)));
+        if (status == RealmStatus.Started) throw new HubException("Cannot bind after realm has started.");
+        if (alreadyBound) throw new HubException("Client is already bound.");
+
+        var code = Random.Shared.Next(1000, 10000).ToString();
+        realm.WithLock(r => r.PendingBindCodes[clientId] = (code, Context.ConnectionId));
+
+        // Send code to the requesting dashboard
+        await Clients.Caller.SendAsync("BindCodeGenerated", code, clientId);
+
+        // Send code to the wearable client
+        string? clientConnectionId = null;
+        foreach (var kvp in _connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+            {
+                clientConnectionId = kvp.Key;
+                break;
+            }
+        }
+        if (clientConnectionId != null)
+        {
+            await Clients.Client(clientConnectionId).SendAsync("BindRequest", code);
+        }
+    }
+
+    /// <summary>
+    /// Called by a wearable client to approve or decline a bind request.
+    /// </summary>
+    public async Task RespondBind(string realmId, bool approved)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        // Find the pending bind for this client
+        if (!_connectionMap.TryGetValue(Context.ConnectionId, out var mapping))
+            throw new HubException("Not in a realm.");
+
+        var clientId = mapping.ClientId;
+
+        var pending = realm.WithLock(r =>
+        {
+            r.PendingBindCodes.TryGetValue(clientId, out var p);
+            r.PendingBindCodes.Remove(clientId);
+            return p;
+        });
+
+        if (pending == default) throw new HubException("No pending bind request.");
+
+        if (approved)
+        {
+            realm.WithLock(r => r.ClientBindings[clientId] = pending.DashboardConnectionId);
+            await Clients.Client(pending.DashboardConnectionId).SendAsync("BindResponse", clientId, true);
+            await Clients.Group(realmId).SendAsync("ClientBound", clientId);
+        }
+        else
+        {
+            await Clients.Client(pending.DashboardConnectionId).SendAsync("BindResponse", clientId, false);
+        }
+    }
+
+    /// <summary>
+    /// Called by a dashboard to cancel a pending bind request.
+    /// </summary>
+    public async Task CancelBind(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) return;
+
+        var pending = realm.WithLock(r =>
+        {
+            r.PendingBindCodes.TryGetValue(clientId, out var p);
+            if (p.DashboardConnectionId == Context.ConnectionId)
+                r.PendingBindCodes.Remove(clientId);
+            return p;
+        });
+
+        // Notify the wearable client to dismiss
+        if (pending != default)
+        {
+            string? clientConnectionId = null;
+            foreach (var kvp in _connectionMap)
+            {
+                if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+                {
+                    clientConnectionId = kvp.Key;
+                    break;
+                }
+            }
+            if (clientConnectionId != null)
+            {
+                await Clients.Client(clientConnectionId).SendAsync("BindCancelled");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called by a bound dashboard to set the incline for a client's treadmill.
+    /// Validates that the caller is bound to the client, stores the incline, and broadcasts.
+    /// </summary>
+    public async Task SetIncline(string realmId, string clientId, double inclinePercent)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        inclinePercent = Math.Clamp(inclinePercent, 0, 15);
+
+        var isBound = realm.WithLock(r =>
+            r.ClientBindings.TryGetValue(clientId, out var boundTo) && boundTo == Context.ConnectionId
+        );
+        if (!isBound) throw new HubException("Not bound to this client.");
+
+        realm.WithLock(r => r.ClientInclines[clientId] = inclinePercent);
+        _statsTracker.UpdateIncline(realmId, clientId, inclinePercent);
+
+        await Clients.Group(realmId).SendAsync("InclineChanged", clientId, inclinePercent);
+    }
+
+    /// <summary>
+    /// Called by a bound dashboard to set or clear a speed override for a client.
+    /// When speedKmh > 0, the server uses this instead of calculating from steps.
+    /// When speedKmh == 0, reverts to automatic speed calculation.
+    /// </summary>
+    public async Task SetSpeedOverride(string realmId, string clientId, double speedKmh)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        speedKmh = Math.Max(0, Math.Min(speedKmh, 30));
+
+        var isBound = realm.WithLock(r =>
+            r.ClientBindings.TryGetValue(clientId, out var boundTo) && boundTo == Context.ConnectionId
+        );
+        if (!isBound) throw new HubException("Not bound to this client.");
+
+        realm.WithLock(r =>
+        {
+            if (speedKmh > 0)
+                r.ClientSpeedOverrides[clientId] = speedKmh;
+            else
+                r.ClientSpeedOverrides.Remove(clientId);
+        });
+
+        await Clients.Group(realmId).SendAsync("SpeedOverrideChanged", clientId, speedKmh);
     }
 
     /// <summary>
@@ -437,6 +603,9 @@ public class RealmHub : Hub
                 ConnectedClientIds = new List<string>(r.ConnectedClientIds),
                 ClientProfiles = new Dictionary<string, ClientProfile>(r.ClientProfiles),
                 Config = r.RealmConfig,
+                ClientBindings = r.ClientBindings.Keys.ToList(),
+                ClientInclines = new Dictionary<string, double>(r.ClientInclines),
+                ClientSpeedOverrides = new Dictionary<string, double>(r.ClientSpeedOverrides),
             });
         }
         else
@@ -448,6 +617,9 @@ public class RealmHub : Hub
                 ConnectedClientIds = new List<string>(),
                 ClientProfiles = new Dictionary<string, ClientProfile>(),
                 Config = (string?)null,
+                ClientBindings = new List<string>(),
+                ClientInclines = new Dictionary<string, double>(),
+                ClientSpeedOverrides = new Dictionary<string, double>(),
             };
         }
         await Clients.Caller.SendAsync("JoinedRealm", state);

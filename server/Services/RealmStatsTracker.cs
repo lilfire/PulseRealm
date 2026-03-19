@@ -68,6 +68,17 @@ public class RealmStatsTracker
                 stats.SpeedSum += speedKmh;
                 stats.SpeedCount++;
                 stats.PeakSpeedKmh = Math.Max(stats.PeakSpeedKmh, speedKmh);
+
+                // Accumulate elevation gain: distance in this segment × incline
+                if (stats.CurrentInclinePercent > 0 && stats.LastRecordedAt != default)
+                {
+                    var segmentSeconds = (now - stats.LastRecordedAt).TotalSeconds;
+                    if (segmentSeconds is > 0 and <= 5)
+                    {
+                        var segmentDistanceMeters = speedKmh / 3.6 * segmentSeconds;
+                        stats.ElevationGainMeters += segmentDistanceMeters * (stats.CurrentInclinePercent / 100.0);
+                    }
+                }
             }
 
             // Cadence from step deltas with EMA smoothing
@@ -140,6 +151,7 @@ public class RealmStatsTracker
                     AverageSpeedKmh = stats.SpeedCount > 0 ? Math.Round(stats.SpeedSum / stats.SpeedCount, 1) : 0,
                     PeakSpeedKmh = Math.Round(stats.PeakSpeedKmh, 1),
                     TimeInZone = new Dictionary<string, int>(stats.TimeInZone),
+                    ElevationGainMeters = Math.Round(stats.ElevationGainMeters, 1),
                 };
 
                 totalHrSum += stats.HrSum;
@@ -152,6 +164,7 @@ public class RealmStatsTracker
 
         var totalSteps = clientSummaries.Sum(c => c.Steps);
         var totalDistance = clientSummaries.Sum(c => c.DistanceMeters);
+        var totalElevation = clientSummaries.Sum(c => c.ElevationGainMeters);
         var avgSpeed = clientSummaries.Where(c => c.AverageSpeedKmh > 0).Select(c => c.AverageSpeedKmh).DefaultIfEmpty(0).Average();
         var peakSpeed = clientSummaries.Select(c => c.PeakSpeedKmh).DefaultIfEmpty(0).Max();
         var avgCadence = clientSummaries.Where(c => c.AvgCadenceSpm > 0).Select(c => c.AvgCadenceSpm).DefaultIfEmpty(0).Average();
@@ -193,6 +206,7 @@ public class RealmStatsTracker
             TimeInZone = mergedZones,
             ActivePeriodSeconds = Math.Round(maxActivePeriod),
             ParticipantCount = knownClientIds.Count,
+            ElevationGainMeters = Math.Round(totalElevation, 1),
             ClientSummaries = clientSummaries,
         };
     }
@@ -226,6 +240,7 @@ public class RealmStatsTracker
         lock (stats)
         {
             var distance = stats.MaxSteps * strideM;
+            var elevation = Math.Round(stats.ElevationGainMeters, 1);
             return new RealmSummary
             {
                 DurationSeconds = duration,
@@ -240,6 +255,7 @@ public class RealmStatsTracker
                 TimeInZone = new Dictionary<string, int>(stats.TimeInZone),
                 ActivePeriodSeconds = Math.Round(stats.ActivePeriodSeconds),
                 ParticipantCount = realm.WithLock(r => r.ConnectedClientIds.Count),
+                ElevationGainMeters = elevation,
                 ClientSummaries = new List<ClientSummaryDto>
                 {
                     new()
@@ -255,9 +271,23 @@ public class RealmStatsTracker
                         AverageSpeedKmh = stats.SpeedCount > 0 ? Math.Round(stats.SpeedSum / stats.SpeedCount, 1) : 0,
                         PeakSpeedKmh = Math.Round(stats.PeakSpeedKmh, 1),
                         TimeInZone = new Dictionary<string, int>(stats.TimeInZone),
+                        ElevationGainMeters = elevation,
                     }
                 },
             };
+        }
+    }
+
+    /// <summary>
+    /// Updates the current incline for a client. Called when SetIncline is invoked.
+    /// </summary>
+    public void UpdateIncline(string realmId, string clientId, double inclinePercent)
+    {
+        var key = Key(realmId, clientId);
+        var stats = _stats.GetOrAdd(key, _ => new ClientStats());
+        lock (stats)
+        {
+            stats.CurrentInclinePercent = inclinePercent;
         }
     }
 
@@ -288,5 +318,7 @@ public class RealmStatsTracker
         public int PrevSteps;
         public DateTime PrevStepsTime;
         public DateTime LastRecordedAt;
+        public double CurrentInclinePercent;
+        public double ElevationGainMeters;
     }
 }

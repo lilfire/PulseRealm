@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { YouTubeVideo } from "../lobbies/YouTubeTrailLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { BindControlsHud } from "./BindControlsHud";
 
 interface Props {
   clients: string[];
@@ -10,6 +11,11 @@ interface Props {
   video: YouTubeVideo;
   onEnd: (totalDistanceMeters: number) => void;
   role?: RealmRole;
+  boundClientId?: string | null;
+  clientInclines?: Record<string, number>;
+  onSetIncline?: (clientId: string, percent: number) => void;
+  clientSpeedOverrides?: Record<string, number>;
+  onSetSpeedOverride?: (clientId: string, speedKmh: number) => void;
 }
 
 const DEFAULT_BASE_SPEED_KMH = 5;
@@ -24,7 +30,7 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, onEnd, role = "host" }: Props) {
+export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, onEnd, role = "host", boundClientId, clientInclines, onSetIncline, clientSpeedOverrides, onSetSpeedOverride }: Props) {
   const playerRef = useRef<YT.Player | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevYTCallbackRef = useRef<(() => void) | undefined>(undefined);
@@ -399,6 +405,15 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
           {videoDuration > 0 ? formatTime(videoDuration) : "--:--"}
         </span>
       </div>
+      {boundClientId && (
+        <BindControlsHud
+          boundClientId={boundClientId}
+          clientInclines={clientInclines}
+          onSetIncline={onSetIncline}
+          clientSpeedOverrides={clientSpeedOverrides}
+          onSetSpeedOverride={onSetSpeedOverride}
+        />
+      )}
     </div>
   );
 }

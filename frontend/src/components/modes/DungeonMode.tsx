@@ -108,7 +108,7 @@ interface Display {
   bossTrapCadenceMax: number;
   bossInWindow: boolean;
   bossEnduranceClients: { name: string; ready: boolean; hr: number; holdSeconds: number; holdTarget: number; hrThreshold: number }[];
-  clientStats: { name: string; cadence: number; hr: number; steps: number; calories: number }[];
+  clientStats: { clientId: string; name: string; cadence: number; hr: number; steps: number; calories: number }[];
   hasBuff: boolean;
   buffDesc: string;
   roomMessage: string;
@@ -267,6 +267,9 @@ interface Props {
   config: DungeonConfig;
   onEnd: (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
   role?: RealmRole;
+  boundClientId?: string | null;
+  clientInclines?: Record<string, number>;
+  onSetIncline?: (clientId: string, percent: number) => void;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -285,7 +288,7 @@ function getDungeonMaxHr(clients: string[], clientProfiles: Record<string, impor
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd, role = "host" }: Props) {
+export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd, role = "host", boundClientId, clientInclines, onSetIncline }: Props) {
   const params = useRef(getDifficultyParams(config.difficulty, config.timeframe));
   const rooms = useRef<Room[]>([]);
   const gs = useRef<GameState | null>(null);
@@ -682,7 +685,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     const clientStats = activeClients.map((cid) => {
       const t = getTracker(cid);
       const profile = clientProfiles[cid];
-      return { name: profile?.name || cid, cadence: Math.round(t.cadence), hr: t.heartRate, steps: t.prevSteps, calories: Math.round(t.caloriesBurned) };
+      return { clientId: cid, name: profile?.name || cid, cadence: Math.round(t.cadence), hr: t.heartRate, steps: t.prevSteps, calories: Math.round(t.caloriesBurned) };
     });
 
     const treasureTimeLeft =
@@ -1144,17 +1147,37 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       } as React.CSSProperties}>
         {display.clientStats.length === 0 ? (
           <span style={{ color: "#555" }}>Waiting for player data...</span>
-        ) : display.clientStats.map((cs, i) => (
-          <div key={i} style={{
-            textAlign: "center", padding: "0.3rem 0.8rem", background: "#1a1a1a",
-            borderRadius: "6px", border: "1px solid #2a2a2a", minWidth: "100px",
-          }}>
-            <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.15rem" }}>{cs.name}</div>
-            <div style={{ fontSize: "0.75rem", color: "#888" }}>
-              {cs.cadence} spm &middot; {cs.hr} bpm{cs.calories > 0 ? ` · ${cs.calories} kcal` : ""}
+        ) : display.clientStats.map((cs, i) => {
+          const incline = clientInclines?.[cs.clientId];
+          const isBound = boundClientId === cs.clientId && onSetIncline != null;
+          return (
+            <div key={i} style={{
+              textAlign: "center", padding: "0.3rem 0.8rem", background: "#1a1a1a",
+              borderRadius: "6px", border: "1px solid #2a2a2a", minWidth: "100px",
+            }}>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.15rem" }}>{cs.name}</div>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>
+                {cs.cadence} spm &middot; {cs.hr} bpm{cs.calories > 0 ? ` · ${cs.calories} kcal` : ""}
+              </div>
+              {incline != null && (
+                <div style={{ fontSize: "0.7rem", color: "#f59e0b", marginTop: "0.15rem" }}>
+                  {incline}% incline
+                </div>
+              )}
+              {isBound && (
+                <input
+                  type="range"
+                  min={0}
+                  max={15}
+                  step={0.5}
+                  value={incline ?? 0}
+                  onChange={(e) => onSetIncline!(cs.clientId, parseFloat(e.target.value))}
+                  style={{ width: "100%", accentColor: "#f59e0b", marginTop: "0.2rem" }}
+                />
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div style={{ textAlign: "center", padding: "0.3rem 0.8rem" }}>
           <div style={{ fontSize: "0.75rem", color: "#888" }}>Team cadence</div>
           <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#33DFFF" }}>{display.teamCadence} spm</div>

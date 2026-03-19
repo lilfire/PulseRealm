@@ -13,9 +13,16 @@ interface Props {
   onKick?: (clientId: string) => void;
   role?: RealmRole;
   hostSecret?: string;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
-export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret }: Props) {
+export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   return (
     <LobbyShell
       joinCode={joinCode}
@@ -30,6 +37,13 @@ export function DefaultLobby({ joinCode, mode, clients, clientProfiles, connecte
       onKick={onKick}
       role={role}
       hostSecret={hostSecret}
+      onRequestBind={onRequestBind}
+      onCancelBind={onCancelBind}
+      bindCode={bindCode}
+      bindPending={bindPending}
+      bindResult={bindResult}
+      boundClientId={boundClientId}
+      clientBindings={clientBindings}
     />
   );
 }

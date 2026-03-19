@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { maxClientsForMode } from "../../types/session";
 import type { ReactNode } from "react";
@@ -8,6 +8,8 @@ const ROLE_STYLES: Record<RealmRole, { bg: string; border: string; color: string
   guest: { bg: "rgba(51, 223, 255, 0.12)", border: "rgba(51, 223, 255, 0.3)", color: "#33DFFF" },
   admin: { bg: "rgba(250, 204, 21, 0.12)", border: "rgba(250, 204, 21, 0.3)", color: "#FACC15" },
 };
+
+const MULTI_CLIENT_MODES: RealmMode[] = ["competition", "dungeon", "social"];
 
 interface Props {
   joinCode: string;
@@ -24,12 +26,31 @@ interface Props {
   hostSecret?: string;
   minPlayers?: number;
   children?: ReactNode;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
-export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, onStart, onLeave, onEnd, onKick, role = "host", hostSecret, minPlayers, children }: Props) {
+export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, onStart, onLeave, onEnd, onKick, role = "host", hostSecret, minPlayers, children, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const isGuest = role === "guest";
   const canControl = role === "host" || role === "admin";
   const rs = ROLE_STYLES[role];
+  const isMultiClient = MULTI_CLIENT_MODES.includes(mode);
+  const [bindTargetId, setBindTargetId] = useState<string | null>(null);
+
+  // Auto-bind for single-client modes (max 1 player)
+  useEffect(() => {
+    if (isMultiClient || !onRequestBind) return;
+    if (clients.length !== 1) return;
+    if (boundClientId || bindPending || clientBindings?.[clients[0]]) return;
+    const clientId = clients[0];
+    setBindTargetId(clientId);
+    onRequestBind(clientId);
+  }, [isMultiClient, clients, boundClientId, bindPending, clientBindings, onRequestBind]);
 
   return (
     <div className="app lobby-app">
@@ -62,15 +83,40 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
             <ul style={{ listStyle: "none", padding: 0 }}>
               {clients.map((id) => {
                 const profile = clientProfiles[id];
+                const isBound = clientBindings?.[id];
+                const isMine = boundClientId === id;
+                const canBind = isMultiClient && !isBound && !boundClientId && onRequestBind;
                 return (
-                  <li key={id} className="fg-row" style={{ padding: "0.4rem 0", display: "flex", alignItems: "center", "--fg": "0.5rem" } as React.CSSProperties}>
-                    <span>
+                  <li
+                    key={id}
+                    className="fg-row"
+                    style={{
+                      padding: "0.4rem 0",
+                      display: "flex",
+                      alignItems: "center",
+                      "--fg": "0.5rem",
+                      cursor: canBind ? "pointer" : "default",
+                    } as React.CSSProperties}
+                    onClick={canBind ? () => { setBindTargetId(id); onRequestBind(id); } : undefined}
+                  >
+                    {isBound && (
+                      <span title={isMine ? "Bound to you" : "Bound"} style={{
+                        display: "inline-block",
+                        width: 8, height: 8, borderRadius: "50%",
+                        background: isMine ? "#33DFFF" : "#888",
+                        flexShrink: 0,
+                      }} />
+                    )}
+                    <span style={{ flex: 1 }}>
                       {profile?.name || id}
                       {profile?.heightCm ? ` — ${profile.heightCm} cm` : ""}
                     </span>
+                    {canBind && (
+                      <span style={{ fontSize: "0.65rem", color: "#888" }}>click to bind</span>
+                    )}
                     {canControl && onKick && (
                       <button
-                        onClick={() => onKick(id)}
+                        onClick={(e) => { e.stopPropagation(); onKick(id); }}
                         title="Kick player"
                         style={{
                           background: "none",
@@ -155,6 +201,75 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
           </button>
         )}
       </div>
+
+      {/* Bind modal */}
+      {bindCode && bindTargetId && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 100,
+        }} onClick={() => { setBindTargetId(null); onCancelBind?.(bindTargetId); }}>
+          <div style={{
+            background: "var(--code-bg, #1e1f26)",
+            border: "1px solid var(--border, #333)",
+            borderRadius: 12,
+            padding: "2rem 3rem",
+            textAlign: "center",
+            minWidth: 280,
+          }} onClick={(e) => e.stopPropagation()}>
+            {bindResult === "approved" ? (
+              <>
+                <div style={{ fontSize: "1.2rem", color: "#22c55e", fontWeight: 700, marginBottom: 8 }}>Bound!</div>
+                <div style={{ color: "var(--text)", fontSize: "0.85rem" }}>
+                  You are now bound to {clientProfiles[bindTargetId]?.name || bindTargetId}
+                </div>
+              </>
+            ) : bindResult === "declined" ? (
+              <>
+                <div style={{ fontSize: "1.2rem", color: "#FF5C75", fontWeight: 700, marginBottom: 8 }}>Declined</div>
+                <div style={{ color: "var(--text)", fontSize: "0.85rem" }}>
+                  {clientProfiles[bindTargetId]?.name || bindTargetId} declined the bind request.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                  Bind Code
+                </div>
+                <div style={{
+                  fontSize: "3rem", fontWeight: 700, fontFamily: "var(--mono)",
+                  letterSpacing: "0.3em", color: "var(--text-h)",
+                  marginBottom: 12,
+                }}>
+                  {bindCode}
+                </div>
+                <div style={{ color: "var(--text)", fontSize: "0.85rem", marginBottom: 16 }}>
+                  Confirm this code on {clientProfiles[bindTargetId]?.name || bindTargetId}'s watch
+                </div>
+                {bindPending && (
+                  <div style={{ color: "#33DFFF", fontSize: "0.8rem" }}>Waiting for approval...</div>
+                )}
+                <button
+                  onClick={() => { setBindTargetId(null); onCancelBind?.(bindTargetId); }}
+                  style={{
+                    marginTop: 12,
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    color: "var(--text)",
+                    borderRadius: 6,
+                    padding: "0.4rem 1.2rem",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,6 +13,9 @@ public class SignalRService : IAsyncDisposable
     public event Action<bool>? ConnectionChanged;
     public event Action<JsonElement>? RealmEnded;
     public event Action? RealmStarted;
+    public event Action<string>? BindRequested;   // code
+    public event Action? BindCancelled;
+    public event Action<string, double>? InclineChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
     public string? RealmId => _realmId;
@@ -51,6 +54,21 @@ public class SignalRService : IAsyncDisposable
             _connection.On<JsonElement>("RealmStarted", _ =>
             {
                 RealmStarted?.Invoke();
+            });
+
+            _connection.On<string>("BindRequest", code =>
+            {
+                BindRequested?.Invoke(code);
+            });
+
+            _connection.On("BindCancelled", () =>
+            {
+                BindCancelled?.Invoke();
+            });
+
+            _connection.On<string, double>("InclineChanged", (clientId, incline) =>
+            {
+                InclineChanged?.Invoke(clientId, incline);
             });
 
             _connection.On("YouWereKicked", async () =>
@@ -129,6 +147,19 @@ public class SignalRService : IAsyncDisposable
         }
     }
 
+    public async Task RespondBindAsync(bool approved)
+    {
+        if (_connection is null || _realmId is null) return;
+        try
+        {
+            await _connection.InvokeAsync("RespondBind", _realmId, approved);
+        }
+        catch (Exception ex)
+        {
+            LogReceived?.Invoke($"RespondBind failed: {ex.Message}", "error");
+        }
+    }
+
     public async Task SendDataAsync(string clientId, int heartRate, int steps)
     {
         if (_connection is null || _realmId is null) return;
@@ -148,6 +179,19 @@ public class SignalRService : IAsyncDisposable
         catch (Exception ex)
         {
             LogReceived?.Invoke($"Send failed: {ex.Message}", "error");
+        }
+    }
+
+    public async Task SendInclineAsync(double incline)
+    {
+        if (_connection is null || _realmId is null) return;
+        try
+        {
+            await _connection.InvokeAsync("SetIncline", _realmId, incline);
+        }
+        catch (Exception ex)
+        {
+            LogReceived?.Invoke($"SetIncline failed: {ex.Message}", "error");
         }
     }
 

@@ -63,6 +63,7 @@ fun RealmScreen(
     val realmEnded by viewModel.realmEnded.collectAsState()
     val eliminated by viewModel.eliminated.collectAsState()
     val realmStarted by viewModel.realmStarted.collectAsState()
+    val bindRequest by viewModel.bindRequest.collectAsState()
 
     // Keep screen on only while in the realm (active workout)
     val activity = LocalContext.current as? Activity
@@ -93,6 +94,16 @@ fun RealmScreen(
                 viewModel.disconnect()
                 onDisconnected()
             }
+        )
+        return
+    }
+
+    // Show bind request overlay when a dashboard requests binding
+    if (bindRequest != null) {
+        BindRequestScreen(
+            code = bindRequest!!.code,
+            onApprove = { viewModel.respondBind(true) },
+            onDecline = { viewModel.respondBind(false) }
         )
         return
     }
@@ -695,6 +706,83 @@ private fun EliminatedScreen(
                     )
                 ) {
                     Text(text = "LEAVE", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BindRequestScreen(
+    code: String,
+    onApprove: () -> Unit,
+    onDecline: () -> Unit
+) {
+    val listState = rememberScalingLazyListState()
+
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    ) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Text(
+                    text = "BIND REQUEST",
+                    color = PulseColors.Cyan,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            item {
+                Text(
+                    text = code,
+                    color = Color.White,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center,
+                    letterSpacing = 8.sp
+                )
+            }
+
+            item {
+                Text(
+                    text = "Confirm on dashboard",
+                    color = Color.White.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            item {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = onApprove,
+                        modifier = Modifier.size(width = 70.dp, height = 40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = PulseColors.Green
+                        )
+                    ) {
+                        Text(text = "YES", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = onDecline,
+                        modifier = Modifier.size(width = 70.dp, height = 40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = PulseColors.BrightRed
+                        )
+                    ) {
+                        Text(text = "NO", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

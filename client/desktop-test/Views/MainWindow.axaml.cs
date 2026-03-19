@@ -1,16 +1,15 @@
 using System;
-using System.Collections.Specialized;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using PulseRealm.DesktopTest.ViewModels;
 
 namespace PulseRealm.DesktopTest.Views;
 
 public partial class MainWindow : Window
 {
+    private ControlsWindow? _controlsWindow;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -34,32 +33,24 @@ public partial class MainWindow : Window
             }
         }, RoutingStrategies.Tunnel);
 
-        // Start discovery when the window is loaded
         Loaded += async (_, _) =>
         {
             if (DataContext is MainViewModel vm)
             {
-                // Auto-scroll log to bottom
-                vm.LogEntries.CollectionChanged += (_, _) =>
+                // Open the controls window — not owned, so it can be positioned independently
+                _controlsWindow = new ControlsWindow
                 {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        try
-                        {
-                            var logList = this.FindControl<ListBox>("LogList");
-                            if (logList is not null && logList.ItemCount > 0)
-                                logList.ScrollIntoView(logList.Items[logList.ItemCount - 1]!);
-                        }
-                        catch (Exception ex)
-                        {
-                            if (DataContext is MainViewModel vm2)
-                                vm2.AddLog($"Auto-scroll failed: {ex.Message}", "WARN");
-                        }
-                    }, DispatcherPriority.Background);
+                    DataContext = DataContext,
                 };
+                _controlsWindow.Show();
 
                 await vm.StartDiscoveryAsync();
             }
+        };
+
+        Closing += (_, _) =>
+        {
+            _controlsWindow?.Close();
         };
     }
 }

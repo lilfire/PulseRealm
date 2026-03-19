@@ -4,6 +4,7 @@ import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { StaticStreetViewMode } from "./StaticStreetViewMode";
+import { BindControlsHud } from "./BindControlsHud";
 
 interface Props {
   clients: string[];
@@ -12,6 +13,11 @@ interface Props {
   startLocation: StreetViewLocation;
   onEnd: (totalDistanceMeters: number) => void;
   role?: RealmRole;
+  boundClientId?: string | null;
+  clientInclines?: Record<string, number>;
+  onSetIncline?: (clientId: string, percent: number) => void;
+  clientSpeedOverrides?: Record<string, number>;
+  onSetSpeedOverride?: (clientId: string, speedKmh: number) => void;
 }
 
 /**
@@ -58,7 +64,7 @@ const arrowBtnStyle: React.CSSProperties = {
 
 const PRELOAD_COUNT = 3;
 
-export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd, role = "host" }: Props) {
+export function StreetViewMode({ clients, clientProfiles, latestData, startLocation, onEnd, role = "host", boundClientId, clientInclines, onSetIncline, clientSpeedOverrides, onSetSpeedOverride }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
 
   // Two containers — one visible, one hidden preloading the next pano
@@ -693,6 +699,15 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         <div />
       </div>
     </div>
+    {boundClientId && (
+      <BindControlsHud
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={onSetIncline}
+        clientSpeedOverrides={clientSpeedOverrides}
+        onSetSpeedOverride={onSetSpeedOverride}
+      />
+    )}
     </>
   );
 }

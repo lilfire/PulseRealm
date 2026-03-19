@@ -36,6 +36,10 @@ data class ClientSummaryData(
     val teamColor: String? = null
 )
 
+data class BindRequestData(
+    val code: String
+)
+
 data class RealmSummaryData(
     val durationSeconds: Double = 0.0,
     val totalDistanceMeters: Double = 0.0,
@@ -81,6 +85,9 @@ class SignalRClient(
 
     private val _realmStarted = MutableStateFlow(false)
     val realmStarted: StateFlow<Boolean> = _realmStarted.asStateFlow()
+
+    private val _bindRequest = MutableStateFlow<BindRequestData?>(null)
+    val bindRequest: StateFlow<BindRequestData?> = _bindRequest.asStateFlow()
 
     suspend fun connect(serverUrl: String) = withContext(Dispatchers.IO) {
         intentionalDisconnect.set(true)
@@ -178,6 +185,14 @@ class SignalRClient(
                 )
             }, Any::class.java)
 
+            on("BindRequest", { code ->
+                _bindRequest.value = BindRequestData(code = code)
+            }, String::class.java)
+
+            on("BindCancelled", {
+                _bindRequest.value = null
+            })
+
             on("YouWereKicked", {
                 _error.value = "You were kicked from the realm"
                 _connectionState.value = ConnectionState.DISCONNECTED
@@ -232,6 +247,11 @@ class SignalRClient(
         }
     }
 
+    fun respondBind(realmId: String, approved: Boolean) {
+        _bindRequest.value = null
+        hubConnection?.send("RespondBind", realmId, approved)
+    }
+
     fun sendWearableData(realmId: String, data: WearableData) {
         if (hubConnection?.connectionState != HubConnectionState.CONNECTED) return
 
@@ -283,6 +303,7 @@ class SignalRClient(
         _realmEnded.value = null
         _eliminated.value = false
         _realmStarted.value = false
+        _bindRequest.value = null
     }
 
     /**

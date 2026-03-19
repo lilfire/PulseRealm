@@ -93,11 +93,14 @@ interface Props {
   onEnd: (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
   onEliminate?: (clientId: string) => void;
   role?: RealmRole;
+  boundClientId?: string | null;
+  clientInclines?: Record<string, number>;
+  onSetIncline?: (clientId: string, percent: number) => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function CompetitionMode({ clients, clientProfiles, latestData, config, onEnd, onEliminate, role = "host" }: Props) {
+export function CompetitionMode({ clients, clientProfiles, latestData, config, onEnd, onEliminate, role = "host", boundClientId, clientInclines, onSetIncline }: Props) {
   const trackersRef = useRef<Record<string, ClientTracker>>({});
   const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
@@ -1003,6 +1006,27 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                       {Math.round(entry.calories)}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text)" }}>kcal</div>
+                  </div>
+                )}
+
+                {/* Incline indicator */}
+                {clientInclines && entry.id in clientInclines && (
+                  <div style={{ textAlign: "right", minWidth: 60 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--mono)", color: "#f59e0b" }}>
+                      {clientInclines[entry.id]}%
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text)" }}>incline</div>
+                    {boundClientId === entry.id && onSetIncline && (
+                      <input
+                        type="range"
+                        min={0}
+                        max={15}
+                        step={0.5}
+                        value={clientInclines[entry.id]}
+                        onChange={(e) => onSetIncline(entry.id, parseFloat(e.target.value))}
+                        style={{ width: 60, accentColor: "#f59e0b", marginTop: 4 }}
+                      />
+                    )}
                   </div>
                 )}
 

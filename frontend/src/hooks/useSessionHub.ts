@@ -18,6 +18,7 @@ export interface ClientSummary {
   timeInZone: Record<string, number>;
   averageSpeedKmh: number;
   peakSpeedKmh: number;
+  elevationGainMeters?: number;
   teamName?: string;
   teamColor?: string;
 }
@@ -36,6 +37,7 @@ export interface RealmSummary {
   activePeriodSeconds: number;
   participantCount: number;
   isTeamFormat?: boolean;
+  elevationGainMeters?: number;
   clientSummaries?: ClientSummary[];
 }
 
@@ -54,6 +56,15 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
   const [disconnectedClients, setDisconnectedClients] = useState<Set<string>>(new Set());
   const [lobbySettings, setLobbySettings] = useState<Record<string, unknown> | null>(null);
 
+  // Binding state
+  const [boundClientId, setBoundClientId] = useState<string | null>(null);
+  const [bindCode, setBindCode] = useState<string | null>(null);
+  const [bindPending, setBindPending] = useState(false);
+  const [bindResult, setBindResult] = useState<"approved" | "declined" | null>(null);
+  const [clientBindings, setClientBindings] = useState<Record<string, boolean>>({});
+  const [clientInclines, setClientInclines] = useState<Record<string, number>>({});
+  const [clientSpeedOverrides, setClientSpeedOverrides] = useState<Record<string, number>>({});
+
   const resolvedUrl = hubUrl || DEFAULT_HUB_URL;
 
   useEffect(() => {
@@ -70,6 +81,12 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     setRealmConfig(null);
     setDisconnectedClients(new Set());
     setLobbySettings(null);
+    setBoundClientId(null);
+    setBindCode(null);
+    setBindPending(false);
+    setBindResult(null);
+    setClientBindings({});
+    setClientInclines({});
 
     if (!realmId || !resolvedUrl) return;
 
@@ -144,7 +161,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
       setEnded(true);
     });
 
-    connection.on("JoinedRealm", (state: { status?: string; connectedClientIds?: string[]; clientProfiles?: Record<string, ClientProfile>; config?: string }) => {
+    connection.on("JoinedRealm", (state: { status?: string; connectedClientIds?: string[]; clientProfiles?: Record<string, ClientProfile>; config?: string; clientBindings?: string[]; clientInclines?: Record<string, number>; clientSpeedOverrides?: Record<string, number> }) => {
       // Hydrate state for late-joining viewers
       if (state.connectedClientIds?.length) {
         setClients(state.connectedClientIds);
@@ -158,10 +175,56 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
       if (state.config) {
         try { setRealmConfig(JSON.parse(state.config)); } catch { /* ignore */ }
       }
+      if (state.clientBindings?.length) {
+        const bindings: Record<string, boolean> = {};
+        for (const cid of state.clientBindings) bindings[cid] = true;
+        setClientBindings(bindings);
+      }
+      if (state.clientInclines && Object.keys(state.clientInclines).length > 0) {
+        setClientInclines(state.clientInclines);
+      }
+      if (state.clientSpeedOverrides && Object.keys(state.clientSpeedOverrides).length > 0) {
+        setClientSpeedOverrides(state.clientSpeedOverrides);
+      }
     });
 
     connection.on("LobbySettingsUpdated", (settingsJson: string) => {
       try { setLobbySettings(JSON.parse(settingsJson)); } catch { /* ignore */ }
+    });
+
+    connection.on("BindCodeGenerated", (code: string, _clientId: string) => {
+      setBindCode(code);
+      setBindPending(true);
+      setBindResult(null);
+    });
+
+    connection.on("BindResponse", (clientId: string, approved: boolean) => {
+      setBindPending(false);
+      if (approved) {
+        setBoundClientId(clientId);
+        setBindResult("approved");
+      } else {
+        setBindResult("declined");
+      }
+      // Auto-clear bind code after a short delay
+      setTimeout(() => { setBindCode(null); setBindResult(null); }, approved ? 1000 : 2000);
+    });
+
+    connection.on("ClientBound", (clientId: string) => {
+      setClientBindings((prev) => ({ ...prev, [clientId]: true }));
+    });
+
+    connection.on("InclineChanged", (clientId: string, inclinePercent: number) => {
+      setClientInclines((prev) => ({ ...prev, [clientId]: inclinePercent }));
+    });
+
+    connection.on("SpeedOverrideChanged", (clientId: string, speedKmh: number) => {
+      setClientSpeedOverrides((prev) => {
+        if (speedKmh > 0) return { ...prev, [clientId]: speedKmh };
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
     });
 
     let active = true;
@@ -207,5 +270,26 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     connectionRef.current?.invoke("UpdateLobbySettings", realmId, JSON.stringify(settings));
   }, [realmId]);
 
-  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, lobbySettings, disconnectedClients, startRealm, endRealm, notifyEliminated, kickClient, updateLobbySettings };
+  const requestBind = useCallback((clientId: string) => {
+    setBindPending(true);
+    setBindResult(null);
+    connectionRef.current?.invoke("RequestBind", realmId, clientId);
+  }, [realmId]);
+
+  const cancelBind = useCallback((clientId: string) => {
+    setBindPending(false);
+    setBindCode(null);
+    setBindResult(null);
+    connectionRef.current?.invoke("CancelBind", realmId, clientId);
+  }, [realmId]);
+
+  const setIncline = useCallback((clientId: string, percent: number) => {
+    connectionRef.current?.invoke("SetIncline", realmId, clientId, percent);
+  }, [realmId]);
+
+  const setSpeedOverride = useCallback((clientId: string, speedKmh: number) => {
+    connectionRef.current?.invoke("SetSpeedOverride", realmId, clientId, speedKmh);
+  }, [realmId]);
+
+  return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, lobbySettings, disconnectedClients, startRealm, endRealm, notifyEliminated, kickClient, updateLobbySettings, boundClientId, bindCode, bindPending, bindResult, clientBindings, clientInclines, clientSpeedOverrides, requestBind, cancelBind, setIncline, setSpeedOverride };
 }

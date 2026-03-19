@@ -241,6 +241,9 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
             <StatCard label="Avg Speed" value={`${(summary.averageSpeedKmh ?? 0).toFixed(1)} km/h`} />
             <StatCard label="Avg Pace" value={formatPace(summary.averageSpeedKmh ?? 0)} />
             <StatCard label="Peak Speed" value={summary.peakSpeedKmh > 0 ? `${summary.peakSpeedKmh.toFixed(1)} km/h` : "—"} />
+            {(summary.elevationGainMeters ?? 0) > 0 && (
+              <StatCard label="Elevation Gain" value={`${summary.elevationGainMeters!.toFixed(1)} m`} />
+            )}
           </div>
           {activeZones.length > 0 && (
             <ZoneBar timeInZone={summary.timeInZone} height={32} />
@@ -419,7 +422,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)", position: "sticky", top: 0, background: "var(--code-bg)" }}>
-              {["Name", "Distance", "Steps", "Avg HR", "Peak HR", "Calories", "Cadence", "Avg Speed", "Peak Speed"].map((h) => (
+              {["Name", "Distance", "Steps", "Avg HR", "Peak HR", "Calories", "Cadence", "Avg Speed", "Peak Speed", "Elev."].map((h) => (
                 <th key={h} style={{
                   padding: "0.6rem 0.75rem",
                   textAlign: "left",
@@ -446,6 +449,7 @@ function CompactTableView({ summary, clients }: { summary: RealmSummary; clients
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.avgCadenceSpm > 0 ? `${cs.avgCadenceSpm}` : "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.averageSpeedKmh > 0 ? `${cs.averageSpeedKmh.toFixed(1)}` : "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{cs.peakSpeedKmh > 0 ? `${cs.peakSpeedKmh.toFixed(1)}` : "—"}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--mono)", color: "var(--text-h)" }}>{(cs.elevationGainMeters ?? 0) > 0 ? `${cs.elevationGainMeters!.toFixed(1)} m` : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -580,6 +584,9 @@ function ClientCard({ cs, showZones, showZoneBar }: { cs: ClientSummary; showZon
       <MiniStat label="Cadence" value={cs.avgCadenceSpm > 0 ? `${cs.avgCadenceSpm} spm` : "—"} />
       <MiniStat label="Avg Speed" value={cs.averageSpeedKmh > 0 ? `${cs.averageSpeedKmh.toFixed(1)} km/h` : "—"} />
       <MiniStat label="Peak Speed" value={cs.peakSpeedKmh > 0 ? `${cs.peakSpeedKmh.toFixed(1)} km/h` : "—"} />
+      {(cs.elevationGainMeters ?? 0) > 0 && (
+        <MiniStat label="Elevation Gain" value={`${cs.elevationGainMeters!.toFixed(1)} m`} />
+      )}
 
       {/* Zone bar (compact visual) */}
       {(showZoneBar || showZones) && hasZones && (

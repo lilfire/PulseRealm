@@ -25,6 +25,13 @@ interface Props {
   curatedVideos?: YouTubeVideo[] | null;
   lobbySettings?: Record<string, unknown> | null;
   onSettingsChange?: (settings: object) => void;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
 const CURATED_VIDEOS: YouTubeVideo[] = [
@@ -76,7 +83,7 @@ function parseYouTubeUrl(url: string): string | null {
   return null;
 }
 
-export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos, lobbySettings, onSettingsChange }: Props) {
+export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedVideos, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const [video, setVideo] = useState<YouTubeVideo | null>(null);
   const [inputUrl, setInputUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -288,6 +295,13 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
       onKick={onKick}
       role={role}
       hostSecret={hostSecret}
+      onRequestBind={onRequestBind}
+      onCancelBind={onCancelBind}
+      bindCode={bindCode}
+      bindPending={bindPending}
+      bindResult={bindResult}
+      boundClientId={boundClientId}
+      clientBindings={clientBindings}
     >
       {/* Hidden container for duration-fetching player */}
       <div ref={durationContainerRef} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }} />

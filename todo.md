@@ -9,11 +9,9 @@
 - [ ] thumbnail youtube/streetview/routes
 - [ ] autoclose dead realms
 - [ ] mer smoothing
-- [ ] sridelength i sosial trenger label og hva som ville vært normalen 
+- [ ] sridelength i sosial trenger label og hva som ville vært normalen  +/-
 - [ ] fullscreen i home og lobbies
-
-Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet 
-
+- [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
 
 ## BUGS
 

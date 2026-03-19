@@ -4,6 +4,7 @@ import type { RouteConfig } from "../lobbies/RouteLobby";
 import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
 import { useGoogleMaps } from "../../hooks/useGoogleMaps";
 import { StaticRouteMode } from "./StaticRouteMode";
+import { BindControlsHud } from "./BindControlsHud";
 
 interface Props {
   clients: string[];
@@ -12,6 +13,11 @@ interface Props {
   route: RouteConfig;
   onEnd: (totalDistanceMeters: number) => void;
   role?: RealmRole;
+  boundClientId?: string | null;
+  clientInclines?: Record<string, number>;
+  onSetIncline?: (clientId: string, percent: number) => void;
+  clientSpeedOverrides?: Record<string, number>;
+  onSetSpeedOverride?: (clientId: string, speedKmh: number) => void;
 }
 
 /** Extract a detailed path from all legs/steps of a directions result. */
@@ -32,7 +38,7 @@ function extractDetailedPath(result: google.maps.DirectionsResult): google.maps.
   return path;
 }
 
-export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, role = "host" }: Props) {
+export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, role = "host", boundClientId, clientInclines, onSetIncline, clientSpeedOverrides, onSetSpeedOverride }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -455,6 +461,15 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
           <div style={{ color: "#888" }}>No data yet</div>
         )}
       </div>
+      {boundClientId && (
+        <BindControlsHud
+          boundClientId={boundClientId}
+          clientInclines={clientInclines}
+          onSetIncline={onSetIncline}
+          clientSpeedOverrides={clientSpeedOverrides}
+          onSetSpeedOverride={onSetSpeedOverride}
+        />
+      )}
     </div>
   );
 }

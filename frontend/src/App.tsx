@@ -97,7 +97,7 @@ function App() {
     ? (import.meta.env.VITE_HUB_URL ?? `${PRESET_API_URL}/hubs/realm`)
     : server.hubUrl;
 
-  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, lobbySettings, startRealm, endRealm, notifyEliminated, kickClient, updateLobbySettings } = useRealmHub(
+  const { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, lobbySettings, startRealm, endRealm, notifyEliminated, kickClient, updateLobbySettings, boundClientId, bindCode, bindPending, bindResult, clientBindings, clientInclines, clientSpeedOverrides, requestBind, cancelBind, setIncline, setSpeedOverride } = useRealmHub(
     realm?.id ?? null,
     hubUrl,
     hostSecret ?? undefined
@@ -580,6 +580,13 @@ function App() {
       onKick: kickClient,
       lobbySettings,
       onSettingsChange: updateLobbySettings,
+      onRequestBind: requestBind,
+      onCancelBind: cancelBind,
+      bindCode,
+      bindPending,
+      bindResult,
+      boundClientId,
+      clientBindings,
     };
 
     if (realm.mode === "competition") {
@@ -673,6 +680,11 @@ function App() {
         video={effectiveYoutubeVideo}
         onEnd={isGuest ? noOpEnd : onEndSimple}
         role={role}
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={setIncline}
+        clientSpeedOverrides={clientSpeedOverrides}
+        onSetSpeedOverride={setSpeedOverride}
       />
     );
   }
@@ -686,6 +698,11 @@ function App() {
         startLocation={effectiveStreetViewLocation}
         onEnd={isGuest ? noOpEnd : onEndSimple}
         role={role}
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={setIncline}
+        clientSpeedOverrides={clientSpeedOverrides}
+        onSetSpeedOverride={setSpeedOverride}
       />
     );
   }
@@ -699,6 +716,11 @@ function App() {
         route={effectiveRouteConfig}
         onEnd={isGuest ? noOpEnd : onEndSimple}
         role={role}
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={setIncline}
+        clientSpeedOverrides={clientSpeedOverrides}
+        onSetSpeedOverride={setSpeedOverride}
       />
     );
   }
@@ -712,6 +734,9 @@ function App() {
         config={effectiveDungeonConfig}
         onEnd={isGuest ? noOpEnd : onEndWithOverrides}
         role={role}
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={setIncline}
       />
     );
   }
@@ -724,6 +749,11 @@ function App() {
         latestData={latestData}
         onEnd={isGuest ? noOpEnd : onEndWithOverrides}
         role={role}
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={setIncline}
+        clientSpeedOverrides={clientSpeedOverrides}
+        onSetSpeedOverride={setSpeedOverride}
       />
     );
   }
@@ -738,6 +768,9 @@ function App() {
         onEnd={isGuest ? noOpEnd : onEndWithOverrides}
         onEliminate={onEliminate}
         role={role}
+        boundClientId={boundClientId}
+        clientInclines={clientInclines}
+        onSetIncline={setIncline}
       />
     );
   }

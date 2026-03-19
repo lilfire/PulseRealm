@@ -28,6 +28,13 @@ interface Props {
   curatedLocations?: StreetViewLocation[] | null;
   lobbySettings?: Record<string, unknown> | null;
   onSettingsChange?: (settings: object) => void;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
 interface Suggestion {
@@ -78,7 +85,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations, lobbySettings, onSettingsChange }: Props) {
+export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, curatedLocations, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const proxy = usePlacesProxy();
   const [location, setLocation] = useState<StreetViewLocation | null>(null);
@@ -213,6 +220,13 @@ export function StreetViewLobby({ joinCode, mode, clients, clientProfiles, conne
       onKick={onKick}
       role={role}
       hostSecret={hostSecret}
+      onRequestBind={onRequestBind}
+      onCancelBind={onCancelBind}
+      bindCode={bindCode}
+      bindPending={bindPending}
+      bindResult={bindResult}
+      boundClientId={boundClientId}
+      clientBindings={clientBindings}
     >
       <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingTop: "1.5rem", textAlign: "left" }}>
         <div style={{ maxWidth: "420px", flexShrink: 0 }}>

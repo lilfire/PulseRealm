@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
+import com.pulserealm.client.data.network.BindRequestData
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.RealmSummaryData
 import com.pulserealm.client.data.network.SignalRClient
@@ -42,6 +43,7 @@ class RealmViewModel @Inject constructor(
     val realmEnded: StateFlow<RealmSummaryData?> = signalRClient.realmEnded
     val eliminated: StateFlow<Boolean> = signalRClient.eliminated
     val realmStarted: StateFlow<Boolean> = signalRClient.realmStarted
+    val bindRequest: StateFlow<BindRequestData?> = signalRClient.bindRequest
 
     private var isStreaming = false
 
@@ -78,6 +80,10 @@ class RealmViewModel @Inject constructor(
             }
             application.startActivity(intent)
         }
+    }
+
+    fun respondBind(approved: Boolean) {
+        signalRClient.respondBind(realmId, approved)
     }
 
     fun stopStreaming() {

@@ -26,6 +26,13 @@ interface Props {
   defaults?: CompetitionDefaults | null;
   lobbySettings?: Record<string, unknown> | null;
   onSettingsChange?: (settings: object) => void;
+  onRequestBind?: (clientId: string) => void;
+  onCancelBind?: (clientId: string) => void;
+  bindCode?: string | null;
+  bindPending?: boolean;
+  bindResult?: "approved" | "declined" | null;
+  boundClientId?: string | null;
+  clientBindings?: Record<string, boolean>;
 }
 
 const SUB_MODES: { value: CompetitionSubMode; label: string; desc: string }[] = [
@@ -52,7 +59,7 @@ const btnStyle = (selected: boolean) => ({
   fontWeight: selected ? 600 : 400,
 });
 
-export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange }: Props) {
+export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const validSubModes: CompetitionSubMode[] = ["race", "elimination", "heartzone", "king"];
   const validFormats: PlayerFormat[] = ["individual", "team"];
   const [subMode, setSubMode] = useState<CompetitionSubMode>(
@@ -152,6 +159,13 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
       role={role}
       hostSecret={hostSecret}
       minPlayers={minRequired(subMode)}
+      onRequestBind={onRequestBind}
+      onCancelBind={onCancelBind}
+      bindCode={bindCode}
+      bindPending={bindPending}
+      bindResult={bindResult}
+      boundClientId={boundClientId}
+      clientBindings={clientBindings}
     >
       {/* Sub-mode selector */}
       <div style={{ margin: "0.25rem 0" }}>
