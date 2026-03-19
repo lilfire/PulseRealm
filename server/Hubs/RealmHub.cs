@@ -32,8 +32,8 @@ public class RealmHub : Hub
     /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
     private const double StrideFactor = 0.415;
 
-    /// <summary>EMA smoothing factor (higher = more responsive, noisier). At ~5 msg/sec reaches 90% of true speed in ~1.4s.</summary>
-    private const double EmaAlpha = 0.3;
+    /// <summary>EMA smoothing factor (higher = more responsive, noisier).</summary>
+    private const double EmaAlpha = 0.15;
     /// <summary>Seconds after last step before speed starts decaying.</summary>
     private const double IdleGraceSec = 3.0;
     /// <summary>Seconds for linear decay from grace end to zero speed.</summary>
@@ -303,7 +303,7 @@ public class RealmHub : Hub
             var instantaneous = distanceM / timeDelta * 3.6;
 
             // Pre-clamp outliers before EMA to prevent single burst from spiking
-            var maxChange = Math.Max(3.0, previous.SmoothedSpeed * 0.5);
+            var maxChange = Math.Max(2.0, previous.SmoothedSpeed * 0.3);
             var clamped = Math.Clamp(instantaneous, previous.SmoothedSpeed - maxChange, previous.SmoothedSpeed + maxChange);
 
             // Apply EMA
