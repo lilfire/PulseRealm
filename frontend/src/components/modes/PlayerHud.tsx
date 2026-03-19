@@ -1,5 +1,5 @@
 import type { ClientProfile, WearableData } from "../../types/session";
-import { getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace, STRIDE_FACTOR, getStrideFactor } from "../../utils/wearable";
 
 interface Props {
   name: string;
@@ -43,6 +43,15 @@ export function PlayerHud({ name, latestData, profile, caloriesDisplay, totalDis
   const dist = typeof totalDistanceDisplay === "number"
     ? `${totalDistanceDisplay.toFixed(0)} m`
     : `${totalDistanceDisplay} m`;
+
+  const strideCm = profile?.heightCm
+    ? profile.heightCm * getStrideFactor(profile) * 100
+    : null;
+  const isCalibrated = profile?.strideFactor != null && profile.strideFactor > 0
+    && profile.strideFactor !== 0.415;
+  const strideDiffCm = isCalibrated && profile?.heightCm
+    ? strideCm! - profile.heightCm * STRIDE_FACTOR * 100
+    : null;
 
   return (
     <>
@@ -90,6 +99,19 @@ export function PlayerHud({ name, latestData, profile, caloriesDisplay, totalDis
           <span style={labelStyle}>Distance</span>
           <span style={{ ...valueStyle, fontSize: "0.95rem", color: "#aaa" }}>{dist}</span>
         </div>
+        {strideCm != null && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>Stride</span>
+            <span style={{ ...valueStyle, fontSize: "0.95rem" }}>
+              {strideCm.toFixed(0)} <span style={{ fontWeight: 400, color: "#aaa" }}>cm</span>
+              {strideDiffCm != null && (
+                <span style={{ fontSize: "0.75rem", color: strideDiffCm >= 0 ? "#33DFFF" : "#FF5C75", marginLeft: 4 }}>
+                  {strideDiffCm >= 0 ? "+" : ""}{strideDiffCm.toFixed(1)}
+                </span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </>
   );

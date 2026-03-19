@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 interface HrZone {
@@ -577,6 +577,29 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 </span>
                 <span style={{ fontSize: 14, color: "var(--text)" }}>incline</span>
               </div>
+
+              {/* Stride length */}
+              {profile?.heightCm && (() => {
+                const strideCm = profile.heightCm * getStrideFactor(profile) * 100;
+                const isCalibrated = profile.strideFactor != null && profile.strideFactor > 0 && profile.strideFactor !== 0.415;
+                const diffCm = isCalibrated ? strideCm - profile.heightCm * STRIDE_FACTOR * 100 : null;
+                return (
+                  <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
+                    <span style={{
+                      fontSize: 20, fontWeight: 600, fontFamily: "var(--mono)",
+                      color: "var(--text-h)",
+                    }}>
+                      {strideCm.toFixed(0)}
+                    </span>
+                    <span style={{ fontSize: 14, color: "var(--text)" }}>cm stride</span>
+                    {diffCm != null && (
+                      <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--mono)", color: diffCm >= 0 ? "#33DFFF" : "#FF5C75", marginLeft: 4 }}>
+                        {diffCm >= 0 ? "+" : ""}{diffCm.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

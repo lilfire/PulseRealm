@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -1214,6 +1214,23 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
                   {incline}% incline
                 </div>
               )}
+              {(() => {
+                const p = clientProfiles[cs.clientId];
+                if (!p?.heightCm) return null;
+                const strideCm = p.heightCm * getStrideFactor(p) * 100;
+                const cal = p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415;
+                const diff = cal ? strideCm - p.heightCm * STRIDE_FACTOR * 100 : null;
+                return (
+                  <div style={{ fontSize: "0.7rem", color: "#aaa", marginTop: "0.15rem" }}>
+                    {strideCm.toFixed(0)} cm stride
+                    {diff != null && (
+                      <span style={{ color: diff >= 0 ? "#33DFFF" : "#FF5C75", marginLeft: 3 }}>
+                        {diff >= 0 ? "+" : ""}{diff.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

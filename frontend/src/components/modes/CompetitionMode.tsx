@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -1037,6 +1037,28 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                     <div style={{ fontSize: 11, color: "var(--text)" }}>incline</div>
                   </div>
                 )}
+
+                {/* Stride length */}
+                {(() => {
+                  const p = clientProfiles[entry.id];
+                  if (!p?.heightCm) return null;
+                  const strideCm = p.heightCm * getStrideFactor(p) * 100;
+                  const cal = p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415;
+                  const diff = cal ? strideCm - p.heightCm * STRIDE_FACTOR * 100 : null;
+                  return (
+                    <div style={{ textAlign: "right", minWidth: 60 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+                        {strideCm.toFixed(0)} cm
+                        {diff != null && (
+                          <span style={{ color: diff >= 0 ? "#33DFFF" : "#FF5C75", marginLeft: 3 }}>
+                            {diff >= 0 ? "+" : ""}{diff.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text)" }}>stride</div>
+                    </div>
+                  );
+                })()}
 
                 {/* Race: progress bar */}
                 {config.subMode === "race" && (
