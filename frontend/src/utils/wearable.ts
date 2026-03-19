@@ -30,25 +30,36 @@ export const CADENCE_WINDOW_MS = 10_000;
 /** Timeout (ms) before a client is considered idle. */
 export const IDLE_TIMEOUT_MS = 10_000;
 
+/** Default zone boundary percentages (transitions between zones 1→2, 2→3, 3→4, 4→5). */
+export const DEFAULT_ZONE_BOUNDS = [0.57, 0.63, 0.76, 0.89];
+
 /** HR zone boundary percentages of MAX_HR: [zone1Low, zone2Low, zone3Low, zone4Low, zone5Low, cap]. */
-export const ZONE_BOUNDS = [0, 0.57, 0.63, 0.76, 0.89, 1.0];
+export const ZONE_BOUNDS = [0, ...DEFAULT_ZONE_BOUNDS, 1.0];
 
 /** Color for each zone (index 0 = Zone 1). */
 export const ZONE_COLORS = ["#2dd4bf", "#22c55e", "#f59e0b", "#f87171", "#ef4444"];
 
+/** Returns the max HR for a profile, using maxHr override if set, otherwise age-based formula. */
+export function getMaxHrForProfile(profile?: ClientProfile | null): number {
+  if (profile?.maxHr && profile.maxHr > 0) return profile.maxHr;
+  return getMaxHrForAge(profile?.age);
+}
+
 /** Returns the HR zone number (1–5) for the given heart rate. */
-export function getZoneForHr(hr: number, maxHr = MAX_HR): number {
+export function getZoneForHr(hr: number, maxHr = MAX_HR, bounds?: number[]): number {
   const pct = hr / maxHr;
-  if (pct < 0.57) return 1;
-  if (pct < 0.63) return 2;
-  if (pct < 0.76) return 3;
-  if (pct < 0.89) return 4;
+  const b = bounds ?? DEFAULT_ZONE_BOUNDS;
+  if (pct < b[0]) return 1;
+  if (pct < b[1]) return 2;
+  if (pct < b[2]) return 3;
+  if (pct < b[3]) return 4;
   return 5;
 }
 
 /** Returns the BPM range [low, high] for a given zone number. */
-export function getZoneBpmRange(zone: number, maxHr = MAX_HR): [number, number] {
-  return [Math.round(ZONE_BOUNDS[zone - 1] * maxHr), Math.round(ZONE_BOUNDS[zone] * maxHr)];
+export function getZoneBpmRange(zone: number, maxHr = MAX_HR, bounds?: number[]): [number, number] {
+  const b = [0, ...(bounds ?? DEFAULT_ZONE_BOUNDS), 1.0];
+  return [Math.round(b[zone - 1] * maxHr), Math.round(b[zone] * maxHr)];
 }
 
 /**

@@ -54,6 +54,8 @@ export interface ClientProfile {
   heightCm: number;
   weightKg: number;
   strideFactor?: number;
+  zoneBounds?: number[];
+  maxHr?: number;
 }
 
 export interface WearableData {

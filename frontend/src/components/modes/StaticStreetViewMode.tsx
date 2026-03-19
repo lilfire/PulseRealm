@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
-import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForProfile, ZONE_COLORS, formatPace } from "../../utils/wearable";
 import {
   moveAlongHeading,
   streetViewImageUrl,
@@ -313,8 +313,8 @@ export function StaticStreetViewMode({
             <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
               <span>{latestData.heartRate} bpm</span>
               {latestData.heartRate > 0 && (() => {
-                const maxHr = getMaxHrForAge(profile?.age);
-                const zone = getZoneForHr(latestData.heartRate, maxHr);
+                const maxHr = getMaxHrForProfile(profile);
+                const zone = getZoneForHr(latestData.heartRate, maxHr, profile?.zoneBounds);
                 return (
                   <span style={{
                     background: ZONE_COLORS[zone - 1],

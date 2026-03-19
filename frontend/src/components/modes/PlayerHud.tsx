@@ -1,5 +1,5 @@
 import type { ClientProfile, WearableData } from "../../types/session";
-import { getZoneForHr, getMaxHrForAge, ZONE_COLORS, formatPace, STRIDE_FACTOR, getStrideFactor } from "../../utils/wearable";
+import { getZoneForHr, getMaxHrForProfile, ZONE_COLORS, formatPace, STRIDE_FACTOR, getStrideFactor } from "../../utils/wearable";
 
 interface Props {
   name: string;
@@ -38,8 +38,8 @@ export function PlayerHud({ name, latestData, profile, caloriesDisplay, totalDis
     );
   }
 
-  const maxHr = getMaxHrForAge(profile?.age);
-  const zone = latestData.heartRate > 0 ? getZoneForHr(latestData.heartRate, maxHr) : null;
+  const maxHr = getMaxHrForProfile(profile);
+  const zone = latestData.heartRate > 0 ? getZoneForHr(latestData.heartRate, maxHr, profile?.zoneBounds) : null;
   const dist = typeof totalDistanceDisplay === "number"
     ? `${totalDistanceDisplay.toFixed(0)} m`
     : `${totalDistanceDisplay} m`;

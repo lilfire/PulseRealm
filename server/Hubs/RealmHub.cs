@@ -108,6 +108,26 @@ public class RealmHub : Hub
                 throw new HubException("Weight must be between 10 and 500 kg.");
             if (profile.StrideFactor is < 0.3 or > 0.6)
                 profile.StrideFactor = StrideFactor;
+
+            // Validate zone bounds: must be 4 elements, each 0.01–0.99, strictly increasing
+            if (profile.ZoneBounds is { Length: 4 } zb)
+            {
+                var valid = true;
+                for (var i = 0; i < 4; i++)
+                {
+                    if (zb[i] is < 0.01 or > 0.99) { valid = false; break; }
+                    if (i > 0 && zb[i] <= zb[i - 1]) { valid = false; break; }
+                }
+                if (!valid) profile.ZoneBounds = null;
+            }
+            else if (profile.ZoneBounds is not null)
+            {
+                profile.ZoneBounds = null;
+            }
+
+            // Validate max HR override: must be 100–250
+            if (profile.MaxHr is not (>= 100 and <= 250))
+                profile.MaxHr = 0;
         }
 
         var realm = _realmManager.GetByJoinCode(joinCode);

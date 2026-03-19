@@ -68,6 +68,8 @@ class SignalRClient(
     @Volatile private var currentHeightCm: Double = 0.0
     @Volatile private var currentWeightKg: Double = 0.0
     @Volatile private var currentStrideFactor: Double = 0.0
+    @Volatile private var currentZoneBounds: DoubleArray? = null
+    @Volatile private var currentMaxHr: Int = 0
     private val intentionalDisconnect = AtomicBoolean(false)
     private var reconnectJob: Job? = null
 
@@ -214,7 +216,7 @@ class SignalRClient(
         }
     }
 
-    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0, strideFactor: Double = 0.0) = withContext(Dispatchers.IO) {
+    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0, strideFactor: Double = 0.0, zoneBounds: DoubleArray? = null, maxHr: Int = 0) = withContext(Dispatchers.IO) {
         currentJoinCode = joinCode
         currentClientId = clientId
         currentName = name
@@ -222,16 +224,21 @@ class SignalRClient(
         currentHeightCm = heightCm
         currentWeightKg = weightKg
         currentStrideFactor = strideFactor
+        currentZoneBounds = zoneBounds
+        currentMaxHr = maxHr
 
         val hasProfile = name.isNotBlank() && age > 0 && heightCm > 0.0 && weightKg > 0.0
-        val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
+        val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf<String, Any>(
             "clientId" to clientId,
             "name" to name,
             "age" to age,
             "heightCm" to heightCm,
             "weightKg" to weightKg,
             "strideFactor" to strideFactor
-        ) else null
+        ).also {
+            if (zoneBounds != null) it["zoneBounds"] = zoneBounds.toList()
+            if (maxHr > 0) it["maxHr"] = maxHr
+        } else null
 
         try {
             hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
@@ -349,14 +356,17 @@ class SignalRClient(
 
                     // Re-join the realm
                     val hasProfile = currentName.isNotBlank() && currentAge > 0 && currentHeightCm > 0.0 && currentWeightKg > 0.0
-                    val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf(
+                    val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf<String, Any>(
                         "clientId" to clientId,
                         "name" to currentName,
                         "age" to currentAge,
                         "heightCm" to currentHeightCm,
                         "weightKg" to currentWeightKg,
                         "strideFactor" to currentStrideFactor
-                    ) else null
+                    ).also {
+                        if (currentZoneBounds != null) it["zoneBounds"] = currentZoneBounds!!.toList()
+                        if (currentMaxHr > 0) it["maxHr"] = currentMaxHr
+                    } else null
                     hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
                     return@launch
                 } catch (_: Exception) {

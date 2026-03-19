@@ -108,6 +108,37 @@
                        IsEnabled="{Binding !IsConnected}" />
             </StackPanel>
           </StackPanel>
+
+          <!-- Row 3: HR Zone config -->
+          <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+            <TextBlock Text="HR Zones (%):" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="1→2:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+              <TextBox Text="{Binding Zone12}" Width="40" FontSize="12" VerticalAlignment="Center"
+                       IsEnabled="{Binding !IsConnected}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="2→3:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+              <TextBox Text="{Binding Zone23}" Width="40" FontSize="12" VerticalAlignment="Center"
+                       IsEnabled="{Binding !IsConnected}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="3→4:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+              <TextBox Text="{Binding Zone34}" Width="40" FontSize="12" VerticalAlignment="Center"
+                       IsEnabled="{Binding !IsConnected}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="4→5:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+              <TextBox Text="{Binding Zone45}" Width="40" FontSize="12" VerticalAlignment="Center"
+                       IsEnabled="{Binding !IsConnected}" />
+            </StackPanel>
+            <TextBlock Text="·" Foreground="#334155" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="Max HR:" FontSize="12" Foreground="#64748b" VerticalAlignment="Center" />
+              <TextBox Text="{Binding MaxHrOverride}" Width="45" FontSize="12" VerticalAlignment="Center"
+                       IsEnabled="{Binding !IsConnected}" Watermark="auto" />
+            </StackPanel>
+          </StackPanel>
         </StackPanel>
       </Border>
 

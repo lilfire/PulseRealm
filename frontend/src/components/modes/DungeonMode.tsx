@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { DungeonConfig, DungeonDifficulty } from "../lobbies/DungeonLobby";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, getZoneForHr, getMaxHrForAge, getMaxHrForProfile, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -284,7 +284,7 @@ const ENEMY_REGEN_DELAY_MS = 5000;
 const ENEMY_REGEN_PER_TICK = 5; // 10 HP/sec at 500ms ticks
 /** Returns the lowest max HR across all clients in the dungeon (conservative for group challenges). */
 function getDungeonMaxHr(clients: string[], clientProfiles: Record<string, import("../../types/session").ClientProfile>): number {
-  const maxHrs = clients.map((cid) => getMaxHrForAge(clientProfiles[cid]?.age));
+  const maxHrs = clients.map((cid) => getMaxHrForProfile(clientProfiles[cid]));
   return maxHrs.length > 0 ? Math.min(...maxHrs) : getMaxHrForAge(undefined);
 }
 
@@ -532,7 +532,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       t.hrSum += latestData.heartRate;
       t.hrCount++;
       t.maxHr = Math.max(t.maxHr, latestData.heartRate);
-      const zone = getZoneForHr(latestData.heartRate);
+      const zone = getZoneForHr(latestData.heartRate, getMaxHrForProfile(clientProfiles[latestData.clientId]), clientProfiles[latestData.clientId]?.zoneBounds);
       t.timeInZone[zone] = (t.timeInZone[zone] ?? 0) + 1;
     }
 

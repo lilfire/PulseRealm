@@ -25,6 +25,11 @@ data class JoinUiState(
     val age: String = "",
     val heightCm: String = "",
     val weightKg: String = "",
+    val zone12: String = "57",
+    val zone23: String = "63",
+    val zone34: String = "76",
+    val zone45: String = "89",
+    val maxHrOverride: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val realmInfo: RealmInfo? = null,
@@ -47,6 +52,11 @@ class JoinViewModel @Inject constructor(
         private const val PREF_CLIENT_ID = "client_id"
         private const val PREF_SERVER_URL = "cached_server_url"
         private const val PREF_STRIDE_FACTOR = "stride_factor"
+        private const val PREF_ZONE_1_2 = "zone_1_2"
+        private const val PREF_ZONE_2_3 = "zone_2_3"
+        private const val PREF_ZONE_3_4 = "zone_3_4"
+        private const val PREF_ZONE_4_5 = "zone_4_5"
+        private const val PREF_MAX_HR = "max_hr"
     }
 
     private val _uiState = MutableStateFlow(JoinUiState())
@@ -55,6 +65,11 @@ class JoinViewModel @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
 
     private val strideFactor: Double = prefs.getFloat(PREF_STRIDE_FACTOR, 0f).toDouble()
+    private val zone12: Int get() = prefs.getInt(PREF_ZONE_1_2, 57)
+    private val zone23: Int get() = prefs.getInt(PREF_ZONE_2_3, 63)
+    private val zone34: Int get() = prefs.getInt(PREF_ZONE_3_4, 76)
+    private val zone45: Int get() = prefs.getInt(PREF_ZONE_4_5, 89)
+    private val maxHrOverride: Int get() = prefs.getInt(PREF_MAX_HR, 0)
 
     // Cached Retrofit instance, rebuilt only when base URL changes
     private var cachedRetrofit: Retrofit? = null
@@ -82,6 +97,12 @@ class JoinViewModel @Inject constructor(
         val savedHeight = prefs.getString(PREF_HEIGHT_CM, "") ?: ""
         val savedWeight = prefs.getString(PREF_WEIGHT_KG, "") ?: ""
 
+        val savedZone12 = prefs.getInt(PREF_ZONE_1_2, 57).toString()
+        val savedZone23 = prefs.getInt(PREF_ZONE_2_3, 63).toString()
+        val savedZone34 = prefs.getInt(PREF_ZONE_3_4, 76).toString()
+        val savedZone45 = prefs.getInt(PREF_ZONE_4_5, 89).toString()
+        val savedMaxHr = prefs.getInt(PREF_MAX_HR, 0).let { if (it > 0) it.toString() else "" }
+
         _uiState.value = JoinUiState(
             clientId = clientId,
             serverUrl = serverUrl,
@@ -89,6 +110,11 @@ class JoinViewModel @Inject constructor(
             age = savedAge,
             heightCm = savedHeight,
             weightKg = savedWeight,
+            zone12 = savedZone12,
+            zone23 = savedZone23,
+            zone34 = savedZone34,
+            zone45 = savedZone45,
+            maxHrOverride = savedMaxHr,
         )
     }
 
@@ -120,6 +146,36 @@ class JoinViewModel @Inject constructor(
         val filtered = weight.filter { it.isDigit() || it == '.' }
         _uiState.value = _uiState.value.copy(weightKg = filtered)
         prefs.edit().putString(PREF_WEIGHT_KG, filtered).apply()
+    }
+
+    fun updateZone12(value: String) {
+        val filtered = value.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(zone12 = filtered)
+        filtered.toIntOrNull()?.let { prefs.edit().putInt(PREF_ZONE_1_2, it).apply() }
+    }
+
+    fun updateZone23(value: String) {
+        val filtered = value.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(zone23 = filtered)
+        filtered.toIntOrNull()?.let { prefs.edit().putInt(PREF_ZONE_2_3, it).apply() }
+    }
+
+    fun updateZone34(value: String) {
+        val filtered = value.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(zone34 = filtered)
+        filtered.toIntOrNull()?.let { prefs.edit().putInt(PREF_ZONE_3_4, it).apply() }
+    }
+
+    fun updateZone45(value: String) {
+        val filtered = value.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(zone45 = filtered)
+        filtered.toIntOrNull()?.let { prefs.edit().putInt(PREF_ZONE_4_5, it).apply() }
+    }
+
+    fun updateMaxHrOverride(value: String) {
+        val filtered = value.filter { it.isDigit() }
+        _uiState.value = _uiState.value.copy(maxHrOverride = filtered)
+        prefs.edit().putInt(PREF_MAX_HR, filtered.toIntOrNull() ?: 0).apply()
     }
 
     private fun getRealmApi(baseUrl: String): RealmApi {
@@ -166,6 +222,7 @@ class JoinViewModel @Inject constructor(
                 signalRClient.clearError()
 
                 // 3. Join realm via SignalR with profile data
+                val zoneBounds = doubleArrayOf(zone12 / 100.0, zone23 / 100.0, zone34 / 100.0, zone45 / 100.0)
                 signalRClient.joinRealm(
                     state.joinCode,
                     state.clientId,
@@ -173,7 +230,9 @@ class JoinViewModel @Inject constructor(
                     state.age.toIntOrNull() ?: 0,
                     state.heightCm.toDoubleOrNull() ?: 0.0,
                     state.weightKg.toDoubleOrNull() ?: 0.0,
-                    strideFactor
+                    strideFactor,
+                    zoneBounds,
+                    maxHrOverride
                 )
 
                 // 4. Fetch realm info via REST to get the realmId

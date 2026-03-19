@@ -288,6 +288,71 @@ private fun SettingsPage(
             )
         }
 
+        // HR Zones section
+        item {
+            Text(
+                text = "HR Zones",
+                style = MaterialTheme.typography.title3,
+                color = PulseColors.Cyan,
+                textAlign = TextAlign.Center
+            )
+        }
+        item {
+            NumericStepperField(
+                label = "Zone 1→2 (%)",
+                value = uiState.zone12,
+                onValueChange = { viewModel.updateZone12(it) },
+                minValue = 20,
+                maxValue = 95,
+                defaultValue = 57,
+                unit = "%"
+            )
+        }
+        item {
+            NumericStepperField(
+                label = "Zone 2→3 (%)",
+                value = uiState.zone23,
+                onValueChange = { viewModel.updateZone23(it) },
+                minValue = 20,
+                maxValue = 95,
+                defaultValue = 63,
+                unit = "%"
+            )
+        }
+        item {
+            NumericStepperField(
+                label = "Zone 3→4 (%)",
+                value = uiState.zone34,
+                onValueChange = { viewModel.updateZone34(it) },
+                minValue = 20,
+                maxValue = 95,
+                defaultValue = 76,
+                unit = "%"
+            )
+        }
+        item {
+            NumericStepperField(
+                label = "Zone 4→5 (%)",
+                value = uiState.zone45,
+                onValueChange = { viewModel.updateZone45(it) },
+                minValue = 20,
+                maxValue = 95,
+                defaultValue = 89,
+                unit = "%"
+            )
+        }
+        item {
+            NumericStepperField(
+                label = "Max HR",
+                value = uiState.maxHrOverride,
+                onValueChange = { viewModel.updateMaxHrOverride(it) },
+                minValue = 100,
+                maxValue = 250,
+                defaultValue = 0,
+                unit = " bpm"
+            )
+        }
+
         // Server info + change
         item {
             Text(

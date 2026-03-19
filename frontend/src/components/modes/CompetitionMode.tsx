@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, getMaxHrForProfile, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -150,8 +150,11 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   // ── Helpers (declared before use) ─────────────────────────────────────────
 
   function getMaxHrForClient(clientId?: string): number {
-    const age = clientId ? clientProfiles[clientId]?.age : undefined;
-    return getMaxHrForAge(age);
+    return clientId ? getMaxHrForProfile(clientProfiles[clientId]) : getMaxHrForAge(undefined);
+  }
+
+  function getZoneBoundsForClient(clientId?: string): number[] | undefined {
+    return clientId ? clientProfiles[clientId]?.zoneBounds : undefined;
   }
 
   function getActiveEntities(trackers: Record<string, ClientTracker>): string[] {
@@ -358,7 +361,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           const t = trackers[cid];
           if (!t || !t.active || t.heartRate <= 0) continue;
           const maxHr = getMaxHrForClient(cid);
-          const zone = getZoneForHr(t.heartRate, maxHr);
+          const zone = getZoneForHr(t.heartRate, maxHr, getZoneBoundsForClient(cid));
           if (zone === config.targetZone) {
             t.points += 1;
           }
@@ -371,7 +374,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
         if (!t || !t.active) continue;
         if (t.heartRate > 0) {
           const maxHr = getMaxHrForClient(cid);
-          const zone = getZoneForHr(t.heartRate, maxHr);
+          const zone = getZoneForHr(t.heartRate, maxHr, getZoneBoundsForClient(cid));
           t.timeInZone[zone] = (t.timeInZone[zone] ?? 0) + 1;
         }
         if (t.cadence > 0) {
@@ -689,7 +692,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       const name = profile?.name ?? cid.slice(0, 8);
       const dist = t?.distanceMeters ?? 0;
       const maxHr = getMaxHrForClient(cid);
-      const zone = t && t.heartRate > 0 ? getZoneForHr(t.heartRate, maxHr) : 0;
+      const zone = t && t.heartRate > 0 ? getZoneForHr(t.heartRate, maxHr, getZoneBoundsForClient(cid)) : 0;
       return {
         id: cid,
         name,
@@ -852,7 +855,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             Target: Zone {config.targetZone}
           </div>
           <div style={{ fontSize: 13, color: "var(--text)" }}>
-            {getZoneBpmRange(config.targetZone, getMaxHrForClient())[0]}–{getZoneBpmRange(config.targetZone, getMaxHrForClient())[1]} bpm
+            {getZoneBpmRange(config.targetZone, getMaxHrForClient())[0]}–{getZoneBpmRange(config.targetZone, getMaxHrForClient(), undefined)[1]} bpm
           </div>
         </div>
       )}

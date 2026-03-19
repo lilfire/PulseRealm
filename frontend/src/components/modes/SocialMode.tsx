@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForAge, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, getMaxHrForProfile, DEFAULT_ZONE_BOUNDS, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 interface HrZone {
@@ -18,12 +18,13 @@ const HR_ZONES: HrZone[] = [
   { zone: 5, label: "Zone 5", color: "#ef4444" }, // red
 ];
 
-function getHrZone(bpm: number, maxHr: number): HrZone {
+function getHrZone(bpm: number, maxHr: number, bounds?: number[]): HrZone {
   const pct = bpm / maxHr;
-  if (pct < 0.57) return HR_ZONES[0];
-  if (pct < 0.63) return HR_ZONES[1];
-  if (pct < 0.76) return HR_ZONES[2];
-  if (pct < 0.89) return HR_ZONES[3];
+  const b = bounds ?? DEFAULT_ZONE_BOUNDS;
+  if (pct < b[0]) return HR_ZONES[0];
+  if (pct < b[1]) return HR_ZONES[1];
+  if (pct < b[2]) return HR_ZONES[2];
+  if (pct < b[3]) return HR_ZONES[3];
   return HR_ZONES[4];
 }
 
@@ -210,8 +211,8 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
         const t = trackers[cid];
         if (!t || !t.active) continue;
         if (t.heartRate > 0) {
-          const maxHr = getMaxHrForAge(clientProfiles[cid]?.age);
-          const zone = getHrZone(t.heartRate, maxHr).zone;
+          const maxHr = getMaxHrForProfile(clientProfiles[cid]);
+          const zone = getHrZone(t.heartRate, maxHr, clientProfiles[cid]?.zoneBounds).zone;
           t.timeInZone[zone] = (t.timeInZone[zone] ?? 0) + 1;
         }
         if (t.cadence > 0) {
@@ -243,7 +244,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
       return;
     }
 
-    const zones = activeClients.map((c) => getHrZone(trackers[c].heartRate, getMaxHrForAge(clientProfiles[c]?.age)).zone);
+    const zones = activeClients.map((c) => getHrZone(trackers[c].heartRate, getMaxHrForProfile(clientProfiles[c]), clientProfiles[c]?.zoneBounds).zone);
     const allSame = zones.every((z) => z === zones[0]);
 
     if (allSame) {
@@ -450,8 +451,8 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           const active = t?.active ?? false;
           const hr = active ? (t?.heartRate ?? 0) : 0;
           const cadence = active ? (t?.cadence ?? 0) : 0;
-          const clientMaxHr = getMaxHrForAge(profile?.age);
-          const zone = hr > 0 ? getHrZone(hr, clientMaxHr) : null;
+          const clientMaxHr = getMaxHrForProfile(profile);
+          const zone = hr > 0 ? getHrZone(hr, clientMaxHr, profile?.zoneBounds) : null;
           const zoneProgress = hr > 0 ? Math.min(hr / clientMaxHr, 1) : 0;
 
           return (

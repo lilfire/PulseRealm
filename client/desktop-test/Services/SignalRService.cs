@@ -21,7 +21,8 @@ public class SignalRService : IAsyncDisposable
     public string? RealmId => _realmId;
 
     public async Task<bool> ConnectAsync(string serverUrl, string joinCode, string clientId,
-        string playerName = "", int age = 0, double heightCm = 0, double weightKg = 0, double strideFactor = 0)
+        string playerName = "", int age = 0, double heightCm = 0, double weightKg = 0, double strideFactor = 0,
+        double[]? zoneBounds = null, int maxHrOverride = 0)
     {
         try
         {
@@ -107,14 +108,16 @@ public class SignalRService : IAsyncDisposable
             await _connection.StartAsync();
             LogReceived?.Invoke("SignalR connected. Joining realm...", "info");
 
-            var profile = new
+            var profile = new Dictionary<string, object?>
             {
-                clientId,
-                name = playerName,
-                age,
-                heightCm,
-                weightKg,
-                strideFactor,
+                ["clientId"] = clientId,
+                ["name"] = playerName,
+                ["age"] = age,
+                ["heightCm"] = heightCm,
+                ["weightKg"] = weightKg,
+                ["strideFactor"] = strideFactor,
+                ["zoneBounds"] = zoneBounds,
+                ["maxHr"] = maxHrOverride,
             };
             await _connection.InvokeAsync("JoinRealm", joinCode, clientId, profile);
 

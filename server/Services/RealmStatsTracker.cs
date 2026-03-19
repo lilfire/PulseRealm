@@ -39,9 +39,11 @@ public class RealmStatsTracker
                 stats.MaxHr = Math.Max(stats.MaxHr, heartRate);
 
                 // Zone tracking
-                var maxHr = profile?.Age is >= 5 and <= 120 ? 220 - profile.Age : 190;
+                var maxHr = profile?.MaxHr is > 0 ? profile.MaxHr
+                    : profile?.Age is >= 5 and <= 120 ? 220 - profile.Age : 190;
                 var pct = (double)heartRate / maxHr;
-                var zone = pct < 0.57 ? 1 : pct < 0.63 ? 2 : pct < 0.76 ? 3 : pct < 0.89 ? 4 : 5;
+                var b = profile?.ZoneBounds is { Length: 4 } zb ? zb : new[] { 0.57, 0.63, 0.76, 0.89 };
+                var zone = pct < b[0] ? 1 : pct < b[1] ? 2 : pct < b[2] ? 3 : pct < b[3] ? 4 : 5;
                 var zoneKey = zone.ToString();
                 stats.TimeInZone.TryGetValue(zoneKey, out var zoneSecs);
 

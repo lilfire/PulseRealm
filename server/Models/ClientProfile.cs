@@ -8,4 +8,6 @@ public class ClientProfile
     public double HeightCm { get; set; }
     public double WeightKg { get; set; }
     public double StrideFactor { get; set; }
+    public double[]? ZoneBounds { get; set; }
+    public int MaxHr { get; set; }
 }

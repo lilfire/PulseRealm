@@ -34,6 +34,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _heightCm = 175;
     [ObservableProperty] private double _weightKg = 70;
     [ObservableProperty] private double _strideFactor = 0.415;
+    [ObservableProperty] private int _zone12 = 57;
+    [ObservableProperty] private int _zone23 = 63;
+    [ObservableProperty] private int _zone34 = 76;
+    [ObservableProperty] private int _zone45 = 89;
+    [ObservableProperty] private int _maxHrOverride;
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _realmIsEnded;
     [ObservableProperty] private string _summaryText = "";
@@ -279,8 +284,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         AddLog($"Connecting to {ServerUrl}/hubs/realm …", "info");
+        var zoneBounds = new[] { Zone12 / 100.0, Zone23 / 100.0, Zone34 / 100.0, Zone45 / 100.0 };
         var ok = await _signalR.ConnectAsync(ServerUrl, JoinCode.Trim().ToUpperInvariant(), ClientId,
-            PlayerName, Age, HeightCm, WeightKg, StrideFactor);
+            PlayerName, Age, HeightCm, WeightKg, StrideFactor, zoneBounds, MaxHrOverride);
 
         if (ok)
         {
