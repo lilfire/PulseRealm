@@ -499,20 +499,6 @@ public partial class MainViewModel : ObservableObject
         AddLog("Disconnected.", "warn");
     }
 
-    [RelayCommand]
-    private async Task InclineUp()
-    {
-        Incline = Math.Min(25, Math.Round(Incline + 1, 1));
-        await _signalR.SendInclineAsync(Incline);
-    }
-
-    [RelayCommand]
-    private async Task InclineDown()
-    {
-        Incline = Math.Max(0, Math.Round(Incline - 1, 1));
-        await _signalR.SendInclineAsync(Incline);
-    }
-
     partial void OnSendIntervalMsChanged(int value)
     {
         if (IsConnected)

@@ -2,14 +2,13 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using PulseRealm.DesktopTest.ViewModels;
 
 namespace PulseRealm.DesktopTest.Views;
 
 public partial class MainWindow : Window
 {
-    private ControlsWindow? _controlsWindow;
-
     public MainWindow()
     {
         InitializeComponent();
@@ -37,20 +36,23 @@ public partial class MainWindow : Window
         {
             if (DataContext is MainViewModel vm)
             {
-                // Open the controls window — not owned, so it can be positioned independently
-                _controlsWindow = new ControlsWindow
+                // Auto-scroll log to bottom
+                vm.LogEntries.CollectionChanged += (_, _) =>
                 {
-                    DataContext = DataContext,
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            var logList = this.FindControl<ListBox>("LogList");
+                            if (logList is not null && logList.ItemCount > 0)
+                                logList.ScrollIntoView(logList.Items[logList.ItemCount - 1]!);
+                        }
+                        catch { }
+                    }, DispatcherPriority.Background);
                 };
-                _controlsWindow.Show();
 
                 await vm.StartDiscoveryAsync();
             }
-        };
-
-        Closing += (_, _) =>
-        {
-            _controlsWindow?.Close();
         };
     }
 }
