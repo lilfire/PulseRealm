@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface RealmInfo {
   id: string;
@@ -16,19 +16,10 @@ interface Props {
   token: string;
   onLogout: () => void;
   onJoinRealm?: (realm: { id: string; joinCode: string; mode: string }) => void;
+  onRealmCount?: (count: number) => void;
 }
 
-const actionBtnStyle: React.CSSProperties = {
-  padding: "0.3rem 0.7rem",
-  fontSize: "0.8rem",
-  borderRadius: "6px",
-  background: "transparent",
-  border: "1px solid var(--border, #2e303a)",
-  color: "var(--text, #9ca3af)",
-  cursor: "pointer",
-};
-
-export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
+export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm, onRealmCount }: Props) {
   const [realms, setRealms] = useState<RealmInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [ending, setEnding] = useState<string | null>(null);
@@ -42,13 +33,16 @@ export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
         onLogout();
         return;
       }
-      setRealms(await res.json());
+      const data = await res.json();
+      const arr: RealmInfo[] = Array.isArray(data) ? data : [];
+      setRealms(arr);
+      onRealmCount?.(arr.length);
     } catch {
       /* ignore */
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, token, onLogout]);
+  }, [apiUrl, token, onLogout, onRealmCount]);
 
   useEffect(() => {
     fetchRealms();
@@ -80,88 +74,50 @@ export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
   }
 
   if (realms.length === 0) {
-    return <p style={{ color: "var(--text)" }}>No active realms.</p>;
+    return <div className="admin-empty-state">No active realms</div>;
   }
 
+  const isLobby = (s: string) => s === "Lobby";
+
   return (
-    <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.75rem" } as React.CSSProperties}>
+    <div className="admin-realms-grid">
       {realms.map((r) => (
-        <div
-          key={r.id}
-          className="fg-row"
-          style={{
-            background: "var(--code-bg, #1f2028)",
-            border: "1px solid var(--border, #2e303a)",
-            borderRadius: "8px",
-            padding: "1rem 1.25rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            "--fg": "1rem",
-          } as React.CSSProperties}
-        >
-          <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.25rem" } as React.CSSProperties}>
-            <span style={{ color: "var(--text-h, #f3f4f6)", fontWeight: 600, fontSize: "1rem" }}>
-              {r.mode}
+        <div key={r.id} className="admin-realm-card">
+          <div className="admin-realm-top">
+            <span className={`admin-status-dot ${isLobby(r.status) ? "admin-status-dot-lobby" : "admin-status-dot-active"}`} />
+            <span className="admin-realm-mode">{r.mode}</span>
+            <span className={`admin-realm-status ${isLobby(r.status) ? "admin-realm-status-lobby" : "admin-realm-status-active"}`}>
+              {r.status}
             </span>
-            <span style={{ color: "var(--text, #9ca3af)", fontSize: "0.8rem" }}>
-              {r.connectedClients}/{r.maxClients} connected &middot;{" "}
-              <span style={{ color: r.status === "Lobby" ? "var(--accent2, #33DFFF)" : "#22c55e" }}>
-                {r.status}
-              </span>
-            </span>
-            <HostKeyReveal secret={r.hostSecret} />
           </div>
-          <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "0.75rem" } as React.CSSProperties}>
-            <div
-              style={{
-                fontFamily: "monospace",
-                fontSize: "1.4rem",
-                fontWeight: 700,
-                letterSpacing: "0.15em",
-                color: "var(--accent2, #33DFFF)",
-                background: "rgba(51, 223, 255, 0.08)",
-                padding: "0.3rem 0.8rem",
-                borderRadius: "6px",
-              }}
-            >
-              {r.joinCode}
-            </div>
-            {onJoinRealm && (
+
+          <div className="admin-realm-joincode">{r.joinCode}</div>
+
+          <div className="admin-realm-connected">
+            {r.connectedClients} / {r.maxClients} connected
+          </div>
+
+          <HostKeyReveal secret={r.hostSecret} />
+
+          <div className="admin-realm-bottom">
+            <div className="admin-realm-bottom-actions">
+              {onJoinRealm && (
+                <button
+                  className="admin-btn-action"
+                  onClick={() => onJoinRealm({ id: r.id, joinCode: r.joinCode, mode: r.mode })}
+                >
+                  Join
+                </button>
+              )}
               <button
-                onClick={() => onJoinRealm({ id: r.id, joinCode: r.joinCode, mode: r.mode })}
-                style={actionBtnStyle}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#FACC15";
-                  e.currentTarget.style.borderColor = "#FACC15";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "var(--text, #9ca3af)";
-                  e.currentTarget.style.borderColor = "var(--border, #2e303a)";
-                }}
+                className="admin-btn-action-danger"
+                onClick={() => endRealm(r.id)}
+                disabled={ending === r.id}
+                style={ending === r.id ? { opacity: 0.5, cursor: "default" } : undefined}
               >
-                Join
+                {ending === r.id ? "Ending..." : "End"}
               </button>
-            )}
-            <button
-              onClick={() => endRealm(r.id)}
-              disabled={ending === r.id}
-              style={{
-                ...actionBtnStyle,
-                cursor: ending === r.id ? "default" : "pointer",
-                opacity: ending === r.id ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#f87171";
-                e.currentTarget.style.borderColor = "#f87171";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "var(--text, #9ca3af)";
-                e.currentTarget.style.borderColor = "var(--border, #2e303a)";
-              }}
-            >
-              {ending === r.id ? "Ending..." : "End"}
-            </button>
+            </div>
           </div>
         </div>
       ))}
@@ -172,7 +128,7 @@ export function ActiveRealms({ apiUrl, token, onLogout, onJoinRealm }: Props) {
 function HostKeyReveal({ secret }: { secret: string }) {
   const [show, setShow] = useState(false);
   return (
-    <span style={{ color: "var(--text, #9ca3af)", fontSize: "0.75rem" }}>
+    <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)" }}>
       <button
         onClick={() => setShow(!show)}
         style={{
@@ -182,6 +138,7 @@ function HostKeyReveal({ secret }: { secret: string }) {
           fontSize: "0.75rem",
           cursor: "pointer",
           padding: 0,
+          margin: 0,
           textDecoration: "underline",
           textDecorationStyle: "dotted",
           textUnderlineOffset: "2px",

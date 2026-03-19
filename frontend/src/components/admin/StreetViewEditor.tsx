@@ -76,161 +76,139 @@ export function StreetViewEditor({ locations, onChange, serverUrl, authToken }: 
 
   const isEditing = adding || editIdx !== null;
 
-  return (
-    <div>
-      <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.5rem" } as React.CSSProperties}>
-        {locations.map((loc, i) => (
-          <div
-            key={loc.address || i}
-            className="fg-row"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              "--fg": "0.75rem",
-              padding: "0.5rem 0.75rem",
-              background: editIdx === i ? "rgba(51, 223, 255, 0.08)" : "var(--code-bg, #1f2028)",
-              borderRadius: "6px",
-              border: editIdx === i ? "1px solid var(--accent2, #33DFFF)" : "1px solid var(--border, #2e303a)",
-            } as React.CSSProperties}
-          >
-            {loc.thumbnailUrl ? (
-              <img
-                src={resolveUrl(loc.thumbnailUrl, serverUrl)}
-                alt=""
-                style={{ width: "48px", height: "36px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }}
-              />
-            ) : (
-              <div style={{
-                width: "48px",
-                height: "36px",
-                borderRadius: "3px",
-                flexShrink: 0,
-                background: "var(--border, #2e303a)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.65rem",
-                color: "var(--text, #9ca3af)",
-              }}>
-                No img
-              </div>
-            )}
-            <a
-              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${loc.lat},${loc.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ flex: 1, fontSize: "0.9rem", color: "var(--accent2, #33DFFF)", textDecoration: "none" }}
-              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-            >
-              {loc.address}
-            </a>
-            <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>
-              {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)} | H:{loc.heading ?? 0}° P:{loc.pitch ?? 0}°
-            </span>
-            <button onClick={() => startEdit(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "var(--text)" }}>
-              Edit
-            </button>
-            <button onClick={() => remove(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "#f87171" }}>
-              Delete
-            </button>
+  function renderEditForm() {
+    return (
+      <div className="admin-edit-panel">
+        <div>
+          <label className="admin-label">Address</label>
+          <input className="admin-input" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} placeholder="e.g. Eiffel Tower, Paris, France" />
+        </div>
+        <div className="admin-form-grid">
+          <div>
+            <label className="admin-label">Latitude</label>
+            <input className="admin-input" type="number" step="any" value={draft.lat} onChange={(e) => setDraft({ ...draft, lat: Number(e.target.value) })} />
           </div>
-        ))}
-      </div>
-
-      {isEditing && (
-        <div style={{ marginTop: "1rem", padding: "1rem", background: "var(--code-bg, #1f2028)", borderRadius: "8px", border: "1px solid var(--accent2, #33DFFF)" }}>
-          <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.75rem" } as React.CSSProperties}>
-            <div>
-              <label className="admin-label">Address</label>
-              <input className="admin-input" value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} placeholder="e.g. Eiffel Tower, Paris, France" />
-            </div>
-            <div className="fg-row" style={{ display: "flex", "--fg": "1rem" } as React.CSSProperties}>
-              <div style={{ flex: 1 }}>
-                <label className="admin-label">Latitude</label>
-                <input className="admin-input" type="number" step="any" value={draft.lat} onChange={(e) => setDraft({ ...draft, lat: Number(e.target.value) })} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label className="admin-label">Longitude</label>
-                <input className="admin-input" type="number" step="any" value={draft.lng} onChange={(e) => setDraft({ ...draft, lng: Number(e.target.value) })} />
-              </div>
-            </div>
-            <div className="fg-row" style={{ display: "flex", "--fg": "1rem" } as React.CSSProperties}>
-              <div style={{ flex: 1 }}>
-                <label className="admin-label">Heading (0–360°)</label>
-                <input className="admin-input" type="number" min={0} max={360} step="any" value={draft.heading ?? 0} onChange={(e) => setDraft({ ...draft, heading: Number(e.target.value) })} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label className="admin-label">Pitch (-90–90°)</label>
-                <input className="admin-input" type="number" min={-90} max={90} step="any" value={draft.pitch ?? 0} onChange={(e) => setDraft({ ...draft, pitch: Number(e.target.value) })} />
-              </div>
-            </div>
-            <div>
-              <label className="admin-label">Thumbnail</label>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.4rem" }}>
-                {draft.thumbnailUrl ? (
-                  <img
-                    src={resolveUrl(draft.thumbnailUrl, serverUrl)}
-                    alt=""
-                    style={{ width: "96px", height: "72px", borderRadius: "4px", objectFit: "cover" }}
-                  />
-                ) : (
-                  <div style={{
-                    width: "96px",
-                    height: "72px",
-                    borderRadius: "4px",
-                    background: "var(--border, #2e303a)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.75rem",
-                    color: "var(--text, #9ca3af)",
-                  }}>
-                    No image
-                  </div>
-                )}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  <label style={{ display: "inline-block", padding: "0.25rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px", border: "1px solid #555", color: "var(--text)", background: "transparent", cursor: "pointer" }}>
-                    Upload image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadThumbnail(file);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {draft.thumbnailUrl && (
-                    <button
-                      onClick={() => setDraft({ ...draft, thumbnailUrl: undefined })}
-                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px", border: "1px solid #555", color: "#f87171", background: "transparent", cursor: "pointer" }}
-                    >
-                      Remove custom thumbnail
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
-              <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
-                {adding ? "Add" : "Update"}
-              </button>
-              <button onClick={cancel} className="admin-btn-secondary" style={{ flex: 1 }}>
-                Cancel
-              </button>
+          <div>
+            <label className="admin-label">Longitude</label>
+            <input className="admin-input" type="number" step="any" value={draft.lng} onChange={(e) => setDraft({ ...draft, lng: Number(e.target.value) })} />
+          </div>
+        </div>
+        <div className="admin-form-grid">
+          <div>
+            <label className="admin-label">Heading (0&ndash;360&deg;)</label>
+            <input className="admin-input" type="number" min={0} max={360} step="any" value={draft.heading ?? 0} onChange={(e) => setDraft({ ...draft, heading: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="admin-label">Pitch (-90&ndash;90&deg;)</label>
+            <input className="admin-input" type="number" min={-90} max={90} step="any" value={draft.pitch ?? 0} onChange={(e) => setDraft({ ...draft, pitch: Number(e.target.value) })} />
+          </div>
+        </div>
+        <div>
+          <label className="admin-label">Thumbnail</label>
+          <div className="admin-thumb-section">
+            {draft.thumbnailUrl ? (
+              <img src={resolveUrl(draft.thumbnailUrl, serverUrl)} alt="" className="admin-thumb-preview" />
+            ) : (
+              <div className="admin-thumb-empty">No image</div>
+            )}
+            <div className="admin-thumb-controls">
+              <label className="admin-upload-label">
+                Upload image
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadThumbnail(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {draft.thumbnailUrl && (
+                <button onClick={() => setDraft({ ...draft, thumbnailUrl: undefined })} className="admin-remove-thumb">
+                  Remove custom thumbnail
+                </button>
+              )}
             </div>
           </div>
         </div>
+        <div className="admin-edit-panel-actions">
+          <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
+            {adding ? "Add" : "Update"}
+          </button>
+          <button onClick={cancel} className="admin-btn-secondary" style={{ flex: 1 }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card-header">
+        <h3 className="admin-card-title">Street View Locations</h3>
+        {!isEditing && (
+          <button onClick={startAdd} className="admin-btn-add">+ Add Place</button>
+        )}
+      </div>
+
+      {locations.length > 0 && (
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th style={{ width: 60 }}></th>
+              <th>Address</th>
+              <th>Coordinates</th>
+              <th>Heading / Pitch</th>
+              <th style={{ width: 120 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {locations.map((loc, i) => (
+              <React.Fragment key={loc.address || i}>
+                <tr className={editIdx === i ? "admin-table-row-active" : ""}>
+                  <td>
+                    {loc.thumbnailUrl ? (
+                      <img src={resolveUrl(loc.thumbnailUrl, serverUrl)} alt="" className="admin-table-thumb" />
+                    ) : (
+                      <div className="admin-table-thumb-empty">No img</div>
+                    )}
+                  </td>
+                  <td>
+                    <a
+                      href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${loc.lat},${loc.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-table-link"
+                    >
+                      {loc.address}
+                    </a>
+                  </td>
+                  <td className="admin-table-mono">{loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</td>
+                  <td className="admin-table-mono">H:{loc.heading ?? 0}&deg; P:{loc.pitch ?? 0}&deg;</td>
+                  <td>
+                    <div className="admin-table-actions">
+                      <button onClick={() => startEdit(i)} className="admin-btn-action">Edit</button>
+                      <button onClick={() => remove(i)} className="admin-btn-action-danger">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+                {editIdx === i && (
+                  <tr><td colSpan={5} style={{ padding: 0, border: "none" }}>{renderEditForm()}</td></tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
       )}
 
-      {!isEditing && (
-        <button onClick={startAdd} style={{ marginTop: "1rem", padding: "0.5rem 1.2rem", fontSize: "0.9rem", borderRadius: "8px", border: "1px dashed #555", background: "transparent", color: "var(--text)", cursor: "pointer" }}>
-          + Add Location
-        </button>
+      {locations.length === 0 && !isEditing && (
+        <div className="admin-empty-state">No locations added yet</div>
       )}
+
+      {adding && renderEditForm()}
     </div>
   );
 }

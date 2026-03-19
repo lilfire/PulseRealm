@@ -94,127 +94,136 @@ export function YouTubeEditor({ videos, onChange, serverUrl, authToken }: Props)
 
   const isEditing = adding || editIdx !== null;
 
-  return (
-    <div>
-      <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.5rem" } as React.CSSProperties}>
-        {videos.map((v, i) => (
-          <div
-            key={v.videoId || i}
-            className="fg-row"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              "--fg": "0.75rem",
-              padding: "0.5rem 0.75rem",
-              background: editIdx === i ? "rgba(51, 223, 255, 0.08)" : "var(--code-bg, #1f2028)",
-              borderRadius: "6px",
-              border: editIdx === i ? "1px solid var(--accent2, #33DFFF)" : "1px solid var(--border, #2e303a)",
-            } as React.CSSProperties}
-          >
+  function renderEditForm() {
+    return (
+      <div className="admin-edit-panel">
+        <div>
+          <label className="admin-label">Title</label>
+          <input className="admin-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="e.g. Walking Tour - Tokyo, Japan" />
+        </div>
+        <div>
+          <label className="admin-label">YouTube URL</label>
+          <input className="admin-input" value={draft.url} onChange={(e) => handleUrlChange(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
+        <div>
+          <label className="admin-label">Base Speed (km/h = 1&times; playback)</label>
+          <input className="admin-input" type="number" min="1" max="20" step="0.5" value={draft.baseSpeedKmh} onChange={(e) => setDraft({ ...draft, baseSpeedKmh: parseFloat(e.target.value) || 5 })} />
+        </div>
+        {draft.videoId && (
+          <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text)" }}>
+            Video ID: <span style={{ color: "var(--accent2, #33DFFF)" }}>{draft.videoId}</span>
+          </p>
+        )}
+        <div>
+          <label className="admin-label">Thumbnail</label>
+          <div className="admin-thumb-section">
             <img
-              src={v.thumbnailUrl ? resolveUrl(v.thumbnailUrl, serverUrl) : `https://img.youtube.com/vi/${v.videoId}/default.jpg`}
+              src={draft.thumbnailUrl ? resolveUrl(draft.thumbnailUrl, serverUrl) : (draft.videoId ? `https://img.youtube.com/vi/${draft.videoId}/default.jpg` : "")}
               alt=""
-              style={{ width: "48px", height: "36px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }}
+              className="admin-thumb-preview"
+              style={{
+                background: "var(--border, #2e303a)",
+                display: draft.thumbnailUrl || draft.videoId ? "block" : "none",
+              }}
             />
-            <a
-              href={v.url || `https://www.youtube.com/watch?v=${v.videoId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ flex: 1, fontSize: "0.9rem", color: "var(--accent2, #33DFFF)", textDecoration: "none" }}
-              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-            >
-              {v.title}
-            </a>
-            <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>{v.baseSpeedKmh} km/h = 1×</span>
-            <span style={{ fontSize: "0.75rem", color: "var(--text, #9ca3af)", whiteSpace: "nowrap" }}>{v.videoId}</span>
-            <button onClick={() => startEdit(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "var(--text)" }}>
-              Edit
-            </button>
-            <button onClick={() => remove(i)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", margin: 0, background: "transparent", border: "1px solid #555", color: "#f87171" }}>
-              Delete
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {isEditing && (
-        <div style={{ marginTop: "1rem", padding: "1rem", background: "var(--code-bg, #1f2028)", borderRadius: "8px", border: "1px solid var(--accent2, #33DFFF)" }}>
-          <div className="fg-col" style={{ display: "flex", flexDirection: "column", "--fg": "0.75rem" } as React.CSSProperties}>
-            <div>
-              <label className="admin-label">Title</label>
-              <input className="admin-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="e.g. Walking Tour - Tokyo, Japan" />
-            </div>
-            <div>
-              <label className="admin-label">YouTube URL</label>
-              <input className="admin-input" value={draft.url} onChange={(e) => handleUrlChange(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." />
-            </div>
-            <div>
-              <label className="admin-label">Base Speed (km/h = 1× playback)</label>
-              <input className="admin-input" type="number" min="1" max="20" step="0.5" value={draft.baseSpeedKmh} onChange={(e) => setDraft({ ...draft, baseSpeedKmh: parseFloat(e.target.value) || 5 })} />
-            </div>
-            {draft.videoId && (
-              <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text)" }}>
-                Video ID: <span style={{ color: "var(--accent2, #33DFFF)" }}>{draft.videoId}</span>
-              </p>
-            )}
-            <div>
-              <label className="admin-label">Thumbnail</label>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.4rem" }}>
-                <img
-                  src={draft.thumbnailUrl ? resolveUrl(draft.thumbnailUrl, serverUrl) : (draft.videoId ? `https://img.youtube.com/vi/${draft.videoId}/default.jpg` : "")}
-                  alt=""
-                  style={{
-                    width: "96px",
-                    height: "72px",
-                    borderRadius: "4px",
-                    objectFit: "cover",
-                    background: "var(--border, #2e303a)",
-                    display: draft.thumbnailUrl || draft.videoId ? "block" : "none",
+            <div className="admin-thumb-controls">
+              <label className="admin-upload-label">
+                Upload image
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadThumbnail(file);
+                    e.target.value = "";
                   }}
                 />
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  <label style={{ display: "inline-block", padding: "0.25rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px", border: "1px solid #555", color: "var(--text)", background: "transparent", cursor: "pointer" }}>
-                    Upload image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadThumbnail(file);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {draft.thumbnailUrl && (
-                    <button
-                      onClick={() => setDraft({ ...draft, thumbnailUrl: undefined })}
-                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", borderRadius: "6px", border: "1px solid #555", color: "#f87171", background: "transparent", cursor: "pointer" }}
-                    >
-                      Remove custom thumbnail
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="fg-row" style={{ display: "flex", "--fg": "0.5rem" } as React.CSSProperties}>
-              <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
-                {adding ? "Add" : "Update"}
-              </button>
-              <button onClick={cancel} className="admin-btn-secondary" style={{ flex: 1 }}>
-                Cancel
-              </button>
+              </label>
+              {draft.thumbnailUrl && (
+                <button onClick={() => setDraft({ ...draft, thumbnailUrl: undefined })} className="admin-remove-thumb">
+                  Remove custom thumbnail
+                </button>
+              )}
             </div>
           </div>
         </div>
+        <div className="admin-edit-panel-actions">
+          <button onClick={save} className="admin-btn-primary" style={{ flex: 1 }}>
+            {adding ? "Add" : "Update"}
+          </button>
+          <button onClick={cancel} className="admin-btn-secondary" style={{ flex: 1 }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card-header">
+        <h3 className="admin-card-title">YouTube Videos</h3>
+        {!isEditing && (
+          <button onClick={startAdd} className="admin-btn-add">+ Add Video</button>
+        )}
+      </div>
+
+      {videos.length > 0 && (
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th style={{ width: 60 }}></th>
+              <th>Title</th>
+              <th>Base Speed</th>
+              <th>Video ID</th>
+              <th style={{ width: 120 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {videos.map((v, i) => (
+              <React.Fragment key={v.videoId || i}>
+                <tr className={editIdx === i ? "admin-table-row-active" : ""}>
+                  <td>
+                    <img
+                      src={v.thumbnailUrl ? resolveUrl(v.thumbnailUrl, serverUrl) : `https://img.youtube.com/vi/${v.videoId}/default.jpg`}
+                      alt=""
+                      className="admin-table-thumb"
+                    />
+                  </td>
+                  <td>
+                    <a
+                      href={v.url || `https://www.youtube.com/watch?v=${v.videoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-table-link"
+                    >
+                      {v.title}
+                    </a>
+                  </td>
+                  <td className="admin-table-mono">{v.baseSpeedKmh} km/h</td>
+                  <td className="admin-table-mono">{v.videoId}</td>
+                  <td>
+                    <div className="admin-table-actions">
+                      <button onClick={() => startEdit(i)} className="admin-btn-action">Edit</button>
+                      <button onClick={() => remove(i)} className="admin-btn-action-danger">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+                {editIdx === i && (
+                  <tr><td colSpan={5} style={{ padding: 0, border: "none" }}>{renderEditForm()}</td></tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
       )}
 
-      {!isEditing && (
-        <button onClick={startAdd} style={{ marginTop: "1rem", padding: "0.5rem 1.2rem", fontSize: "0.9rem", borderRadius: "8px", border: "1px dashed #555", background: "transparent", color: "var(--text)", cursor: "pointer" }}>
-          + Add Video
-        </button>
+      {videos.length === 0 && !isEditing && (
+        <div className="admin-empty-state">No videos added yet</div>
       )}
+
+      {adding && renderEditForm()}
     </div>
   );
 }

@@ -21,12 +21,25 @@ const mockConfig = {
   youTubeVideos: [],
 };
 
+function urlAwareFetch(...extras: Array<{ ok: boolean; status: number; json: () => Promise<unknown> }>) {
+  const queue = [...extras];
+  return vi.fn().mockImplementation((url: string) => {
+    if (typeof url === "string" && url.includes("/api/admin/realms")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => [],
+      } as Response);
+    }
+    if (queue.length > 0) {
+      return Promise.resolve(queue.shift() as Response);
+    }
+    return Promise.reject(new Error("No more mocked responses"));
+  });
+}
+
 function makeConfigFetch(config = mockConfig) {
-  return vi.fn().mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: async () => config,
-  } as Response);
+  return urlAwareFetch({ ok: true, status: 200, json: async () => config });
 }
 
 function setup(fetchMock?: ReturnType<typeof vi.fn>) {
@@ -69,7 +82,7 @@ describe("AdminDashboard", () => {
       expect(screen.getByRole("button", { name: /competition/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /dungeon/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /street view/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /youtube videos/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /youtube/i })).toBeInTheDocument();
     });
   });
 
@@ -124,10 +137,10 @@ describe("AdminDashboard", () => {
     await user.click(screen.getByRole("button", { name: /dungeon/i }));
     expect(screen.getByText(/default difficulty/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /street view places/i }));
-    expect(screen.getByRole("button", { name: /\+ add location/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /street view/i }));
+    expect(screen.getByRole("button", { name: /\+ add place/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /youtube videos/i }));
+    await user.click(screen.getByRole("button", { name: /youtube/i }));
     expect(screen.getByRole("button", { name: /\+ add video/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /competition/i }));
@@ -135,17 +148,10 @@ describe("AdminDashboard", () => {
   });
 
   it("calls save endpoint when 'Save Changes' clicked", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response);
+    const fetchMock = urlAwareFetch(
+      { ok: true, status: 200, json: async () => mockConfig },
+      { ok: true, status: 200, json: async () => mockConfig },
+    );
 
     const { user } = setup(fetchMock);
 
@@ -170,17 +176,10 @@ describe("AdminDashboard", () => {
   });
 
   it("shows 'Saved' message on successful save", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response);
+    const fetchMock = urlAwareFetch(
+      { ok: true, status: 200, json: async () => mockConfig },
+      { ok: true, status: 200, json: async () => mockConfig },
+    );
 
     const { user } = setup(fetchMock);
 
@@ -196,13 +195,17 @@ describe("AdminDashboard", () => {
   });
 
   it("shows 'Save failed' message on save error", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockRejectedValueOnce(new Error("Network error"));
+    let callCount = 0;
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/api/admin/realms")) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => [] } as Response);
+      }
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => mockConfig } as Response);
+      }
+      return Promise.reject(new Error("Network error"));
+    });
 
     const { user } = setup(fetchMock);
 
@@ -221,17 +224,17 @@ describe("AdminDashboard", () => {
     let resolveSave!: (v: unknown) => void;
     const savePromise = new Promise((res) => { resolveSave = res; });
 
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: () => savePromise,
-      } as unknown as Response);
+    let callCount = 0;
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/api/admin/realms")) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => [] } as Response);
+      }
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => mockConfig } as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => savePromise } as unknown as Response);
+    });
 
     const { user } = setup(fetchMock);
 
@@ -250,17 +253,10 @@ describe("AdminDashboard", () => {
   });
 
   it("logout button calls logout endpoint then onLogout", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({}),
-      } as Response);
+    const fetchMock = urlAwareFetch(
+      { ok: true, status: 200, json: async () => mockConfig },
+      { ok: true, status: 200, json: async () => ({}) },
+    );
 
     const { user, onLogout } = setup(fetchMock);
 
@@ -285,13 +281,17 @@ describe("AdminDashboard", () => {
   });
 
   it("calls onLogout even if logout endpoint throws", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockRejectedValueOnce(new Error("Network error"));
+    let callCount = 0;
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (typeof url === "string" && url.includes("/api/admin/realms")) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => [] } as Response);
+      }
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => mockConfig } as Response);
+      }
+      return Promise.reject(new Error("Network error"));
+    });
 
     const { user, onLogout } = setup(fetchMock);
 
@@ -307,17 +307,10 @@ describe("AdminDashboard", () => {
   });
 
   it("calls onLogout on 401 during save", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockConfig,
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: async () => ({}),
-      } as Response);
+    const fetchMock = urlAwareFetch(
+      { ok: true, status: 200, json: async () => mockConfig },
+      { ok: false, status: 401, json: async () => ({}) },
+    );
 
     const { user, onLogout } = setup(fetchMock);
 

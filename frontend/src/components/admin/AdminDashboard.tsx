@@ -39,12 +39,24 @@ interface Props {
 
 type Tab = "realms" | "competition" | "dungeon" | "streetview" | "youtube" | "route" | "protection";
 
+const NAV_ITEMS: { key: Tab; label: string; description: string }[] = [
+  { key: "realms", label: "Active Realms", description: "Monitor and manage live realms" },
+  { key: "competition", label: "Competition", description: "Default settings for competition mode" },
+  { key: "dungeon", label: "Dungeon", description: "Default settings for dungeon mode" },
+  { key: "streetview", label: "Street View", description: "Manage Street View locations" },
+  { key: "youtube", label: "YouTube", description: "Manage YouTube trail videos" },
+  { key: "route", label: "Routes", description: "Manage curated routes" },
+  { key: "protection", label: "Protection", description: "Rate limits and server protection" },
+];
+
 export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) {
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [tab, setTab] = useState<Tab>("realms");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [realmCount, setRealmCount] = useState(0);
   const saveMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -117,6 +129,11 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
     setConfig({ ...config, [field]: value });
   }
 
+  function handleNavClick(key: Tab) {
+    setTab(key);
+    setSidebarOpen(false);
+  }
+
   if (error) {
     return (
       <div className="admin-screen">
@@ -134,103 +151,122 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
     );
   }
 
+  const currentNav = NAV_ITEMS.find((n) => n.key === tab)!;
+
   return (
-    <div className="admin-screen">
-      <div className="admin-header">
-        <h2 style={{ margin: 0, color: "var(--text-h, #f3f4f6)" }}>Admin Settings</h2>
-        <button onClick={handleLogout} className="admin-btn-logout">Logout</button>
-      </div>
+    <div className="admin-layout">
+      {/* Mobile overlay */}
+      <div
+        className={`admin-sidebar-overlay${sidebarOpen ? " admin-sidebar-overlay-visible" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
 
-      <div className="admin-tabs">
-        {([
-          ["realms", "Active Realms"],
-          ["competition", "Competition"],
-          ["dungeon", "Dungeon"],
-          ["streetview", "Street View Places"],
-          ["youtube", "YouTube Videos"],
-          ["route", "Routes"],
-          ["protection", "Protection"],
-        ] as [Tab, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`admin-tab ${tab === key ? "admin-tab-active" : ""}`}
-          >
-            {label}
+      {/* Sidebar */}
+      <aside className={`admin-sidebar${sidebarOpen ? " admin-sidebar-open" : ""}`}>
+        <div className="admin-sidebar-brand">
+          <span>Pulse</span>Realm Admin
+        </div>
+        <nav className="admin-sidebar-nav">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => handleNavClick(item.key)}
+              className={`admin-nav-item${tab === item.key ? " admin-nav-item-active" : ""}`}
+            >
+              {item.label}
+              {item.key === "realms" && realmCount > 0 && (
+                <span className="admin-nav-badge">{realmCount}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+        <div className="admin-sidebar-footer">
+          <button onClick={handleLogout} className="admin-btn-logout">Logout</button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="admin-main">
+        <header className="admin-topbar">
+          <button className="admin-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            &#9776;
           </button>
-        ))}
-      </div>
+          <div className="admin-topbar-info">
+            <h1 className="admin-topbar-title">{currentNav.label}</h1>
+            <p className="admin-topbar-desc">{currentNav.description}</p>
+          </div>
+          <div className="admin-topbar-actions">
+            {saveMsg && (
+              <span className="admin-save-msg" style={{ color: saveMsg === "Saved" ? "#22c55e" : "#f87171" }}>
+                {saveMsg}
+              </span>
+            )}
+            <button onClick={saveConfig} disabled={saving} className="admin-btn-primary">
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </header>
 
-      <div className="admin-content">
-        {tab === "realms" && (
-          <ActiveRealms apiUrl={apiUrl} token={token} onLogout={onLogout} onJoinRealm={onJoinRealm} />
-        )}
+        <div className="admin-page-content">
+          {tab === "realms" && (
+            <ActiveRealms apiUrl={apiUrl} token={token} onLogout={onLogout} onJoinRealm={onJoinRealm} onRealmCount={setRealmCount} />
+          )}
 
-        {tab === "competition" && (
-          <CompetitionDefaults
-            subMode={config.competitionSubMode}
-            playerFormat={config.competitionPlayerFormat}
-            targetDistanceKm={config.competitionTargetDistanceKm}
-            intervalMinutes={config.competitionIntervalMinutes}
-            targetZone={config.competitionTargetZone}
-            durationMinutes={config.competitionDurationMinutes}
-            onChange={updateField}
-          />
-        )}
+          {tab === "competition" && (
+            <CompetitionDefaults
+              subMode={config.competitionSubMode}
+              playerFormat={config.competitionPlayerFormat}
+              targetDistanceKm={config.competitionTargetDistanceKm}
+              intervalMinutes={config.competitionIntervalMinutes}
+              targetZone={config.competitionTargetZone}
+              durationMinutes={config.competitionDurationMinutes}
+              onChange={updateField}
+            />
+          )}
 
-        {tab === "dungeon" && (
-          <DungeonDefaults
-            difficulty={config.dungeonDifficulty}
-            timeframeMinutes={config.dungeonTimeframeMinutes}
-            onChange={updateField}
-          />
-        )}
+          {tab === "dungeon" && (
+            <DungeonDefaults
+              difficulty={config.dungeonDifficulty}
+              timeframeMinutes={config.dungeonTimeframeMinutes}
+              onChange={updateField}
+            />
+          )}
 
-        {tab === "streetview" && (
-          <StreetViewEditor
-            locations={config.streetViewLocations}
-            onChange={(locs) => setConfig({ ...config, streetViewLocations: locs })}
-            serverUrl={apiUrl}
-            authToken={token}
-          />
-        )}
+          {tab === "streetview" && (
+            <StreetViewEditor
+              locations={config.streetViewLocations}
+              onChange={(locs) => setConfig({ ...config, streetViewLocations: locs })}
+              serverUrl={apiUrl}
+              authToken={token}
+            />
+          )}
 
-        {tab === "youtube" && (
-          <YouTubeEditor
-            videos={config.youTubeVideos}
-            onChange={(vids) => setConfig({ ...config, youTubeVideos: vids })}
-            serverUrl={apiUrl}
-            authToken={token}
-          />
-        )}
+          {tab === "youtube" && (
+            <YouTubeEditor
+              videos={config.youTubeVideos}
+              onChange={(vids) => setConfig({ ...config, youTubeVideos: vids })}
+              serverUrl={apiUrl}
+              authToken={token}
+            />
+          )}
 
-        {tab === "route" && (
-          <RouteEditor
-            routes={config.curatedRoutes}
-            onChange={(routes) => setConfig({ ...config, curatedRoutes: routes })}
-            serverUrl={apiUrl}
-            authToken={token}
-          />
-        )}
+          {tab === "route" && (
+            <RouteEditor
+              routes={config.curatedRoutes}
+              onChange={(routes) => setConfig({ ...config, curatedRoutes: routes })}
+              serverUrl={apiUrl}
+              authToken={token}
+            />
+          )}
 
-        {tab === "protection" && (
-          <ProtectionDefaults
-            maxWearableMessagesPerSecond={config.maxWearableMessagesPerSecond}
-            maxConcurrentRealms={config.maxConcurrentRealms}
-            onChange={updateField}
-          />
-        )}
-      </div>
-
-      <div className="admin-footer-bar">
-        <button onClick={saveConfig} disabled={saving} className="admin-btn-primary">
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-        {saveMsg && (
-          <span style={{ color: saveMsg === "Saved" ? "#22c55e" : "#f87171", fontSize: "0.9rem" }}>
-            {saveMsg}
-          </span>
-        )}
+          {tab === "protection" && (
+            <ProtectionDefaults
+              maxWearableMessagesPerSecond={config.maxWearableMessagesPerSecond}
+              maxConcurrentRealms={config.maxConcurrentRealms}
+              onChange={updateField}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

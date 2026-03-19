@@ -5,7 +5,7 @@
 - [ ] human readable error messeges on clients on exceptions
 - [ ] Android custom zone i profil 
 - [ ] Lese over Terms of use
-- [ ] Settings ui
+- [x] Settings ui
 - [x] thumbnail youtube/streetview/routes
 - [x] autoclose dead realms
 - [x] mer smoothing
