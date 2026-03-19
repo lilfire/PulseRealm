@@ -2,7 +2,7 @@
 
 ## New /Changes
 
-- [ ] human readable error messeges on clients on exceptions
+- [x] human readable error messeges on clients on exceptions
 - [x] Android custom zone i profil 
 - [x] Lese over Terms of use
 - [x] Settings ui
