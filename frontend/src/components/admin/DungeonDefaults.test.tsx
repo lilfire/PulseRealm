@@ -24,18 +24,18 @@ describe("DungeonDefaults", () => {
     expect(screen.getByRole("button", { name: "Hard" })).toBeInTheDocument();
   });
 
-  it("highlights current difficulty with cyan border", () => {
+  it("highlights current difficulty with active class", () => {
     setup({ difficulty: "hard" });
     const hardBtn = screen.getByRole("button", { name: "Hard" });
-    expect(hardBtn.style.border).toContain("2px solid");
+    expect(hardBtn.className).toContain("admin-btn-option-active");
     const easyBtn = screen.getByRole("button", { name: "Easy" });
-    expect(easyBtn.style.border).toContain("1px solid");
+    expect(easyBtn.className).not.toContain("admin-btn-option-active");
   });
 
   it("highlights 'Normal' when difficulty is normal", () => {
     setup({ difficulty: "normal" });
     const normalBtn = screen.getByRole("button", { name: "Normal" });
-    expect(normalBtn.style.border).toContain("2px solid");
+    expect(normalBtn.className).toContain("admin-btn-option-active");
   });
 
   it("calls onChange('dungeonDifficulty', 'easy') when Easy clicked", async () => {
@@ -67,9 +67,9 @@ describe("DungeonDefaults", () => {
   it("highlights the current timeframe", () => {
     setup({ timeframeMinutes: 45 });
     const btn45 = screen.getByRole("button", { name: "45 min" });
-    expect(btn45.style.border).toContain("2px solid");
+    expect(btn45.className).toContain("admin-btn-option-active");
     const btn15 = screen.getByRole("button", { name: "15 min" });
-    expect(btn15.style.border).toContain("1px solid");
+    expect(btn15.className).not.toContain("admin-btn-option-active");
   });
 
   it("calls onChange('dungeonTimeframeMinutes', 15) when 15 min clicked", async () => {

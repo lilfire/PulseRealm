@@ -30,31 +30,31 @@ describe("StreetViewEditor", () => {
     expect(screen.getByText("40.6892, -74.0445")).toBeInTheDocument();
   });
 
-  it("shows '+ Add Location' button when not editing", () => {
+  it("shows '+ Add Place' button when not editing", () => {
     setup();
-    expect(screen.getByRole("button", { name: /\+ add location/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ add place/i })).toBeInTheDocument();
   });
 
-  it("clicking '+ Add Location' shows the form", async () => {
+  it("clicking '+ Add Place' shows the form", async () => {
     const { user } = setup();
-    await user.click(screen.getByRole("button", { name: /\+ add location/i }));
+    await user.click(screen.getByRole("button", { name: /\+ add place/i }));
     expect(screen.getByPlaceholderText(/eiffel tower/i)).toBeInTheDocument();
     // Add button in form
     expect(screen.getByRole("button", { name: /^add$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
   });
 
-  it("hides '+ Add Location' button when form is open", async () => {
+  it("hides '+ Add Place' button when form is open", async () => {
     const { user } = setup();
-    await user.click(screen.getByRole("button", { name: /\+ add location/i }));
-    expect(screen.queryByRole("button", { name: /\+ add location/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /\+ add place/i }));
+    expect(screen.queryByRole("button", { name: /\+ add place/i })).not.toBeInTheDocument();
   });
 
   it("can add a new location", async () => {
     const onChange = vi.fn();
     const { user } = setup([], onChange);
 
-    await user.click(screen.getByRole("button", { name: /\+ add location/i }));
+    await user.click(screen.getByRole("button", { name: /\+ add place/i }));
 
     await user.type(screen.getByPlaceholderText(/eiffel tower/i), "Big Ben, London, UK");
 
@@ -81,7 +81,7 @@ describe("StreetViewEditor", () => {
     const onChange = vi.fn();
     const { user } = setup([], onChange);
 
-    await user.click(screen.getByRole("button", { name: /\+ add location/i }));
+    await user.click(screen.getByRole("button", { name: /\+ add place/i }));
     // Leave address blank and click Add
     await user.click(screen.getByRole("button", { name: /^add$/i }));
 
@@ -94,7 +94,7 @@ describe("StreetViewEditor", () => {
     const onChange = vi.fn();
     const { user } = setup([], onChange);
 
-    await user.click(screen.getByRole("button", { name: /\+ add location/i }));
+    await user.click(screen.getByRole("button", { name: /\+ add place/i }));
     await user.type(screen.getByPlaceholderText(/eiffel tower/i), "   ");
     await user.click(screen.getByRole("button", { name: /^add$/i }));
 
@@ -134,12 +134,12 @@ describe("StreetViewEditor", () => {
 
   it("cancel button hides the form when adding", async () => {
     const { user } = setup();
-    await user.click(screen.getByRole("button", { name: /\+ add location/i }));
+    await user.click(screen.getByRole("button", { name: /\+ add place/i }));
     expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.queryByRole("button", { name: /cancel/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /\+ add location/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ add place/i })).toBeInTheDocument();
   });
 
   it("cancel button hides the form when editing", async () => {
@@ -151,7 +151,7 @@ describe("StreetViewEditor", () => {
     await user.click(screen.getByRole("button", { name: /cancel/i }));
 
     expect(screen.queryByRole("button", { name: /cancel/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /\+ add location/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ add place/i })).toBeInTheDocument();
   });
 
   it("clicking 'Delete' removes a location", async () => {
@@ -194,7 +194,7 @@ describe("StreetViewEditor", () => {
 
   it("renders empty list with only Add button when no locations", () => {
     setup([]);
-    expect(screen.getByRole("button", { name: /\+ add location/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ add place/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
   });

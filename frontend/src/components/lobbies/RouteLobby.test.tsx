@@ -46,6 +46,7 @@ const { RouteLobby } = await import("./RouteLobby");
 
 const baseProps = {
   joinCode: "654321",
+  mode: "route" as const,
   clients: ["c1"] as string[],
   clientProfiles: {
     c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 },
@@ -379,11 +380,17 @@ describe("RouteLobby (maps loaded)", () => {
   });
 
   describe("leave button", () => {
-    it("calls onLeave when leave button is clicked", () => {
+    it("calls onLeave when leave button is clicked as guest", () => {
       const onLeave = vi.fn();
-      render(<RouteLobby {...baseProps} onLeave={onLeave} />);
-      fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+      render(<RouteLobby {...baseProps} onLeave={onLeave} role="guest" />);
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not show Leave button when role is host", () => {
+      render(<RouteLobby {...baseProps} />);
+      expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Leave Realm" })).not.toBeInTheDocument();
     });
   });
 
@@ -405,19 +412,20 @@ describe("RouteLobby (maps loaded)", () => {
   });
 
   describe("status text", () => {
-    it("shows Waiting for players when connected and role is host", () => {
+    it("shows HOST badge when connected and role is host", () => {
       render(<RouteLobby {...baseProps} connected={true} />);
-      expect(screen.getByText(/Waiting for players\.\.\./)).toBeInTheDocument();
+      expect(screen.getByText("HOST")).toBeInTheDocument();
     });
 
-    it("shows Connecting when not connected", () => {
+    it("shows HOST badge when not connected", () => {
       render(<RouteLobby {...baseProps} connected={false} />);
-      expect(screen.getByText(/Connecting\.\.\./)).toBeInTheDocument();
+      // LobbyShell does not render status text — it shows the role badge
+      expect(screen.getByText("HOST")).toBeInTheDocument();
     });
 
-    it("shows Watching when connected and role is guest", () => {
+    it("shows GUEST badge when connected and role is guest", () => {
       render(<RouteLobby {...baseProps} role="guest" connected={true} />);
-      expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
     });
   });
 });

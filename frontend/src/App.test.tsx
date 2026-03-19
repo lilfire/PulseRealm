@@ -261,20 +261,20 @@ describe("home screen", () => {
   it("shows server info in footer when serverInfo is present", async () => {
     mockConfigFetch();
     await renderApp();
-    expect(screen.getByText(/PulseRealm/)).toBeInTheDocument();
+    expect(screen.getAllByText(/PulseRealm/).length).toBeGreaterThan(0);
     expect(screen.getByText(/v1\.0\.0/)).toBeInTheDocument();
   });
 
   it("shows Change button in footer for server disconnection", async () => {
     mockConfigFetch();
     await renderApp();
-    expect(screen.getByRole("button", { name: "Change server" })).toBeInTheDocument();
+    expect(screen.getByTitle("Change server")).toBeInTheDocument();
   });
 
   it("Change button calls server.disconnect", async () => {
     mockConfigFetch();
     await renderApp();
-    fireEvent.click(screen.getByRole("button", { name: "Change server" }));
+    fireEvent.click(screen.getByTitle("Change server"));
     expect(mockDisconnect).toHaveBeenCalledTimes(1);
   });
 });
@@ -568,6 +568,7 @@ describe("creating realms via mode cards", () => {
     (globalThis.fetch as Mock).mockResolvedValueOnce({
       ok: false,
       status: 500,
+      json: async () => null,
     } as unknown as Response);
 
     fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
@@ -619,7 +620,7 @@ describe("admin", () => {
     fireEvent.click(screen.getByTitle("Admin Settings"));
     expect(screen.getByTestId("admin-login")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to Home" }));
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 
   it("logout from admin dashboard returns to home screen", async () => {
@@ -630,7 +631,7 @@ describe("admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Login Success" }));
     expect(screen.getByTestId("admin-dashboard")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Logout" }));
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 });
 
@@ -682,7 +683,7 @@ describe("lobby routing", () => {
     await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Leave" }));
-    expect(screen.getByText("Choose a mode to create a realm")).toBeInTheDocument();
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 });
 

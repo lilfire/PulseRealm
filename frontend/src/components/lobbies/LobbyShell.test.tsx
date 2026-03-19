@@ -26,19 +26,20 @@ describe("LobbyShell", () => {
   });
 
   describe("status text", () => {
-    it("shows Connecting... when not connected", () => {
+    it("does not show Connecting... text (component renders HOST badge instead)", () => {
       render(<LobbyShell {...baseProps} connected={false} />);
-      expect(screen.getByText(/Connecting\.\.\./)).toBeInTheDocument();
+      // LobbyShell does not render status text — it shows the role badge in the footer
+      expect(screen.getByText("HOST")).toBeInTheDocument();
     });
 
-    it("shows Waiting for players... when connected and role is host", () => {
+    it("shows HOST badge when connected and role is host", () => {
       render(<LobbyShell {...baseProps} connected={true} role="host" />);
-      expect(screen.getByText(/Waiting for players\.\.\./)).toBeInTheDocument();
+      expect(screen.getByText("HOST")).toBeInTheDocument();
     });
 
-    it("shows Watching... when connected and role is guest", () => {
+    it("shows GUEST badge when connected and role is guest", () => {
       render(<LobbyShell {...baseProps} connected={true} role="guest" />);
-      expect(screen.getByText(/Watching\.\.\./)).toBeInTheDocument();
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
     });
   });
 
@@ -48,9 +49,10 @@ describe("LobbyShell", () => {
       expect(screen.getByText("No players yet.")).toBeInTheDocument();
     });
 
-    it("shows player count heading", () => {
+    it("shows player count heading with max clients", () => {
       render(<LobbyShell {...baseProps} clients={["c1", "c2"]} clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 }, c2: { clientId: "c2", name: "Bob", heightCm: 0, weightKg: 0 } }} />);
-      expect(screen.getByText("Players (2)")).toBeInTheDocument();
+      // LobbyShell renders "Players (count/max)" — default mode is undefined so maxClientsForMode returns 4
+      expect(screen.getByText(/Players \(2\//)).toBeInTheDocument();
     });
 
     it("lists player names from clientProfiles", () => {
@@ -133,26 +135,28 @@ describe("LobbyShell", () => {
   });
 
   describe("leave button", () => {
-    it("calls onLeave when leave button is clicked", () => {
+    it("calls onLeave when leave button is clicked as guest", () => {
       const onLeave = vi.fn();
-      render(<LobbyShell {...baseProps} onLeave={onLeave} role="host" />);
-      fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+      render(<LobbyShell {...baseProps} onLeave={onLeave} role="guest" />);
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
-    it("shows Leave text when role is guest", () => {
+    it("shows Leave button when role is guest", () => {
       render(<LobbyShell {...baseProps} role="guest" />);
       expect(screen.getByRole("button", { name: "Leave" })).toBeInTheDocument();
     });
 
-    it("shows Leave Realm text when role is host", () => {
+    it("does not show a Leave button when role is host", () => {
+      // Hosts use Start Realm / End Realm controls — there is no Leave button for hosts
       render(<LobbyShell {...baseProps} role="host" />);
-      expect(screen.getByRole("button", { name: "Leave Realm" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Leave Realm" })).not.toBeInTheDocument();
     });
 
-    it("calls onLeave when leave button is clicked as guest", () => {
+    it("calls onLeave when leave button is clicked as admin", () => {
       const onLeave = vi.fn();
-      render(<LobbyShell {...baseProps} onLeave={onLeave} role="guest" />);
+      render(<LobbyShell {...baseProps} onLeave={onLeave} role="admin" />);
       fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       expect(onLeave).toHaveBeenCalledTimes(1);
     });

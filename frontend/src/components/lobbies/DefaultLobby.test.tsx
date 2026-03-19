@@ -5,6 +5,7 @@ import type { ClientProfile } from "../../types/session";
 
 const baseProps = {
   joinCode: "111222",
+  mode: "social" as const,
   clients: [] as string[],
   clientProfiles: {} as Record<string, ClientProfile>,
   connected: true,
@@ -56,10 +57,10 @@ describe("DefaultLobby", () => {
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onLeave when leave button is clicked", () => {
+  it("calls onLeave when leave button is clicked as guest", () => {
     const onLeave = vi.fn();
-    render(<DefaultLobby {...baseProps} onLeave={onLeave} />);
-    fireEvent.click(screen.getByRole("button", { name: "Leave Realm" }));
+    render(<DefaultLobby {...baseProps} onLeave={onLeave} role="guest" />);
+    fireEvent.click(screen.getByRole("button", { name: "Leave" }));
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 

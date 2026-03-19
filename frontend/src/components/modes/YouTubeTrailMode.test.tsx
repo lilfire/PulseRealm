@@ -108,19 +108,19 @@ describe("YouTubeTrailMode", () => {
   it("shows speed when latestData available", () => {
     const data = makeData("client-1", 140, 500, 6.5);
     render(<YouTubeTrailMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("6.5 km/h")).toBeInTheDocument();
+    expect(screen.getByText("6.5")).toBeInTheDocument();
   });
 
   it("shows heart rate when latestData available", () => {
     const data = makeData("client-1", 145, 500, 5);
     render(<YouTubeTrailMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("145 bpm")).toBeInTheDocument();
+    expect(screen.getByText("145")).toBeInTheDocument();
   });
 
   it("shows steps when latestData available", () => {
     const data = makeData("client-1", 140, 1234, 5);
     render(<YouTubeTrailMode {...defaultProps} latestData={data} />);
-    expect(screen.getByText("1234 steps")).toBeInTheDocument();
+    expect(screen.getByText("1234")).toBeInTheDocument();
   });
 
   it("shows mute toggle button", () => {

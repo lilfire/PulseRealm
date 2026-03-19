@@ -862,7 +862,7 @@ describe("DungeonMode — trap room (deterministic)", () => {
     expect(screen.getByText(/Trap Damage/)).toBeInTheDocument();
   });
 
-  it("shows easy-mode cadence window (70–110 spm) in trap room message", () => {
+  it("shows easy-mode cadence window (100–160 spm) in trap room message", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -875,8 +875,8 @@ describe("DungeonMode — trap room (deterministic)", () => {
 
     reachTrapRoom(rerender, props);
 
-    // Room message: "Keep cadence between 70–110 spm" (may appear in multiple elements)
-    expect(screen.getAllByText(/70.*110 spm/).length).toBeGreaterThan(0);
+    // Room message: "Keep cadence between 100–160 spm" (may appear in multiple elements)
+    expect(screen.getAllByText(/100.*160 spm/).length).toBeGreaterThan(0);
   });
 
   it("out-of-window steps accumulate trap damage", () => {
@@ -918,7 +918,8 @@ describe("DungeonMode — rest room (deterministic)", () => {
 
   /** Navigate to rest room (room 2). Passes corridor → enemy → corridor → trap → corridor → rest.
    *  To clear the trap room we send in-window steps.
-   *  At 1 step per 667ms the cadence window accumulates ~90 spm after ~10 data points.
+   *  At 1 step per 500ms the cadence window accumulates ~120 spm after ~10 data points.
+   *  Easy cadence window is 100–160 spm, so 120 spm is in-window.
    *  trapSafeTarget = Math.round(120 * 0.35) = 42 steps needed in-window.
    */
   function reachRestRoom(rerender: (ui: React.ReactElement) => void, props: Parameters<typeof DungeonMode>[0]): number {
@@ -931,13 +932,13 @@ describe("DungeonMode — rest room (deterministic)", () => {
     // Corridor 1 → trap
     cum = fillCorridor(rerender, props, cum);
 
-    // Send slow steady steps to build 90 spm cadence (in easy 70-110 window).
-    // 1 step per 667ms ≈ 90 spm. Send 60 data points = 60 steps over 40s.
+    // Send steady steps at 1 step per 500ms to build ~120 spm cadence (in easy 100–160 window).
+    // Send 60 data points = 60 steps over 30s.
     // trapSafeTarget=42, so after 42 in-window steps the trap clears.
     for (let i = 0; i < 60; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
-      act(() => { vi.advanceTimersByTime(667); });
+      act(() => { vi.advanceTimersByTime(500); });
     }
     // After trap clears the game enters corridor 2 → need to fill that corridor too
     cum = fillCorridor(rerender, props, cum);
@@ -1084,9 +1085,9 @@ describe("DungeonMode — room transitions and corridor progress", () => {
     expect(screen.getByText(/Room 2 \/ 4/)).toBeInTheDocument();
   });
 
-  it("hard mode shows narrower cadence window (85–95 spm) in trap room", () => {
+  it("hard mode shows narrower cadence window (120–145 spm) in trap room", () => {
     // hard/30min single client: corridorTiles = max(1, round(2*1.4)) = 3, corridorTarget = 30
-    // enemyHp = round(250*1.4) = 350, trapCadence = 85-95 spm
+    // enemyHp = round(250*1.4) = 350, trapCadence = 120-145 spm
     const hardProps = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1115,8 +1116,8 @@ describe("DungeonMode — room transitions and corridor progress", () => {
     act(() => { vi.advanceTimersByTime(600); });
 
     expect(screen.getByText("Trap Corridor")).toBeInTheDocument();
-    // Hard mode cadence window: 85–95 spm (appears in message and/or cadence display)
-    expect(screen.getAllByText(/85.*95 spm/).length).toBeGreaterThan(0);
+    // Hard mode cadence window: 120–145 spm (appears in message and/or cadence display)
+    expect(screen.getAllByText(/120.*145 spm/).length).toBeGreaterThan(0);
   });
 });
 

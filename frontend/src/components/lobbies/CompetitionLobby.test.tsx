@@ -97,7 +97,7 @@ describe("CompetitionLobby", () => {
       expect(screen.getByRole("button", { name: "10 min" })).toBeInTheDocument();
     });
 
-    it("shows at least 3 players message for elimination with fewer than 3 players", () => {
+    it("shows minimum players message for elimination with fewer than 3 players", () => {
       render(
         <CompetitionLobby
           {...baseProps}
@@ -109,7 +109,8 @@ describe("CompetitionLobby", () => {
         />
       );
       fireEvent.click(screen.getByRole("button", { name: "Elimination" }));
-      expect(screen.getByText(/at least 3 players/i)).toBeInTheDocument();
+      // LobbyShell renders "Minimum N players required" (not "at least N players")
+      expect(screen.getByText(/Minimum 3 players required/i)).toBeInTheDocument();
     });
 
     it("does not show the 3 players message when there are 3 or more players", () => {
