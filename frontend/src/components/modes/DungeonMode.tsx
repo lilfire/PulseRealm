@@ -272,6 +272,8 @@ interface Props {
   boundClientId?: string | null;
   clientInclines?: Record<string, number>;
   onSetIncline?: (clientId: string, percent: number) => void;
+  clientSpeedOverrides?: Record<string, number>;
+  onSetSpeedOverride?: (clientId: string, speedKmh: number) => void;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -290,7 +292,7 @@ function getDungeonMaxHr(clients: string[], clientProfiles: Record<string, impor
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd, role = "host", boundClientId, clientInclines, onSetIncline }: Props) {
+export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd, role = "host", boundClientId, clientInclines, onSetIncline, clientSpeedOverrides, onSetSpeedOverride }: Props) {
   const params = useRef(getDifficultyParams(config.difficulty, config.timeframe));
   const rooms = useRef<Room[]>([]);
   const gs = useRef<GameState | null>(null);
@@ -1191,12 +1193,14 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       </div>
 
       {/* Bind controls */}
-      {boundClientId && onSetIncline && (
+      {boundClientId && (onSetIncline || onSetSpeedOverride) && (
         <div style={{ flexShrink: 0, padding: "8px 1rem", borderTop: "1px solid #222" }}>
           <BindControlsHud
             boundClientId={boundClientId}
             clientInclines={clientInclines}
             onSetIncline={onSetIncline}
+            clientSpeedOverrides={clientSpeedOverrides}
+            onSetSpeedOverride={onSetSpeedOverride}
           />
         </div>
       )}

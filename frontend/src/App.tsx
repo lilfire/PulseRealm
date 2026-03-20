@@ -738,6 +738,8 @@ function App() {
         boundClientId={boundClientId}
         clientInclines={clientInclines}
         onSetIncline={setIncline}
+        clientSpeedOverrides={clientSpeedOverrides}
+        onSetSpeedOverride={setSpeedOverride}
       />
     );
   }

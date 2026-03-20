@@ -16,7 +16,7 @@
 - [x] android clients reconnect setting page
 - [ ] stride egen modus for calibrering da dette må være et array bassert på hastighet 
 - [x] fullscreen i dungeon mode
-- [ ] dungeon mode mangler overstyre hastighet, trengs dette? 
+- [x] dungeon mode mangler overstyre hastighet, trengs dette? 
 - [x] trang med plass i høyde på dungeon boss precision
 - [x] boss endurance 133+ på easy blir for stor overgang 
 - [x] link clients trenger litt css
