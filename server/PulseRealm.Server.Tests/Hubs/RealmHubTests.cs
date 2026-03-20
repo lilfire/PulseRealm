@@ -1423,8 +1423,9 @@ public class RealmHubTests
         realm.WithLock(r =>
         {
             r.Status = RealmStatus.Started;
-            // Keep a host so TryAutoEndRealm doesn't fire a second RealmEnded
-            r.HostConnectionId = Guid.NewGuid().ToString();
+            // Add a second connected client so TryAutoEndRealm doesn't fire
+            // (ConnectedClientIds.Count > 0 prevents auto-end)
+            r.ConnectedClientIds.Add(Guid.NewGuid().ToString());
         });
 
         var result = await hub.LeaveRealm();
