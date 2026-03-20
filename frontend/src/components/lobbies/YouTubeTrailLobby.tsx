@@ -339,47 +339,42 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
           </div>
 
           {video && (
-            <div style={{ marginTop: "0.75rem" }}>
-              <div
-                style={{
-                  position: "relative",
-                  paddingBottom: "56.25%",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                  background: "#000",
-                }}
-              >
-                <img
-                  src={resolveThumbUrl(video.thumbnailUrl, serverUrl) ?? `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`}
-                  alt="Video thumbnail"
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                />
+            <div style={{
+              marginTop: "0.75rem",
+              display: "flex",
+              alignItems: "center",
+              padding: "0.5rem 0.75rem",
+              borderRadius: "6px",
+              border: "2px solid #00D4FF",
+              background: "rgba(0,212,255,0.1)",
+            }}>
+              <img
+                src={resolveThumbUrl(video.thumbnailUrl, serverUrl) ?? `https://img.youtube.com/vi/${video.videoId}/default.jpg`}
+                alt=""
+                style={{ width: "80px", height: "60px", borderRadius: "4px", objectFit: "cover", flexShrink: 0, marginRight: "0.75rem" }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.9rem" }}>{video.title}</div>
                 {videoDuration !== null && (
-                  <span style={{
-                    position: "absolute",
-                    bottom: 8,
-                    right: 8,
-                    background: "rgba(0,0,0,0.8)",
-                    color: "#fff",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                  }}>{formatDuration(videoDuration)}</span>
+                  <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>Duration: {formatDuration(videoDuration)}</div>
                 )}
               </div>
-              {videoDuration !== null && (
-                <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0.4rem 0 0" }}>
-                  Video length: {formatDuration(videoDuration)}
-                </p>
-              )}
+              <button
+                onClick={() => { setVideo(null); setInputUrl(""); }}
+                title="Clear selection"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#888",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  padding: "0.25rem 0.5rem",
+                  flexShrink: 0,
+                  lineHeight: 1,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "#fff"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "#888"; }}
+              >✕</button>
             </div>
           )}
           <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "1rem 0 0.5rem" }}>Or pick a suggestion:</p>
