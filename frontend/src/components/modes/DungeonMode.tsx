@@ -300,6 +300,12 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
   const initRef = useRef(false);
   const startTimeRef = useRef(Date.now());
 
+  // Enter browser fullscreen on mount
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
   // Auto-clear burst notification after 3 seconds
   useEffect(() => {
     if (!burstNotification) return;

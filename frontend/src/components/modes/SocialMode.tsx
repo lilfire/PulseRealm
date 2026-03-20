@@ -122,6 +122,12 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
   const syncStartRef = useRef<number | null>(null);
   const [syncDuration, setSyncDuration] = useState(0);
 
+  // Enter browser fullscreen on mount
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
   // Initialize start time
   useEffect(() => { startTimeRef.current = Date.now(); }, []);
 

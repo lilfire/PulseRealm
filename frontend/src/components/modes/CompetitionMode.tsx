@@ -108,6 +108,12 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   const [, forceRender] = useState(0);
   const rerender = () => forceRender((n) => n + 1);
 
+  // Enter browser fullscreen on mount
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    return () => { document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+
   // Race state
   const nextPositionRef = useRef(1);
   const [raceWinner, setRaceWinner] = useState<string | null>(null);
