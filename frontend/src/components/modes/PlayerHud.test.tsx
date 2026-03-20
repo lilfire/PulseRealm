@@ -288,8 +288,8 @@ describe("PlayerHud — stride section without calibration", () => {
     expect(screen.getByText("Stride")).toBeInTheDocument();
   });
 
-  it("shows the stride value in cm (170 * 0.415 * 100 = 70.55 → 71 cm) when not calibrated", () => {
-    // 170 * (0.415 / 100) * 100 = 170 * 0.415 = 70.55, toFixed(0) = "71"
+  it("shows the stride value in cm using speed-dependent curve when not calibrated", () => {
+    // At speedKmh=8, default curve factor=0.55. strideCm = 170 * (0.55/100) * 100 = 93.5 → "94"
     render(
       <PlayerHud
         name="Alice"
@@ -299,7 +299,7 @@ describe("PlayerHud — stride section without calibration", () => {
         totalDistanceDisplay={0}
       />,
     );
-    expect(screen.getByText("71")).toBeInTheDocument();
+    expect(screen.getByText("94")).toBeInTheDocument();
   });
 
   it("does not render the stride diff span when not calibrated", () => {

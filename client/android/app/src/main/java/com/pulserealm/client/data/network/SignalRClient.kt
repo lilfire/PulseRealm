@@ -40,6 +40,11 @@ data class BindRequestData(
     val code: String
 )
 
+data class StrideCalibrationPoint(
+    val speedKmh: Double = 0.0,
+    val strideFactor: Double = 0.0
+)
+
 data class RealmSummaryData(
     val durationSeconds: Double = 0.0,
     val totalDistanceMeters: Double = 0.0,
@@ -68,6 +73,7 @@ class SignalRClient(
     @Volatile private var currentHeightCm: Double = 0.0
     @Volatile private var currentWeightKg: Double = 0.0
     @Volatile private var currentStrideFactor: Double = 0.0
+    @Volatile private var currentStrideCalibration: List<StrideCalibrationPoint>? = null
     @Volatile private var currentZoneBounds: DoubleArray? = null
     @Volatile private var currentMaxHr: Int = 0
     private val intentionalDisconnect = AtomicBoolean(false)
@@ -91,6 +97,9 @@ class SignalRClient(
 
     private val _bindRequest = MutableStateFlow<BindRequestData?>(null)
     val bindRequest: StateFlow<BindRequestData?> = _bindRequest.asStateFlow()
+
+    private val _calibrationComplete = MutableStateFlow<List<StrideCalibrationPoint>?>(null)
+    val calibrationComplete: StateFlow<List<StrideCalibrationPoint>?> = _calibrationComplete.asStateFlow()
 
     suspend fun connect(serverUrl: String) = withContext(Dispatchers.IO) {
         intentionalDisconnect.set(true)
@@ -203,6 +212,21 @@ class SignalRClient(
                 connection.stop()
             })
 
+            on("CalibrationComplete", { pointsRaw ->
+                @Suppress("UNCHECKED_CAST")
+                val list = pointsRaw as? List<*> ?: emptyList<Any>()
+                val points = list.mapNotNull { item ->
+                    val map = item as? Map<*, *> ?: return@mapNotNull null
+                    StrideCalibrationPoint(
+                        speedKmh = (map["speedKmh"] as? Number)?.toDouble() ?: return@mapNotNull null,
+                        strideFactor = (map["strideFactor"] as? Number)?.toDouble() ?: return@mapNotNull null
+                    )
+                }
+                if (points.isNotEmpty()) {
+                    _calibrationComplete.value = points
+                }
+            }, Any::class.java)
+
             on("Error", { message ->
                 _error.value = UserFriendlyErrors.fromRawMessage(message, "Something went wrong")
             }, String::class.java)
@@ -218,7 +242,7 @@ class SignalRClient(
         }
     }
 
-    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0, strideFactor: Double = 0.0, zoneBounds: DoubleArray? = null, maxHr: Int = 0) = withContext(Dispatchers.IO) {
+    suspend fun joinRealm(joinCode: String, clientId: String, name: String = "", age: Int = 0, heightCm: Double = 0.0, weightKg: Double = 0.0, strideFactor: Double = 0.0, strideCalibration: List<StrideCalibrationPoint>? = null, zoneBounds: DoubleArray? = null, maxHr: Int = 0) = withContext(Dispatchers.IO) {
         currentJoinCode = joinCode
         currentClientId = clientId
         currentName = name
@@ -226,6 +250,7 @@ class SignalRClient(
         currentHeightCm = heightCm
         currentWeightKg = weightKg
         currentStrideFactor = strideFactor
+        currentStrideCalibration = strideCalibration
         currentZoneBounds = zoneBounds
         currentMaxHr = maxHr
 
@@ -238,6 +263,11 @@ class SignalRClient(
             "weightKg" to weightKg,
             "strideFactor" to strideFactor
         ).also {
+            if (strideCalibration != null && strideCalibration.isNotEmpty()) {
+                it["strideCalibration"] = strideCalibration.map { p ->
+                    hashMapOf("speedKmh" to p.speedKmh, "strideFactor" to p.strideFactor)
+                }
+            }
             if (zoneBounds != null) it["zoneBounds"] = zoneBounds.toList()
             if (maxHr > 0) it["maxHr"] = maxHr
         } else null

@@ -10,4 +10,5 @@ public class ClientProfile
     public double StrideFactor { get; set; }
     public double[]? ZoneBounds { get; set; }
     public int MaxHr { get; set; }
+    public StrideCalibrationPoint[]? StrideCalibration { get; set; }
 }

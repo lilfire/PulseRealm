@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.SignalRClient
+import com.pulserealm.client.data.network.StrideCalibrationPoint
 import com.pulserealm.client.data.network.UserFriendlyErrors
+import org.json.JSONArray
 import com.pulserealm.client.data.model.RealmInfo
 import com.pulserealm.client.data.network.RealmApi
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +68,23 @@ class JoinViewModel @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
 
     private val strideFactor: Double = prefs.getFloat(PREF_STRIDE_FACTOR, 0f).toDouble()
+    private val strideCalibration: List<StrideCalibrationPoint>? = loadStrideCalibration()
+
+    private fun loadStrideCalibration(): List<StrideCalibrationPoint>? {
+        val json = prefs.getString("stride_calibration", null) ?: return null
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                StrideCalibrationPoint(
+                    speedKmh = obj.getDouble("speedKmh"),
+                    strideFactor = obj.getDouble("strideFactor")
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
     private val zone12: Int get() = prefs.getInt(PREF_ZONE_1_2, 57)
     private val zone23: Int get() = prefs.getInt(PREF_ZONE_2_3, 63)
     private val zone34: Int get() = prefs.getInt(PREF_ZONE_3_4, 76)
@@ -232,6 +251,7 @@ class JoinViewModel @Inject constructor(
                     state.heightCm.toDoubleOrNull() ?: 0.0,
                     state.weightKg.toDoubleOrNull() ?: 0.0,
                     strideFactor,
+                    strideCalibration,
                     zoneBounds,
                     maxHrOverride
                 )

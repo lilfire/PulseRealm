@@ -56,6 +56,7 @@ export interface ClientProfile {
   strideFactor?: number;
   zoneBounds?: number[];
   maxHr?: number;
+  strideCalibration?: { speedKmh: number; strideFactor: number }[];
 }
 
 export interface WearableData {

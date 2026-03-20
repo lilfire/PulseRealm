@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using PulseRealm.Server.Models;
+using PulseRealm.Server.Utils;
 
 namespace PulseRealm.Server.Services;
 
@@ -11,7 +12,6 @@ public class RealmStatsTracker
 {
     private static readonly ConcurrentDictionary<string, ClientStats> _stats = new();
 
-    private const double StrideFactor = 0.415;
     private const double CadenceEmaAlpha = 0.3;
 
     /// <summary>Key that scopes stats to a specific client within a specific realm.</summary>
@@ -83,6 +83,15 @@ public class RealmStatsTracker
                 }
             }
 
+            // Accumulate distance using speed-dependent stride
+            if (stats.PrevSteps > 0 && steps > stats.PrevSteps)
+            {
+                var stepDelta = steps - stats.PrevSteps;
+                var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
+                var strideM = StrideModel.GetStrideLength(heightCm, speedKmh, profile);
+                stats.AccumulatedDistanceMeters += stepDelta * strideM;
+            }
+
             // Cadence from step deltas with EMA smoothing
             if (stats.PrevSteps > 0 && steps > stats.PrevSteps && stats.PrevStepsTime != default)
             {
@@ -132,14 +141,11 @@ public class RealmStatsTracker
             if (!_stats.TryGetValue(key, out var stats)) continue;
 
             profiles.TryGetValue(clientId, out var profile);
-            var factor = profile?.StrideFactor > 0 ? profile.StrideFactor : StrideFactor;
-            var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
-            var strideM = heightCm * factor / 100.0;
 
             ClientSummaryDto cs;
             lock (stats)
             {
-                var distance = stats.MaxSteps * strideM;
+                var distance = stats.AccumulatedDistanceMeters;
                 cs = new ClientSummaryDto
                 {
                     ClientId = clientId,
@@ -234,14 +240,11 @@ public class RealmStatsTracker
             };
         }
 
-        var factor = profile?.StrideFactor > 0 ? profile.StrideFactor : StrideFactor;
-        var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
-        var strideM = heightCm * factor / 100.0;
         var duration = (DateTime.UtcNow - realm.CreatedAt).TotalSeconds;
 
         lock (stats)
         {
-            var distance = stats.MaxSteps * strideM;
+            var distance = stats.AccumulatedDistanceMeters;
             var elevation = Math.Round(stats.ElevationGainMeters, 1);
             return new RealmSummary
             {
@@ -305,6 +308,7 @@ public class RealmStatsTracker
     private class ClientStats
     {
         public int MaxSteps;
+        public double AccumulatedDistanceMeters;
         public long HrSum;
         public int HrCount;
         public int MaxHr;

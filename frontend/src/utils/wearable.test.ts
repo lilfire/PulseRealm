@@ -8,6 +8,7 @@ import {
   getMaxHrForAge,
   getMaxHrForProfile,
   getStrideFactor,
+  getSpeedDependentStrideFactor,
   getZoneForHr,
   getZoneBpmRange,
   estimateCaloriesPerSecond,
@@ -149,6 +150,72 @@ describe("getStrideFactor", () => {
   it("handles a strideFactor that differs significantly from the default", () => {
     const profile = makeProfile({ strideFactor: 50 });
     expect(getStrideFactor(profile)).toBeCloseTo(0.5);
+  });
+  it("returns speed-dependent factor when speedKmh is provided", () => {
+    // At 5 km/h, default curve gives 0.415 / 100 = 0.00415
+    expect(getStrideFactor(undefined, 5)).toBeCloseTo(0.00415);
+  });
+
+  it("uses speed-dependent curve with user multiplier", () => {
+    const profile = makeProfile({ strideFactor: 0.50 });
+    // Multiplier = 0.50 / 0.415, applied to default curve at 8 km/h (factor 0.55)
+    const expected = 0.55 * (0.50 / 0.415) / 100;
+    expect(getStrideFactor(profile, 8)).toBeCloseTo(expected);
+  });
+
+  it("uses personal calibration when provided with speed", () => {
+    const profile = makeProfile({
+      strideCalibration: [
+        { speedKmh: 3, strideFactor: 0.40 },
+        { speedKmh: 10, strideFactor: 0.70 },
+      ],
+    });
+    expect(getStrideFactor(profile, 3)).toBeCloseTo(0.004);
+    expect(getStrideFactor(profile, 10)).toBeCloseTo(0.007);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSpeedDependentStrideFactor
+// ---------------------------------------------------------------------------
+
+describe("getSpeedDependentStrideFactor", () => {
+  it("returns correct factors at curve data points", () => {
+    expect(getSpeedDependentStrideFactor(0)).toBeCloseTo(0.35);
+    expect(getSpeedDependentStrideFactor(3)).toBeCloseTo(0.35);
+    expect(getSpeedDependentStrideFactor(5)).toBeCloseTo(0.415);
+    expect(getSpeedDependentStrideFactor(8)).toBeCloseTo(0.55);
+    expect(getSpeedDependentStrideFactor(12)).toBeCloseTo(0.65);
+    expect(getSpeedDependentStrideFactor(15)).toBeCloseTo(0.75);
+  });
+
+  it("interpolates between data points", () => {
+    const result = getSpeedDependentStrideFactor(6.5);
+    const expected = 0.415 + (0.55 - 0.415) * (6.5 - 5) / (8 - 5);
+    expect(result).toBeCloseTo(expected);
+  });
+
+  it("clamps above max speed", () => {
+    expect(getSpeedDependentStrideFactor(20)).toBeCloseTo(0.75);
+  });
+
+  it("clamps below min speed", () => {
+    expect(getSpeedDependentStrideFactor(-1)).toBeCloseTo(0.35);
+  });
+
+  it("uses personal calibration when provided", () => {
+    const calibration = [
+      { speedKmh: 3, strideFactor: 0.40 },
+      { speedKmh: 10, strideFactor: 0.70 },
+    ];
+    expect(getSpeedDependentStrideFactor(3, calibration)).toBeCloseTo(0.40);
+    expect(getSpeedDependentStrideFactor(10, calibration)).toBeCloseTo(0.70);
+  });
+
+  it("falls back to default curve with single calibration point", () => {
+    const calibration = [{ speedKmh: 5, strideFactor: 0.50 }];
+    // Only 1 point, not enough — falls back to default
+    expect(getSpeedDependentStrideFactor(5, calibration)).toBeCloseTo(0.415);
   });
 });
 

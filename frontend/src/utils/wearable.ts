@@ -12,13 +12,92 @@ export function getMaxHrForAge(age: number | undefined): number {
   return MAX_HR;
 }
 
-/** Multiply height(cm) by this to get stride length in meters. */
-export const STRIDE_FACTOR = 0.415 / 100;
+/** Default walking stride factor (height × factor = stride length). */
+export const DEFAULT_WALKING_FACTOR = 0.415;
+
+/** Multiply height(cm) by this to get stride length in meters (legacy constant). */
+export const STRIDE_FACTOR = DEFAULT_WALKING_FACTOR / 100;
 
 import type { ClientProfile } from "../types/session";
 
-/** Returns the stride factor for a client, using their calibrated value if available. */
-export function getStrideFactor(profile?: ClientProfile): number {
+/**
+ * Default speed-stride curve data points (biomechanical research).
+ * Sorted by speed ascending.
+ */
+const DEFAULT_CURVE: readonly [number, number][] = [
+  [0, 0.35],
+  [3, 0.35],
+  [5, 0.415],
+  [8, 0.55],
+  [12, 0.65],
+  [15, 0.75],
+];
+
+/**
+ * Piecewise linear interpolation over sorted (speed, factor) data points.
+ * Clamps to first/last value outside range.
+ */
+function interpolate(points: readonly [number, number][], speedKmh: number): number {
+  if (points.length === 0) return DEFAULT_WALKING_FACTOR;
+  if (points.length === 1) return points[0][1];
+
+  if (speedKmh <= points[0][0]) return points[0][1];
+  if (speedKmh >= points[points.length - 1][0]) return points[points.length - 1][1];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x0, y0] = points[i];
+    const [x1, y1] = points[i + 1];
+    if (speedKmh >= x0 && speedKmh <= x1) {
+      if (Math.abs(x1 - x0) < 0.001) return y0;
+      const t = (speedKmh - x0) / (x1 - x0);
+      return y0 + t * (y1 - y0);
+    }
+  }
+
+  return points[points.length - 1][1];
+}
+
+/**
+ * Returns the default stride factor for a given speed using piecewise linear interpolation.
+ * Factor is a raw multiplier (e.g., 0.415), NOT divided by 100.
+ */
+export function getSpeedDependentStrideFactor(
+  speedKmh: number,
+  calibration?: { speedKmh: number; strideFactor: number }[],
+): number {
+  if (calibration && calibration.length >= 2) {
+    const points: [number, number][] = calibration
+      .slice()
+      .sort((a, b) => a.speedKmh - b.speedKmh)
+      .map((p) => [p.speedKmh, p.strideFactor]);
+    return interpolate(points, speedKmh);
+  }
+  return interpolate(DEFAULT_CURVE, speedKmh);
+}
+
+/**
+ * Returns the stride factor for a client, considering speed-dependent curve and calibration.
+ * When speedKmh is provided, uses the speed-dependent model.
+ * When not provided, falls back to the legacy fixed factor for backward compatibility.
+ * Returns factor / 100 (ready to multiply with height in cm to get meters).
+ */
+export function getStrideFactor(profile?: ClientProfile, speedKmh?: number): number {
+  if (speedKmh != null) {
+    // Speed-dependent mode
+    const calibration = profile?.strideCalibration;
+    if (calibration && calibration.length >= 2) {
+      // Use personal calibration curve
+      return getSpeedDependentStrideFactor(speedKmh, calibration) / 100;
+    }
+    // Apply user's strideFactor as a proportional multiplier on the default curve
+    const baseFactor = getSpeedDependentStrideFactor(speedKmh);
+    if (profile?.strideFactor && profile.strideFactor > 0 && Math.abs(profile.strideFactor - DEFAULT_WALKING_FACTOR) > 0.001) {
+      return (baseFactor * (profile.strideFactor / DEFAULT_WALKING_FACTOR)) / 100;
+    }
+    return baseFactor / 100;
+  }
+
+  // Legacy fixed mode (no speed provided)
   return profile?.strideFactor && profile.strideFactor > 0
     ? profile.strideFactor / 100
     : STRIDE_FACTOR;

@@ -417,6 +417,24 @@
   color: var(--accent2, #33DFFF);
 }
 
+.device-sidebar-divider {
+  width: 60%;
+  height: 1px;
+  background: var(--border, #2e303a);
+  margin: 0.5rem 0;
+}
+
+.device-link-calibrate {
+  border-color: rgba(51, 223, 255, 0.3);
+  color: var(--accent2, #33DFFF);
+  font-size: 0.7rem;
+}
+
+.device-link-calibrate:hover {
+  border-color: var(--accent2, #33DFFF);
+  background: rgba(51, 223, 255, 0.1);
+}
+
 
 /* --- QR Code Modal --- */
 

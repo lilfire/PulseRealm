@@ -570,7 +570,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     t.steps += stepDelta;
     if (stepDelta > 0) {
       const height = clientProfiles[latestData.clientId]?.heightCm ?? 170;
-      t.distanceMeters += stepDelta * height * getStrideFactor(clientProfiles[latestData.clientId]);
+      t.distanceMeters += stepDelta * height * getStrideFactor(clientProfiles[latestData.clientId], latestData.speedKmh);
     }
     // Speed tracking
     if (latestData.speedKmh > 0) {
@@ -1227,9 +1227,11 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
               {(() => {
                 const p = clientProfiles[cs.clientId];
                 if (!p?.heightCm) return null;
-                const strideCm = p.heightCm * getStrideFactor(p) * 100;
-                const cal = p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415;
-                const diff = cal ? strideCm - p.heightCm * STRIDE_FACTOR * 100 : null;
+                const strideCm = p.heightCm * getStrideFactor(p, 5) * 100;
+                const hasCalibration = p.strideCalibration && p.strideCalibration.length >= 2;
+                const cal = hasCalibration || (p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415);
+                const baselineCm = p.heightCm * STRIDE_FACTOR * 100;
+                const diff = cal ? strideCm - baselineCm : null;
                 return (
                   <div style={{ fontSize: "0.7rem", color: "#aaa", marginTop: "0.15rem" }}>
                     {strideCm.toFixed(0)} cm stride

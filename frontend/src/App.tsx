@@ -19,6 +19,7 @@ import { RealmSummaryScreen } from "./components/SessionSummaryScreen";
 import { AdminLogin } from "./components/admin/AdminLogin";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { TermsOfService } from "./components/TermsOfService";
+import { CalibrationPanel } from "./components/CalibrationPanel";
 import type { CompetitionConfig, Realm, RealmMode, RealmRole } from "./types/session";
 import "./App.css";
 
@@ -90,6 +91,9 @@ function App() {
 
   // Coming soon modal for unsupported platforms
   const [comingSoonDevice, setComingSoonDevice] = useState<string | null>(null);
+
+  // Stride calibration panel
+  const [showCalibration, setShowCalibration] = useState(false);
 
   // Use preset URL if available, otherwise use the dynamically configured one
   const apiUrl = PRESET_API_URL || server.apiUrl;
@@ -449,6 +453,10 @@ function App() {
             <button className="device-link" onClick={() => setComingSoonDevice("Garmin")}>
               Garmin
             </button>
+            <div className="device-sidebar-divider" />
+            <button className="device-link device-link-calibrate" onClick={() => setShowCalibration(true)}>
+              Calibrate
+            </button>
           </div>
         </div>
         <footer className="server-footer">
@@ -500,6 +508,9 @@ function App() {
               <button className="qr-close" onClick={() => setComingSoonDevice(null)}>Close</button>
             </div>
           </div>
+        )}
+        {showCalibration && hubUrl && (
+          <CalibrationPanel hubUrl={hubUrl} onClose={() => setShowCalibration(false)} />
         )}
         {showJoinModal && (
           <div className="qr-overlay" onClick={() => { setShowJoinModal(false); setJoinError(""); }}>

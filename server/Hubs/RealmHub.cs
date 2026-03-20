@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
+using PulseRealm.Server.Utils;
 
 namespace PulseRealm.Server.Hubs;
 
@@ -29,8 +30,11 @@ public class RealmHub : Hub
     /// <summary>Tracks the last accepted wearable message time per client for rate limiting.</summary>
     private static readonly ConcurrentDictionary<string, DateTime> _lastAcceptedTime = new();
 
-    /// <summary>Walking stride-length factor: stride (m) ≈ height (cm) × factor / 100.</summary>
-    private const double StrideFactor = 0.415;
+    /// <summary>Tracks calibration session state per session ID.</summary>
+    private static readonly ConcurrentDictionary<string, CalibrationSession> _calibrationSessions = new();
+
+    /// <summary>Maps calibration join codes to session IDs.</summary>
+    private static readonly ConcurrentDictionary<string, string> _calibrationJoinCodes = new();
 
     /// <summary>EMA smoothing factor (higher = more responsive, noisier).</summary>
     private const double EmaAlpha = 0.15;
@@ -112,7 +116,14 @@ public class RealmHub : Hub
             if (profile.WeightKg is < 10 or > 500)
                 throw new HubException("Weight must be between 10 and 500 kg.");
             if (profile.StrideFactor is < 0.3 or > 0.6)
-                profile.StrideFactor = StrideFactor;
+                profile.StrideFactor = 0;
+
+            // Validate stride calibration: each point must have valid speed and factor
+            if (profile.StrideCalibration is { Length: > 0 } sc)
+            {
+                var validPoints = sc.Where(p => p.SpeedKmh is >= 0 and <= 30 && p.StrideFactor is >= 0.2 and <= 1.0).ToArray();
+                profile.StrideCalibration = validPoints.Length >= 2 ? validPoints : null;
+            }
 
             // Validate zone bounds: must be 4 elements, each 0.01–0.99, strictly increasing
             if (profile.ZoneBounds is { Length: 4 } zb)
@@ -330,8 +341,7 @@ public class RealmHub : Hub
 
             var profile = _realmManager.GetClientProfile(realmId, clientId);
             var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
-            var factor = profile?.StrideFactor > 0 ? profile.StrideFactor : StrideFactor;
-            var strideLengthM = heightCm * factor / 100.0;
+            var strideLengthM = StrideModel.GetStrideLength(heightCm, previous.SmoothedSpeed, profile);
             var distanceM = stepDelta * strideLengthM;
             var instantaneous = distanceM / timeDelta * 3.6;
 
@@ -812,5 +822,223 @@ public class RealmHub : Hub
                 _pendingLeaves.TryRemove(kvp.Key, out _);
             }
         }
+    }
+
+    // ── Stride Calibration Session ──────────────────────────────────────────
+
+    /// <summary>
+    /// Dashboard creates a standalone calibration session. Returns a 6-digit join code.
+    /// </summary>
+    public string CreateCalibrationSession(double heightCm)
+    {
+        if (heightCm is < 50 or > 250)
+            throw new HubException("Height must be between 50 and 250 cm.");
+
+        var sessionId = Guid.NewGuid().ToString("N")[..12];
+        var joinCode = GenerateCalibrationJoinCode();
+
+        var session = new CalibrationSession
+        {
+            SessionId = sessionId,
+            JoinCode = joinCode,
+            DashboardConnectionId = Context.ConnectionId,
+            HeightCm = heightCm,
+        };
+
+        _calibrationSessions[sessionId] = session;
+        _calibrationJoinCodes[joinCode] = sessionId;
+
+        return joinCode;
+    }
+
+    /// <summary>
+    /// Wearable client joins a calibration session using the 6-digit code.
+    /// </summary>
+    public async Task JoinCalibrationSession(string joinCode, string clientId)
+    {
+        if (!_calibrationJoinCodes.TryGetValue(joinCode, out var sessionId))
+            throw new HubException("Invalid calibration code.");
+
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        if (session.ClientId is not null)
+            throw new HubException("A client is already connected to this calibration session.");
+
+        session.ClientId = clientId;
+        session.ClientConnectionId = Context.ConnectionId;
+
+        // Notify dashboard that the client has connected
+        await Clients.Client(session.DashboardConnectionId)
+            .SendAsync("CalibrationClientJoined", sessionId, clientId);
+    }
+
+    /// <summary>
+    /// Wearable sends step data during a calibration session.
+    /// </summary>
+    public async Task SendCalibrationData(string sessionId, int steps)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        if (session.ClientConnectionId != Context.ConnectionId)
+            throw new HubException("Not the connected client for this session.");
+
+        session.LatestSteps = steps;
+
+        // Forward step data to the dashboard for UI updates
+        await Clients.Client(session.DashboardConnectionId)
+            .SendAsync("CalibrationDataReceived", sessionId, steps);
+    }
+
+    /// <summary>
+    /// Dashboard starts recording a calibration sample at a target speed.
+    /// </summary>
+    public void StartCalibrationSample(string sessionId, double targetSpeedKmh)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        if (session.DashboardConnectionId != Context.ConnectionId)
+            throw new HubException("Not the dashboard for this session.");
+
+        if (targetSpeedKmh is <= 0 or > 30)
+            throw new HubException("Target speed must be between 0 and 30 km/h.");
+
+        session.CurrentTargetSpeedKmh = targetSpeedKmh;
+        session.SampleStartSteps = session.LatestSteps;
+        session.SampleStartTime = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Dashboard ends the current calibration sample. Server computes stride factor and returns the result.
+    /// </summary>
+    public async Task EndCalibrationSample(string sessionId)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        if (session.DashboardConnectionId != Context.ConnectionId)
+            throw new HubException("Not the dashboard for this session.");
+
+        if (session.SampleStartTime is null || session.CurrentTargetSpeedKmh is null)
+            throw new HubException("No active sample to end.");
+
+        var elapsed = (DateTime.UtcNow - session.SampleStartTime.Value).TotalSeconds;
+        if (elapsed < 5)
+            throw new HubException("Sample duration too short (minimum 5 seconds).");
+
+        var stepDelta = session.LatestSteps - (session.SampleStartSteps ?? 0);
+        if (stepDelta <= 0)
+            throw new HubException("No steps recorded during the sample.");
+
+        var stepRate = stepDelta / elapsed; // steps per second
+        var speedMs = session.CurrentTargetSpeedKmh.Value / 3.6;
+        var strideLengthM = speedMs / stepRate;
+        var strideFactor = strideLengthM / (session.HeightCm / 100.0);
+
+        // Clamp to reasonable range
+        strideFactor = Math.Clamp(strideFactor, 0.2, 1.0);
+
+        var point = new StrideCalibrationPoint
+        {
+            SpeedKmh = session.CurrentTargetSpeedKmh.Value,
+            StrideFactor = Math.Round(strideFactor, 4),
+        };
+        session.CollectedPoints.Add(point);
+
+        // Reset sample state
+        session.CurrentTargetSpeedKmh = null;
+        session.SampleStartSteps = null;
+        session.SampleStartTime = null;
+
+        await Clients.Client(session.DashboardConnectionId)
+            .SendAsync("CalibrationSampleResult", sessionId, point);
+    }
+
+    /// <summary>
+    /// Dashboard saves calibration results. Sends the collected data points to the wearable
+    /// client so it can store them for future realm sessions.
+    /// </summary>
+    public async Task SaveCalibration(string sessionId)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        if (session.DashboardConnectionId != Context.ConnectionId)
+            throw new HubException("Not the dashboard for this session.");
+
+        if (session.CollectedPoints.Count < 2)
+            throw new HubException("At least 2 calibration samples are required.");
+
+        var points = session.CollectedPoints
+            .OrderBy(p => p.SpeedKmh)
+            .ToArray();
+
+        // Send calibration data to the wearable client for storage
+        if (session.ClientConnectionId is not null)
+        {
+            await Clients.Client(session.ClientConnectionId)
+                .SendAsync("CalibrationComplete", points);
+        }
+
+        // Notify dashboard of completion
+        await Clients.Client(session.DashboardConnectionId)
+            .SendAsync("CalibrationSaved", sessionId, points);
+
+        // Clean up session
+        CleanupCalibrationSession(sessionId);
+    }
+
+    /// <summary>
+    /// Cancels a calibration session without saving.
+    /// </summary>
+    public void CancelCalibration(string sessionId)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            return;
+
+        if (session.DashboardConnectionId != Context.ConnectionId &&
+            session.ClientConnectionId != Context.ConnectionId)
+            return;
+
+        CleanupCalibrationSession(sessionId);
+    }
+
+    private static void CleanupCalibrationSession(string sessionId)
+    {
+        if (_calibrationSessions.TryRemove(sessionId, out var session))
+        {
+            _calibrationJoinCodes.TryRemove(session.JoinCode, out _);
+        }
+    }
+
+    private static string GenerateCalibrationJoinCode()
+    {
+        var rng = new Random();
+        string code;
+        do
+        {
+            code = rng.Next(100000, 999999).ToString();
+        } while (_calibrationJoinCodes.ContainsKey(code));
+        return code;
+    }
+
+    private class CalibrationSession
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public string JoinCode { get; set; } = string.Empty;
+        public string DashboardConnectionId { get; set; } = string.Empty;
+        public string? ClientId { get; set; }
+        public string? ClientConnectionId { get; set; }
+        public double HeightCm { get; set; }
+        public int LatestSteps { get; set; }
+
+        // Current sample state
+        public double? CurrentTargetSpeedKmh { get; set; }
+        public int? SampleStartSteps { get; set; }
+        public DateTime? SampleStartTime { get; set; }
+
+        public List<StrideCalibrationPoint> CollectedPoints { get; } = new();
     }
 }
