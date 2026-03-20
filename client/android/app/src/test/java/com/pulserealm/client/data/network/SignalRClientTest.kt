@@ -170,6 +170,182 @@ class SignalRClientTest {
         assertEquals(ConnectionState.DISCONNECTED, customClient.connectionState.value)
         customClient.dispose()
     }
+
+    // --- respondBind ---
+
+    @Test
+    fun `respondBind clears bindRequest`() {
+        // Manually set bindRequest
+        val bindField = SignalRClient::class.java.getDeclaredField("_bindRequest")
+        bindField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val bindFlow = bindField.get(client) as kotlinx.coroutines.flow.MutableStateFlow<BindRequestData?>
+        bindFlow.value = BindRequestData(code = "123456")
+
+        assertEquals("123456", client.bindRequest.value?.code)
+        client.respondBind("realm-1", true)
+        assertNull(client.bindRequest.value)
+    }
+
+    @Test
+    fun `respondBind with no hub does not throw`() {
+        client.respondBind("realm-1", false)
+        assertNull(client.bindRequest.value)
+    }
+
+    // --- leaveRealm ---
+
+    @Test
+    fun `leaveRealm without hub returns false and disconnects`() {
+        val result = client.leaveRealm()
+        assertFalse(result)
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `leaveRealm resets state`() {
+        client.leaveRealm()
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+        assertFalse(client.isConnected())
+    }
+
+    // --- onNetworkAvailable ---
+
+    @Test
+    fun `onNetworkAvailable does nothing after intentional disconnect`() {
+        client.disconnect() // sets intentionalDisconnect = true
+        client.onNetworkAvailable()
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `onNetworkAvailable does nothing when no joinCode`() {
+        // Fresh client has no joinCode
+        client.onNetworkAvailable()
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    // --- initial realmStarted ---
+
+    @Test
+    fun `initial realmStarted is false`() {
+        assertFalse(client.realmStarted.value)
+    }
+
+    // --- initial bindRequest ---
+
+    @Test
+    fun `initial bindRequest is null`() {
+        assertNull(client.bindRequest.value)
+    }
+
+    // --- disconnect clears extended state ---
+
+    @Test
+    fun `disconnect resets realmStarted`() {
+        val field = SignalRClient::class.java.getDeclaredField("_realmStarted")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val flow = field.get(client) as kotlinx.coroutines.flow.MutableStateFlow<Boolean>
+        flow.value = true
+
+        client.disconnect()
+        assertFalse(client.realmStarted.value)
+    }
+
+    @Test
+    fun `disconnect resets bindRequest`() {
+        val field = SignalRClient::class.java.getDeclaredField("_bindRequest")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val flow = field.get(client) as kotlinx.coroutines.flow.MutableStateFlow<BindRequestData?>
+        flow.value = BindRequestData(code = "ABC")
+
+        client.disconnect()
+        assertNull(client.bindRequest.value)
+    }
+
+    // --- sendWearableData edge cases ---
+
+    @Test
+    fun `sendWearableData with high heart rate does not crash when disconnected`() {
+        val data = WearableData("c1", 250, 0, "")
+        client.sendWearableData("realm-1", data)
+        // No exception means success
+    }
+
+    @Test
+    fun `sendWearableData with negative steps does not crash when disconnected`() {
+        val data = WearableData("c1", 0, -100, "")
+        client.sendWearableData("realm-1", data)
+    }
+
+    // --- Multiple dispose calls ---
+
+    @Test
+    fun `multiple dispose calls do not throw`() {
+        client.dispose()
+        client.dispose()
+        client.dispose()
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    // --- State after leaveRealm ---
+
+    @Test
+    fun `leaveRealm clears realmEnded`() {
+        val field = SignalRClient::class.java.getDeclaredField("_realmEnded")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val flow = field.get(client) as kotlinx.coroutines.flow.MutableStateFlow<RealmSummaryData?>
+        flow.value = RealmSummaryData(durationSeconds = 100.0)
+
+        client.leaveRealm()
+        // After leaveRealm disconnects internally, state is reset
+        assertNull(client.realmEnded.value)
+    }
+
+    @Test
+    fun `leaveRealm clears eliminated`() {
+        val field = SignalRClient::class.java.getDeclaredField("_eliminated")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val flow = field.get(client) as kotlinx.coroutines.flow.MutableStateFlow<Boolean>
+        flow.value = true
+
+        client.leaveRealm()
+        assertFalse(client.eliminated.value)
+    }
+}
+
+class BindRequestDataTest {
+
+    @Test
+    fun `BindRequestData stores code`() {
+        val data = BindRequestData(code = "ABCD12")
+        assertEquals("ABCD12", data.code)
+    }
+
+    @Test
+    fun `BindRequestData equality works`() {
+        val a = BindRequestData(code = "123")
+        val b = BindRequestData(code = "123")
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `BindRequestData inequality works`() {
+        val a = BindRequestData(code = "123")
+        val b = BindRequestData(code = "456")
+        assertNotEquals(a, b)
+    }
+
+    @Test
+    fun `BindRequestData copy works`() {
+        val original = BindRequestData(code = "ABC")
+        val copy = original.copy(code = "XYZ")
+        assertEquals("XYZ", copy.code)
+    }
 }
 
 class ConnectionStateTest {
