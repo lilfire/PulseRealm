@@ -105,6 +105,7 @@ class RealmViewModel @Inject constructor(
         if (isCalibrationMode) {
             // Calibration sessions are not realms — send step data directly via SignalR
             // without starting the foreground DataStreamingService.
+            sensorDataCollector.start()
             calibrationJob = viewModelScope.launch(Dispatchers.IO) {
                 while (true) {
                     delay(1000L)
@@ -147,7 +148,9 @@ class RealmViewModel @Inject constructor(
         isStreaming = false
         calibrationJob?.cancel()
         calibrationJob = null
-        if (!isCalibrationMode) {
+        if (isCalibrationMode) {
+            sensorDataCollector.stop()
+        } else {
             application.stopService(Intent(application, DataStreamingService::class.java))
         }
     }

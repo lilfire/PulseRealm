@@ -766,6 +766,31 @@ public class RealmHub : Hub
             await TryAutoEndRealm(mapping.RealmId, clientLeft: false);
         }
 
+        // Check if this connection was part of a calibration session
+        foreach (var kvp in _calibrationSessions)
+        {
+            var session = kvp.Value;
+            if (session.ClientConnectionId == Context.ConnectionId)
+            {
+                // Notify dashboard that the calibration client left
+                await Clients.Client(session.DashboardConnectionId)
+                    .SendAsync("CalibrationClientLeft", session.SessionId);
+                CleanupCalibrationSession(session.SessionId);
+                break;
+            }
+            if (session.DashboardConnectionId == Context.ConnectionId)
+            {
+                // Dashboard disconnected — clean up the session
+                if (session.ClientConnectionId is not null)
+                {
+                    await Clients.Client(session.ClientConnectionId)
+                        .SendAsync("CalibrationCancelled", session.SessionId);
+                }
+                CleanupCalibrationSession(session.SessionId);
+                break;
+            }
+        }
+
         await base.OnDisconnectedAsync(exception);
     }
 

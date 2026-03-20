@@ -35,7 +35,7 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
   const [step, setStep] = useState<CalibrationStep>("connecting");
   const [heightCm, setHeightCm] = useState(170);
   const [joinCode, setJoinCode] = useState<string | null>(null);
-  const [clientConnected, setClientConnected] = useState(false);
+  const [_clientConnected, setClientConnected] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [sampling, setSampling] = useState(false);
@@ -75,7 +75,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
         .build();
 
       // Listen for events
-      connection.on("CalibrationClientJoined", (_sid: string, _clientId: string, clientHeightCm: number) => {
+      connection.on("CalibrationClientJoined", (sid: string, _clientId: string, clientHeightCm: number) => {
+        setSessionId(sid);
         setHeightCm(clientHeightCm);
         setClientConnected(true);
         setStep("calibrating");
@@ -92,6 +93,17 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
 
       connection.on("CalibrationSaved", () => {
         setSaved(true);
+      });
+
+      connection.on("CalibrationClientLeft", () => {
+        setClientConnected(false);
+        setError("Wearable client disconnected.");
+        if (countdownRef.current) {
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
+        }
+        setSampling(false);
+        setStep("waiting-client");
       });
 
       await connection.start();
@@ -189,19 +201,6 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
 
   // Auto-start session on mount
   useEffect(() => { startSession(); }, [startSession]);
-
-  // Update sessionId from CalibrationClientJoined event
-  useEffect(() => {
-    const conn = connectionRef.current;
-    if (!conn) return;
-
-    const handler = (sid: string) => {
-      setSessionId(sid);
-    };
-
-    conn.on("CalibrationClientJoined", handler);
-    return () => { conn.off("CalibrationClientJoined", handler); };
-  }, [clientConnected]);
 
   return (
     <div style={overlayStyle}>
