@@ -12,6 +12,8 @@
 - [x] sridelength i sosial trenger label og hva som ville vært normalen  +/-
 - [x] fullscreen i home og lobbies
 - [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
+- [ ] fullscreen sosial mode
+- [ ] android clients reconnect setting page
 
 ## BUGS
 
