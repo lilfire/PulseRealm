@@ -1178,7 +1178,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       </div>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0.5rem 1rem", overflow: "auto" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0.5rem 1rem", overflow: "auto", minHeight: 0 }}>
         {display.phase === "complete" && <CompleteView display={display} onEnd={handleEnd} role={role} />}
         {display.phase === "corridor" && <CorridorView display={display} />}
         {display.phase === "room" && currentRoomObj && (
@@ -1308,17 +1308,21 @@ function CompleteView({ display, onEnd, role = "host" }: { display: Display; onE
 }
 
 function RoomView({ display, roomType, roomLabel }: { display: Display; roomType: RoomType; roomLabel: string }) {
+  const isBoss = roomType === "boss";
   return (
-    <div style={{ textAlign: "center", width: "100%", maxWidth: "700px" }}>
-      <div style={{ fontSize: "1.5rem", marginBottom: "0.15rem" }}>{roomIcon(roomType)}</div>
-      <div style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.2rem" }}>{roomLabel}</div>
-      <div style={{ color: "#aaa", fontSize: "0.85rem", marginBottom: "0.75rem" }}>{display.roomMessage}</div>
+    <div style={{
+      textAlign: "center", width: "100%", maxWidth: "700px",
+      ...(isBoss ? { display: "flex", flexDirection: "column" as const, minHeight: 0, maxHeight: "100%", overflow: "hidden" } : {}),
+    }}>
+      <div style={{ fontSize: "1.5rem", marginBottom: "0.15rem", flexShrink: 0 }}>{roomIcon(roomType)}</div>
+      <div style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.2rem", flexShrink: 0 }}>{roomLabel}</div>
+      <div style={{ color: "#aaa", fontSize: "0.85rem", marginBottom: isBoss ? "0.4rem" : "0.75rem", flexShrink: 0 }}>{display.roomMessage}</div>
 
       {roomType === "enemy" && <EnemyRoom display={display} />}
       {roomType === "trap" && <TrapRoom display={display} />}
       {roomType === "rest" && <RestRoom display={display} />}
       {roomType === "treasure" && <TreasureRoom display={display} />}
-      {roomType === "boss" && <BossRoom display={display} />}
+      {isBoss && <BossRoom display={display} />}
     </div>
   );
 }
@@ -1482,15 +1486,15 @@ function BossRoom({ display }: { display: Display }) {
   const phases = ["Damage", "Precision", "Endurance"];
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "100%" }}>
       {/* Phase indicators */}
-      <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.5rem", marginBottom: "0.75rem" } as React.CSSProperties}>
+      <div className="fg-row" style={{ display: "flex", justifyContent: "center", "--fg": "0.4rem", marginBottom: "0.5rem", flexShrink: 0 } as React.CSSProperties}>
         {phases.map((label, i) => {
           const isActive = i === display.bossPhase;
           const isCleared = i < display.bossPhase;
           return (
             <span key={i} style={{
-              padding: "0.3rem 0.8rem", borderRadius: "20px", fontSize: "0.8rem", fontWeight: 600,
+              padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600,
               background: isActive ? "rgba(239,68,68,0.15)" : isCleared ? "rgba(34,197,94,0.1)" : "#1a1a1a",
               color: isActive ? "#ef4444" : isCleared ? "#22c55e" : "#555",
               border: `1px solid ${isActive ? "#ef4444" : isCleared ? "#22c55e" : "#333"}`,
@@ -1506,17 +1510,17 @@ function BossRoom({ display }: { display: Display }) {
         <HpBar current={display.bossHp} max={display.bossMaxHp} color="#ef4444" label="Boss HP" />
       )}
       {display.bossPhase === 1 && (
-        <div>
-          <div style={{ marginBottom: "0.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "auto" }}>
+          <div style={{ marginBottom: "0.4rem", flexShrink: 0 }}>
             <div style={{
-              display: "inline-block", padding: "0.25rem 0.75rem", borderRadius: "20px", fontSize: "1.2rem", fontWeight: 700,
+              display: "inline-block", padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "1.05rem", fontWeight: 700,
               background: display.bossInWindow ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
               color: display.bossInWindow ? "#22c55e" : "#ef4444",
               border: `2px solid ${display.bossInWindow ? "#22c55e" : "#ef4444"}`,
             }}>
               {display.teamCadence} spm
             </div>
-            <div style={{ color: "#888", fontSize: "0.8rem", marginTop: "0.3rem" }}>
+            <div style={{ color: "#888", fontSize: "0.75rem", marginTop: "0.2rem" }}>
               Target: {display.bossTrapCadenceMin}–{display.bossTrapCadenceMax} spm
             </div>
           </div>
@@ -1525,7 +1529,7 @@ function BossRoom({ display }: { display: Display }) {
         </div>
       )}
       {display.bossPhase === 2 && (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "auto", padding: "0 0.25rem" }}>
           {display.bossEnduranceClients.map((c, i) => {
             const aboveThreshold = c.hr >= c.hrThreshold;
             const underBy = c.hrThreshold - c.hr;
@@ -1534,14 +1538,15 @@ function BossRoom({ display }: { display: Display }) {
 
             return (
               <div key={i} style={{
-                padding: "0.6rem 0.75rem", margin: "0.4rem 0", borderRadius: "8px",
+                padding: "0.4rem 0.6rem", marginBottom: i < display.bossEnduranceClients.length - 1 ? "0.3rem" : 0, borderRadius: "8px",
                 background: c.ready ? "rgba(34,197,94,0.1)" : "#1a1a1a",
                 border: `1px solid ${c.ready ? "#22c55e" : aboveThreshold ? "#f97316" : "#333"}`,
+                flexShrink: 0,
               }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-                  <span style={{ fontWeight: 600 }}>{c.name}</span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{c.name}</span>
                   <span style={{
-                    fontSize: "1.1rem", fontWeight: 700,
+                    fontSize: "0.95rem", fontWeight: 700,
                     color: c.ready ? "#22c55e" : aboveThreshold ? "#f97316" : c.hr > 0 ? "#3b82f6" : "#555",
                   }}>
                     {c.hr > 0 ? `${c.hr} bpm` : "No data"}
@@ -1549,12 +1554,12 @@ function BossRoom({ display }: { display: Display }) {
                 </div>
 
                 {c.ready ? (
-                  <div style={{ color: "#22c55e", fontSize: "0.85rem", fontWeight: 600 }}>Ready</div>
+                  <div style={{ color: "#22c55e", fontSize: "0.8rem", fontWeight: 600 }}>Ready</div>
                 ) : c.hr > 0 ? (
                   <>
                     <div style={{
-                      width: "100%", height: "6px", background: "#333", borderRadius: "3px",
-                      overflow: "hidden", marginBottom: "0.3rem",
+                      width: "100%", height: "5px", background: "#333", borderRadius: "3px",
+                      overflow: "hidden", marginBottom: "0.2rem",
                     }}>
                       <div style={{
                         width: `${holdPct}%`,
@@ -1564,7 +1569,7 @@ function BossRoom({ display }: { display: Display }) {
                         transition: "width 0.4s",
                       }} />
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem" }}>
                       {aboveThreshold ? (
                         <>
                           <span style={{ color: "#f97316" }}>Sustaining... {countdown.toFixed(1)}s left</span>
