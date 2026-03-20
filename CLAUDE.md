@@ -39,7 +39,7 @@ cd client/android && ./gradlew assembleDebug
 
 ## Code Conventions
 
-- Frontend is **desktop-first** with wide layouts — no mobile-first responsive design
+- Frontend is **desktop-first** with wide layouts, but includes responsive breakpoints for tablets and phones
 - UI is **dark mode only** — dark backgrounds, light text, red (#FF5C75) + cyan (#33DFFF) branding
 - Realm modes each have a lobby component (`frontend/src/components/lobbies/`) and a gameplay component (`frontend/src/components/modes/`)
 - The term "realm" is used throughout (previously "session" — fully renamed)
@@ -50,11 +50,13 @@ Six modes: `competition`, `streetview`, `youtubetrail`, `route`, `dungeon`, `soc
 
 ## Testing
 
-No automated test suite. Use the desktop test client (`client/desktop-test/`) to simulate wearable data during development.
+- **Server**: xUnit tests in `server/PulseRealm.Server.Tests/` (with Moq)
+- **Frontend**: Vitest with @testing-library/react — `npm run test`, `npm run test:coverage` (80% coverage thresholds)
+- **Manual**: Use the desktop test client (`client/desktop-test/`) to simulate wearable data during development
 
 ## Environment
 
-- `.env` at project root contains `VITE_GOOGLE_MAPS_API_KEY`
+- `.env` at project root contains `GOOGLE_MAPS_API_KEY` and `ADMIN_PASSWORD`
 - Server config in `server/appsettings.json`
 
 ## Not In Scope
