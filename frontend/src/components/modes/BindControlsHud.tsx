@@ -1,3 +1,5 @@
+import type React from "react";
+
 interface Props {
   boundClientId: string;
   clientInclines?: Record<string, number>;
@@ -32,20 +34,21 @@ export function BindControlsHud({ boundClientId, clientInclines, onSetIncline, c
   const hasOverride = overrideSpeed > 0;
 
   return (
-    <div style={{
+    <div className="fg-col" style={{
       background: "rgba(0,0,0,0.75)",
       backdropFilter: "blur(8px)",
       border: "1px solid rgba(255,255,255,0.12)",
       borderRadius: 8, padding: "10px 14px",
-      display: "flex", flexDirection: "column", gap: 8,
+      display: "flex", flexDirection: "column",
+      "--fg": "8px",
       color: "#fff",
-    }}>
+    } as React.CSSProperties}>
       <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>
         Controls
       </div>
 
       {onSetIncline && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
           <span style={{ ...labelStyle, color: "#f59e0b" }}>Incline</span>
           <button onClick={() => onSetIncline(boundClientId, Math.max(0, incline - 0.5))} style={{ ...btnStyle, color: "#f59e0b" }}>−</button>
           <span style={{ ...valueStyle, color: "#f59e0b" }}>{incline.toFixed(1)}%</span>
@@ -54,7 +57,7 @@ export function BindControlsHud({ boundClientId, clientInclines, onSetIncline, c
       )}
 
       {onSetSpeedOverride && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
           <button
             onClick={() => onSetSpeedOverride(boundClientId, hasOverride ? 0 : 5)}
             style={{

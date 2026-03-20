@@ -19,7 +19,7 @@
 - [ ] dungeon mode mangler overstyre hastighet, trengs dette? 
 - [ ] trang med plass i høyde på dungeon boss precision
 - [ ] boss endurance 133+ på easy blir for stor overgang 
-- [ ] link clients trenger litt css
+- [x] link clients trenger litt css
 - [x] fallback / static streetview mangler controls / har feil hud 
 - [ ] Youtube lobby selcted video flytter alt ned out of recht så kan ikke endre
 

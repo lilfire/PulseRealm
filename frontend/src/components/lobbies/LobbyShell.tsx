@@ -80,7 +80,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
           {clients.length === 0 ? (
             <p style={{ color: "#888" }}>No players yet.</p>
           ) : (
-            <ul style={{ listStyle: "none", padding: 0 }}>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {clients.map((id) => {
                 const profile = clientProfiles[id];
                 const isBound = clientBindings?.[id];
@@ -89,30 +89,105 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
                 return (
                   <li
                     key={id}
-                    className="fg-row"
                     style={{
-                      padding: "0.4rem 0",
+                      padding: "0.6rem 0.75rem",
+                      marginBottom: "0.4rem",
                       display: "flex",
                       alignItems: "center",
-                      "--fg": "0.5rem",
+                      background: isMine
+                        ? "rgba(51, 223, 255, 0.08)"
+                        : isBound
+                          ? "rgba(255, 255, 255, 0.03)"
+                          : "rgba(255, 255, 255, 0.04)",
+                      border: isMine
+                        ? "1px solid rgba(51, 223, 255, 0.25)"
+                        : "1px solid rgba(255, 255, 255, 0.08)",
+                      borderRadius: 8,
                       cursor: canBind ? "pointer" : "default",
-                    } as React.CSSProperties}
+                      transition: "background 0.15s, border-color 0.15s",
+                    }}
+                    onMouseEnter={canBind ? (e) => {
+                      e.currentTarget.style.background = "rgba(51, 223, 255, 0.1)";
+                      e.currentTarget.style.borderColor = "rgba(51, 223, 255, 0.3)";
+                    } : undefined}
+                    onMouseLeave={canBind ? (e) => {
+                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
+                    } : undefined}
                     onClick={canBind ? () => { setBindTargetId(id); onRequestBind(id); } : undefined}
                   >
-                    {isBound && (
-                      <span title={isMine ? "Bound to you" : "Bound"} style={{
-                        display: "inline-block",
-                        width: 8, height: 8, borderRadius: "50%",
-                        background: isMine ? "#33DFFF" : "#888",
-                        flexShrink: 0,
-                      }} />
-                    )}
-                    <span style={{ flex: 1 }}>
-                      {profile?.name || id}
-                      {profile?.heightCm ? ` — ${profile.heightCm} cm` : ""}
+                    {/* Status indicator */}
+                    <span style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      background: isMine
+                        ? "rgba(51, 223, 255, 0.15)"
+                        : isBound
+                          ? "rgba(136, 136, 136, 0.15)"
+                          : "rgba(255, 255, 255, 0.06)",
+                      flexShrink: 0,
+                      marginRight: "0.6rem",
+                      fontSize: "0.7rem",
+                      fontWeight: 700,
+                      color: isMine ? "#33DFFF" : isBound ? "#888" : "#555",
+                    }}>
+                      {isMine ? "✓" : isBound ? "⊘" : "●"}
                     </span>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", lineHeight: 1.2 }}>
+                        {profile?.name || id}
+                      </div>
+                      {profile?.heightCm && (
+                        <div style={{ fontSize: "0.7rem", color: "#666", marginTop: 1 }}>{profile.heightCm} cm</div>
+                      )}
+                    </div>
+
+                    {/* Bind status badge */}
+                    {isMine && (
+                      <span style={{
+                        fontSize: "0.6rem",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "#33DFFF",
+                        background: "rgba(51, 223, 255, 0.12)",
+                        border: "1px solid rgba(51, 223, 255, 0.2)",
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        marginRight: "0.4rem",
+                      }}>Bound</span>
+                    )}
+                    {isBound && !isMine && (
+                      <span style={{
+                        fontSize: "0.6rem",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "#888",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        marginRight: "0.4rem",
+                      }}>Taken</span>
+                    )}
+
                     {canBind && (
-                      <span style={{ fontSize: "0.65rem", color: "#888" }}>click to bind</span>
+                      <span style={{
+                        fontSize: "0.65rem",
+                        fontWeight: 600,
+                        color: "#33DFFF",
+                        background: "rgba(51, 223, 255, 0.1)",
+                        border: "1px solid rgba(51, 223, 255, 0.2)",
+                        padding: "3px 10px",
+                        borderRadius: 4,
+                        whiteSpace: "nowrap",
+                      }}>Bind</span>
                     )}
                     {canControl && onKick && (
                       <button
@@ -127,6 +202,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
                           padding: "0.15rem 0.4rem",
                           fontSize: "0.7rem",
                           lineHeight: 1,
+                          marginLeft: "0.4rem",
                         }}
                       >
                         Kick
@@ -206,62 +282,113 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       {bindCode && bindTargetId && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)",
+          background: "rgba(0,0,0,0.75)",
+          backdropFilter: "blur(4px)",
           display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 100,
         }} onClick={() => { setBindTargetId(null); onCancelBind?.(bindTargetId); }}>
           <div style={{
             background: "var(--code-bg, #1e1f26)",
             border: "1px solid var(--border, #333)",
-            borderRadius: 12,
-            padding: "2rem 3rem",
+            borderRadius: 16,
+            padding: "2.5rem 3rem",
             textAlign: "center",
-            minWidth: 280,
+            minWidth: 320,
+            maxWidth: 400,
+            boxShadow: "0 24px 48px rgba(0,0,0,0.5)",
           }} onClick={(e) => e.stopPropagation()}>
             {bindResult === "approved" ? (
               <>
-                <div style={{ fontSize: "1.2rem", color: "#22c55e", fontWeight: 700, marginBottom: 8 }}>Bound!</div>
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%",
+                  background: "rgba(34, 197, 94, 0.15)",
+                  border: "2px solid rgba(34, 197, 94, 0.3)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  margin: "0 auto 16px",
+                  fontSize: "1.5rem", color: "#22c55e",
+                }}>✓</div>
+                <div style={{ fontSize: "1.3rem", color: "#22c55e", fontWeight: 700, marginBottom: 8 }}>Bound!</div>
                 <div style={{ color: "var(--text)", fontSize: "0.85rem" }}>
-                  You are now bound to {clientProfiles[bindTargetId]?.name || bindTargetId}
+                  You are now bound to <strong>{clientProfiles[bindTargetId]?.name || bindTargetId}</strong>
                 </div>
               </>
             ) : bindResult === "declined" ? (
               <>
-                <div style={{ fontSize: "1.2rem", color: "#FF5C75", fontWeight: 700, marginBottom: 8 }}>Declined</div>
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%",
+                  background: "rgba(255, 92, 117, 0.15)",
+                  border: "2px solid rgba(255, 92, 117, 0.3)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  margin: "0 auto 16px",
+                  fontSize: "1.5rem", color: "#FF5C75",
+                }}>✕</div>
+                <div style={{ fontSize: "1.3rem", color: "#FF5C75", fontWeight: 700, marginBottom: 8 }}>Declined</div>
                 <div style={{ color: "var(--text)", fontSize: "0.85rem" }}>
-                  {clientProfiles[bindTargetId]?.name || bindTargetId} declined the bind request.
+                  <strong>{clientProfiles[bindTargetId]?.name || bindTargetId}</strong> declined the bind request.
                 </div>
               </>
             ) : (
               <>
-                <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: "50%",
+                  background: "rgba(51, 223, 255, 0.1)",
+                  border: "2px solid rgba(51, 223, 255, 0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  margin: "0 auto 16px",
+                  fontSize: "1.2rem", color: "#33DFFF",
+                }}>⊙</div>
+                <div style={{ fontSize: "0.7rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 600, marginBottom: 12 }}>
                   Bind Code
                 </div>
                 <div style={{
                   fontSize: "3rem", fontWeight: 700, fontFamily: "var(--mono)",
                   letterSpacing: "0.3em", color: "var(--text-h)",
-                  marginBottom: 12,
+                  marginBottom: 4,
+                  background: "rgba(51, 223, 255, 0.05)",
+                  border: "1px solid rgba(51, 223, 255, 0.1)",
+                  borderRadius: 10,
+                  padding: "0.3rem 1rem",
+                  display: "inline-block",
                 }}>
                   {bindCode}
                 </div>
-                <div style={{ color: "var(--text)", fontSize: "0.85rem", marginBottom: 16 }}>
-                  Confirm this code on {clientProfiles[bindTargetId]?.name || bindTargetId}'s watch
+                <div style={{ color: "#aaa", fontSize: "0.8rem", marginTop: 16, marginBottom: 8 }}>
+                  Confirm this code on <strong style={{ color: "var(--text-h)" }}>{clientProfiles[bindTargetId]?.name || bindTargetId}</strong>'s watch
                 </div>
                 {bindPending && (
-                  <div style={{ color: "#33DFFF", fontSize: "0.8rem" }}>Waiting for approval...</div>
+                  <div style={{
+                    color: "#33DFFF",
+                    fontSize: "0.8rem",
+                    marginTop: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}>
+                    <span className="bind-pulse" style={{
+                      display: "inline-block",
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: "#33DFFF",
+                      marginRight: 8,
+                      animation: "pulse-glow 1.5s ease-in-out infinite",
+                    }} />
+                    Waiting for approval…
+                  </div>
                 )}
                 <button
                   onClick={() => { setBindTargetId(null); onCancelBind?.(bindTargetId); }}
                   style={{
-                    marginTop: 12,
+                    marginTop: 20,
                     background: "transparent",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    color: "var(--text)",
-                    borderRadius: 6,
-                    padding: "0.4rem 1.2rem",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "#aaa",
+                    borderRadius: 8,
+                    padding: "0.5rem 1.6rem",
                     cursor: "pointer",
                     fontSize: "0.8rem",
+                    transition: "border-color 0.15s, color 0.15s",
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; e.currentTarget.style.color = "#fff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "#aaa"; }}
                 >
                   Cancel
                 </button>

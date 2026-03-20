@@ -393,7 +393,7 @@ describe("LobbyShell", () => {
       );
 
       expect(screen.getByText("654321")).toBeInTheDocument();
-      expect(screen.getByText("Waiting for approval...")).toBeInTheDocument();
+      expect(screen.getByText(/Waiting for approval/)).toBeInTheDocument();
     });
 
     it("calls onCancelBind when Cancel clicked in multi-client mode", () => {
@@ -460,7 +460,7 @@ describe("LobbyShell", () => {
   });
 
   describe("bind indicators in multi-client mode", () => {
-    it("shows bound indicator for bound clients", () => {
+    it("shows Taken badge for bound clients not owned by you", () => {
       render(
         <LobbyShell
           {...baseProps}
@@ -470,10 +470,10 @@ describe("LobbyShell", () => {
           clientBindings={{ c1: true }}
         />,
       );
-      expect(screen.getByTitle("Bound")).toBeInTheDocument();
+      expect(screen.getByText("Taken")).toBeInTheDocument();
     });
 
-    it("shows 'Bound to you' indicator for own bound client", () => {
+    it("shows Bound badge for own bound client", () => {
       render(
         <LobbyShell
           {...baseProps}
@@ -484,10 +484,10 @@ describe("LobbyShell", () => {
           boundClientId="c1"
         />,
       );
-      expect(screen.getByTitle("Bound to you")).toBeInTheDocument();
+      expect(screen.getByText("Bound")).toBeInTheDocument();
     });
 
-    it("shows 'click to bind' for unbound clients in multi-client mode", () => {
+    it("shows Bind button for unbound clients in multi-client mode", () => {
       render(
         <LobbyShell
           {...baseProps}
@@ -497,7 +497,7 @@ describe("LobbyShell", () => {
           onRequestBind={vi.fn()}
         />,
       );
-      expect(screen.getByText("click to bind")).toBeInTheDocument();
+      expect(screen.getByText("Bind")).toBeInTheDocument();
     });
 
     it("calls onRequestBind when clicking an unbound client", () => {
