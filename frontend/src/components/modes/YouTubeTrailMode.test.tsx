@@ -11,11 +11,16 @@ class MockYTPlayer {
   unMute = vi.fn();
   setPlaybackRate = vi.fn();
   getPlayerState = vi.fn(() => 1); // PLAYING
+  getDuration = vi.fn(() => 0);
+  getCurrentTime = vi.fn(() => 0);
   destroy = vi.fn();
 
-  constructor(_el: unknown, config: { events?: { onReady?: (e: { target: MockYTPlayer }) => void } }) {
-    // Trigger onReady synchronously so it works with fake timers
-    Promise.resolve().then(() => config.events?.onReady?.({ target: this }));
+  constructor(_el: unknown, config: { events?: { onReady?: (e: { target: MockYTPlayer }) => void; onStateChange?: (e: { data: number }) => void } }) {
+    // Trigger onReady then onStateChange(PLAYING) so playerReady + videoPlaying are set
+    Promise.resolve().then(() => {
+      config.events?.onReady?.({ target: this });
+      config.events?.onStateChange?.({ data: 1 }); // PLAYING
+    });
   }
 }
 
@@ -23,7 +28,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   (window as unknown as Record<string, unknown>).YT = {
     Player: MockYTPlayer,
-    PlayerState: { PLAYING: 1, PAUSED: 2 },
+    PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
   };
 });
 
@@ -188,7 +193,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     const data = makeData("client-1", 140, 500, 5);
@@ -213,7 +218,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     // 20 km/h -> raw rate = 4.0, clamped to 2.0
@@ -236,7 +241,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     // 0.6 km/h -> raw rate = 0.12, clamped to 0.25
@@ -259,7 +264,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     // Speed 0 — player state returns PLAYING (1)
@@ -284,7 +289,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     render(<YouTubeTrailMode {...defaultProps} latestData={null} />);
@@ -307,7 +312,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     // Speed 5 km/h — should resume from paused
@@ -417,7 +422,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     // 5 km/h → rate = 1.0 → display "1.00x"
@@ -440,7 +445,7 @@ describe("YouTubeTrailMode", () => {
     }
     (window as unknown as Record<string, unknown>).YT = {
       Player: TrackingMockPlayer,
-      PlayerState: { PLAYING: 1, PAUSED: 2 },
+      PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 },
     };
 
     const data = makeData("client-1", 140, 500, 5);

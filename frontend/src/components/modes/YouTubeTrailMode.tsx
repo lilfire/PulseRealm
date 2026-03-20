@@ -44,6 +44,8 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
   const [muted, setMuted] = useState(true);
   const [currentRate, setCurrentRate] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const hasEverPlayedRef = useRef(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -135,6 +137,9 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
             setPlayerReady(true);
           },
           onStateChange: (event: YT.OnStateChangeEvent) => {
+            const isPlaying = event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.BUFFERING;
+            setVideoPlaying(isPlaying);
+            if (isPlaying) hasEverPlayedRef.current = true;
             if (event.data === YT.PlayerState.ENDED) {
               onEnd(totalDistanceRef.current);
             }
@@ -229,6 +234,13 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
     }
   }, [muted]);
 
+  const handleManualPlay = useCallback(() => {
+    const player = playerRef.current;
+    if (player) {
+      player.playVideo();
+    }
+  }, []);
+
   const clientId = clients[0];
   const profile = clientId ? clientProfiles[clientId] : null;
 
@@ -254,6 +266,34 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
           pointerEvents: "none",
         }}
       />
+
+      {/* Play button — shown when autoplay failed or video should be playing but isn't */}
+      {playerReady && !videoPlaying && (!hasEverPlayedRef.current || currentRate > 0) && (
+        <button
+          onClick={handleManualPlay}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 20,
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "rgba(0,0,0,0.6)",
+            border: "2px solid rgba(255,255,255,0.3)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Play video"
+        >
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="#fff">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </button>
+      )}
 
       {/* Left panel: HUD stats + mute + End Realm */}
       <div

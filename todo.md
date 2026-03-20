@@ -27,7 +27,7 @@
 
 - [x] dugeonmode balansering øke spm krav litt, samt ikke 2 hvile rom etter hverandre, lengere korridor. Reward på boss må være relevant
 - [x] route mangler duration
-- [ ] Youtube starter ikke om pause for lenge. Trenger en manuell knapp for play
+- [x] Youtube starter ikke om pause for lenge. Trenger en manuell knapp for play
 - [x] Youtube hud. Ingen space mellom labels
 - [ ] route er blitt en rett linje igjen...
 - [x] route har feil hud og mangler controls
