@@ -146,6 +146,14 @@ public class RealmHub : Hub
                 profile.MaxHr = 0;
         }
 
+        // Check if this is a calibration join code — route to calibration flow
+        if (_calibrationJoinCodes.ContainsKey(joinCode))
+        {
+            var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
+            await JoinCalibrationSession(joinCode, clientId, heightCm);
+            return;
+        }
+
         var realm = _realmManager.GetByJoinCode(joinCode);
         if (realm is null)
         {
@@ -829,11 +837,8 @@ public class RealmHub : Hub
     /// <summary>
     /// Dashboard creates a standalone calibration session. Returns a 6-digit join code.
     /// </summary>
-    public string CreateCalibrationSession(double heightCm)
+    public string CreateCalibrationSession()
     {
-        if (heightCm is < 50 or > 250)
-            throw new HubException("Height must be between 50 and 250 cm.");
-
         var sessionId = Guid.NewGuid().ToString("N")[..12];
         var joinCode = GenerateCalibrationJoinCode();
 
@@ -842,7 +847,6 @@ public class RealmHub : Hub
             SessionId = sessionId,
             JoinCode = joinCode,
             DashboardConnectionId = Context.ConnectionId,
-            HeightCm = heightCm,
         };
 
         _calibrationSessions[sessionId] = session;
@@ -854,8 +858,11 @@ public class RealmHub : Hub
     /// <summary>
     /// Wearable client joins a calibration session using the 6-digit code.
     /// </summary>
-    public async Task JoinCalibrationSession(string joinCode, string clientId)
+    public async Task JoinCalibrationSession(string joinCode, string clientId, double heightCm)
     {
+        if (heightCm is < 50 or > 250)
+            throw new HubException("Height must be between 50 and 250 cm.");
+
         if (!_calibrationJoinCodes.TryGetValue(joinCode, out var sessionId))
             throw new HubException("Invalid calibration code.");
 
@@ -867,10 +874,11 @@ public class RealmHub : Hub
 
         session.ClientId = clientId;
         session.ClientConnectionId = Context.ConnectionId;
+        session.HeightCm = heightCm;
 
-        // Notify dashboard that the client has connected
+        // Notify dashboard that the client has connected (include height from client profile)
         await Clients.Client(session.DashboardConnectionId)
-            .SendAsync("CalibrationClientJoined", sessionId, clientId);
+            .SendAsync("CalibrationClientJoined", sessionId, clientId, heightCm);
     }
 
     /// <summary>

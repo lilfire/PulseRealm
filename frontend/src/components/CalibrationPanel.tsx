@@ -29,10 +29,10 @@ interface Props {
   onClose: () => void;
 }
 
-type CalibrationStep = "height" | "connecting" | "waiting-client" | "calibrating" | "results";
+type CalibrationStep = "connecting" | "waiting-client" | "calibrating" | "results";
 
 export function CalibrationPanel({ hubUrl, onClose }: Props) {
-  const [step, setStep] = useState<CalibrationStep>("height");
+  const [step, setStep] = useState<CalibrationStep>("connecting");
   const [heightCm, setHeightCm] = useState(170);
   const [joinCode, setJoinCode] = useState<string | null>(null);
   const [clientConnected, setClientConnected] = useState(false);
@@ -75,7 +75,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
         .build();
 
       // Listen for events
-      connection.on("CalibrationClientJoined", (_sid: string, _clientId: string) => {
+      connection.on("CalibrationClientJoined", (_sid: string, _clientId: string, clientHeightCm: number) => {
+        setHeightCm(clientHeightCm);
         setClientConnected(true);
         setStep("calibrating");
       });
@@ -97,7 +98,7 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
       connectionRef.current = connection;
 
       // Create calibration session
-      const code = await connection.invoke<string>("CreateCalibrationSession", heightCm);
+      const code = await connection.invoke<string>("CreateCalibrationSession");
       setJoinCode(code);
 
       // Extract session ID from connection (server returns just the join code,
@@ -112,9 +113,9 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
       setStep("waiting-client");
     } catch (err) {
       setError(`Connection failed: ${err instanceof Error ? err.message : String(err)}`);
-      setStep("height");
+      setStep("connecting");
     }
-  }, [hubUrl, heightCm]);
+  }, [hubUrl]);
 
   const startSample = useCallback(async () => {
     const conn = connectionRef.current;
@@ -186,6 +187,9 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
     onClose();
   }, [onClose]);
 
+  // Auto-start session on mount
+  useEffect(() => { startSession(); }, [startSession]);
+
   // Update sessionId from CalibrationClientJoined event
   useEffect(() => {
     const conn = connectionRef.current;
@@ -210,32 +214,11 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
         {error && (
           <div style={{ background: "rgba(255, 92, 117, 0.15)", border: "1px solid #FF5C75", borderRadius: 6, padding: "8px 12px", marginBottom: 12, color: "#FF5C75", fontSize: "0.85rem" }}>
             {error}
+            <button onClick={startSession} style={{ ...secondaryBtnStyle, marginLeft: 8, padding: "4px 12px", fontSize: "0.8rem" }}>Retry</button>
           </div>
         )}
 
-        {step === "height" && (
-          <div style={{ textAlign: "center" }}>
-            <p style={{ color: "#9ca3af", marginBottom: 16 }}>
-              Enter the runner&apos;s height to begin calibration. The runner will walk and run at 5 different speeds while wearing the device.
-            </p>
-            <label style={{ color: "#9ca3af", fontSize: "0.85rem" }}>Height (cm)</label>
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 8, marginBottom: 20 }}>
-              <input
-                type="number"
-                value={heightCm}
-                onChange={(e) => setHeightCm(Number(e.target.value))}
-                min={50}
-                max={250}
-                style={inputStyle}
-              />
-            </div>
-            <button onClick={startSession} style={primaryBtnStyle} disabled={heightCm < 50 || heightCm > 250}>
-              Start Calibration
-            </button>
-          </div>
-        )}
-
-        {step === "connecting" && (
+        {step === "connecting" && !error && (
           <div style={{ textAlign: "center", padding: 20 }}>
             <p style={{ color: "#9ca3af" }}>Connecting to server...</p>
           </div>
@@ -259,7 +242,7 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
           <div>
             {/* Progress */}
             <div style={{ display: "flex", marginBottom: 16 }}>
-              {SPEED_GROUPS.map((g, i) => (
+              {SPEED_GROUPS.map((_g, i) => (
                 <div key={i} style={{
                   flex: 1,
                   height: 4,
@@ -430,18 +413,6 @@ const closeBtnStyle: React.CSSProperties = {
   cursor: "pointer",
   padding: "4px 8px",
   lineHeight: 1,
-};
-
-const inputStyle: React.CSSProperties = {
-  background: "#1e1f27",
-  border: "1px solid #2e303a",
-  borderRadius: 6,
-  color: "#f3f4f6",
-  fontSize: "1.2rem",
-  fontFamily: "var(--mono)",
-  padding: "8px 16px",
-  width: 100,
-  textAlign: "center",
 };
 
 const primaryBtnStyle: React.CSSProperties = {

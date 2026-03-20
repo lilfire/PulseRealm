@@ -14,14 +14,15 @@
 - [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
 - [x] fullscreen sosial mode
 - [x] android clients reconnect setting page
-- [ ] stride egen modus for calibrering da dette må være et array bassert på hastighet 
+- [x] stride egen modus for calibrering da dette må være et array bassert på hastighet 
 - [x] fullscreen i dungeon mode
-- [ ] dungeon mode mangler overstyre hastighet, trengs dette? 
+- [x] dungeon mode mangler overstyre hastighet, trengs dette? 
 - [x] trang med plass i høyde på dungeon boss precision
 - [x] boss endurance 133+ på easy blir for stor overgang 
 - [x] link clients trenger litt css
 - [x] fallback / static streetview mangler controls / har feil hud 
 - [x] Youtube lobby selcted video flytter alt ned out of recht så kan ikke endre
+- [ ] 3 solo modus 3 toghetere modus. grupper i front view
 
 ## BUGS
 
@@ -31,5 +32,5 @@
 - [x] Youtube hud. Ingen space mellom labels
 - [x] route er blitt en rett linje igjen...
 - [x] route har feil hud og mangler controls
-- [ ] når client forlater avsluttetes ikke realm
+- [x] når client forlater avsluttetes ikke realm
 - [ ] 
