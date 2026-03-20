@@ -386,79 +386,69 @@ describe("YouTubeTrailLobby — guest role syncs video from lobbySettings", () =
 });
 
 describe("YouTubeTrailLobby — videoDuration display", () => {
-  beforeEach(() => {
-    // Mock YT.Player to trigger onReady with a duration
-    const ytWindow = window as Window & { YT?: { Player: unknown }; onYouTubeIframeAPIReady?: () => void };
+  type PlayerOpts = {
+    events?: {
+      onReady?: (e: { target: { getDuration: () => number; destroy: () => void } }) => void;
+    };
+  };
+
+  function setupSyncYTMock(duration: number) {
+    const ytWindow = window as Window & { YT?: { Player: unknown } };
     ytWindow.YT = {
       Player: class {
-        constructor(_div: unknown, opts: { events?: { onReady?: (e: { target: { getDuration: () => number; destroy: () => void } }) => void } }) {
-          setTimeout(() => {
-            opts?.events?.onReady?.({
-              target: {
-                getDuration: () => 3661, // 1h 1m 1s
-                destroy: vi.fn(),
-              },
-            });
-          }, 0);
+        constructor(_div: unknown, opts: PlayerOpts) {
+          // Call onReady synchronously so no timer is needed
+          opts?.events?.onReady?.({
+            target: {
+              getDuration: () => duration,
+              destroy: vi.fn(),
+            },
+          });
         }
         destroy = vi.fn();
       },
     };
-  });
+  }
 
   afterEach(() => {
     const ytWindow = window as Window & { YT?: unknown };
     delete ytWindow.YT;
   });
 
-  it("shows formatted duration badge on thumbnail after video duration loads", async () => {
-    vi.useFakeTimers();
+  it("shows formatted duration badge (h:mm:ss) on thumbnail after video duration loads", async () => {
+    setupSyncYTMock(3661); // 1:01:01
     render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
-    fireEvent.click(screen.getByText("Video One"));
     await act(async () => {
-      vi.advanceTimersByTime(10);
+      fireEvent.click(screen.getByText("Video One"));
     });
     expect(screen.getByText("1:01:01")).toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   it("shows 'Video length:' text after duration loads", async () => {
-    vi.useFakeTimers();
+    setupSyncYTMock(3661);
     render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
-    fireEvent.click(screen.getByText("Video One"));
     await act(async () => {
-      vi.advanceTimersByTime(10);
+      fireEvent.click(screen.getByText("Video One"));
     });
     expect(screen.getByText(/Video length:/)).toBeInTheDocument();
-    vi.useRealTimers();
   });
 
-  it("formatDuration shows m:ss for sub-hour durations", async () => {
-    vi.useFakeTimers();
-    const ytWindow = window as Window & { YT?: { Player: unknown } };
-    ytWindow.YT = {
-      Player: class {
-        constructor(_div: unknown, opts: { events?: { onReady?: (e: { target: { getDuration: () => number; destroy: () => void } }) => void } }) {
-          setTimeout(() => {
-            opts?.events?.onReady?.({
-              target: {
-                getDuration: () => 125, // 2:05
-                destroy: vi.fn(),
-              },
-            });
-          }, 0);
-        }
-        destroy = vi.fn();
-      },
-    };
-
+  it("shows m:ss format for sub-hour durations", async () => {
+    setupSyncYTMock(125); // 2:05
     render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
-    fireEvent.click(screen.getByText("Video One"));
     await act(async () => {
-      vi.advanceTimersByTime(10);
+      fireEvent.click(screen.getByText("Video One"));
     });
     expect(screen.getByText("2:05")).toBeInTheDocument();
-    vi.useRealTimers();
+  });
+
+  it("duration badge renders inside thumbnail area when videoDuration is set", async () => {
+    setupSyncYTMock(90); // 1:30
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Video One"));
+    });
+    expect(screen.getAllByText("1:30").length).toBeGreaterThanOrEqual(1);
   });
 });
 
