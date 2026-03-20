@@ -1,13 +1,26 @@
 package com.pulserealm.client.data.network
 
+import com.microsoft.signalr.HubConnection
+import com.microsoft.signalr.HubConnectionBuilder
+import com.microsoft.signalr.HubConnectionState
 import com.pulserealm.client.data.model.WearableData
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.slot
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import io.reactivex.rxjava3.core.Completable
+import io.reactivex.rxjava3.core.Single
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.*
@@ -315,6 +328,530 @@ class SignalRClientTest {
 
         client.leaveRealm()
         assertFalse(client.eliminated.value)
+    }
+}
+
+/**
+ * Tests for SignalRClient with mocked HubConnection — covers connect(), joinRealm(),
+ * sendWearableData when connected, leaveRealm with hub, and hub handler callbacks.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class SignalRClientHubTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var client: SignalRClient
+    private lateinit var mockHub: HubConnection
+    private lateinit var mockBuilder: HubConnectionBuilder
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        client = SignalRClient(
+            reconnectScope = CoroutineScope(testDispatcher + SupervisorJob())
+        )
+
+        mockHub = mockk(relaxed = true)
+        mockBuilder = mockk(relaxed = true)
+
+        every { mockHub.start() } returns Completable.complete()
+        every { mockHub.stop() } returns Completable.complete()
+        every { mockHub.connectionState } returns HubConnectionState.CONNECTED
+
+        mockkStatic(HubConnectionBuilder::class)
+        every { HubConnectionBuilder.create(any<String>()) } returns mockBuilder
+        every { mockBuilder.shouldSkipNegotiate(any()) } returns mockBuilder
+        every { mockBuilder.build() } returns mockHub
+    }
+
+    @After
+    fun tearDown() {
+        client.dispose()
+        unmockkStatic(HubConnectionBuilder::class)
+        Dispatchers.resetMain()
+    }
+
+    // --- connect() ---
+
+    @Test
+    fun `connect transitions to CONNECTED on success`() = runTest(testDispatcher) {
+        client.connect("http://192.168.1.10:5062")
+        advanceUntilIdle()
+
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+        assertNull(client.error.value)
+        assertTrue(client.isConnected())
+    }
+
+    @Test
+    fun `connect builds URL with hub path`() = runTest(testDispatcher) {
+        client.connect("http://192.168.1.10:5062")
+        advanceUntilIdle()
+
+        verify { HubConnectionBuilder.create("http://192.168.1.10:5062/hubs/realm") }
+    }
+
+    @Test
+    fun `connect trims trailing slash`() = runTest(testDispatcher) {
+        client.connect("http://192.168.1.10:5062/")
+        advanceUntilIdle()
+
+        verify { HubConnectionBuilder.create("http://192.168.1.10:5062/hubs/realm") }
+    }
+
+    @Test
+    fun `connect sets error on failure`() = runTest(testDispatcher) {
+        every { mockHub.start() } returns Completable.error(RuntimeException("Connection refused"))
+
+        client.connect("http://192.168.1.10:5062")
+        advanceUntilIdle()
+
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+        assertNotNull(client.error.value)
+    }
+
+    @Test
+    fun `connect registers hub handlers`() = runTest(testDispatcher) {
+        client.connect("http://192.168.1.10:5062")
+        advanceUntilIdle()
+
+        // Verify hub handlers were registered
+        verify { mockHub.on(eq("RealmStarted"), any<com.microsoft.signalr.Action1<Any>>(), eq(Any::class.java)) }
+        verify { mockHub.on(eq("ClientEliminated"), any<com.microsoft.signalr.Action1<String>>(), eq(String::class.java)) }
+        verify { mockHub.on(eq("RealmEnded"), any<com.microsoft.signalr.Action1<Any>>(), eq(Any::class.java)) }
+        verify { mockHub.on(eq("BindRequest"), any<com.microsoft.signalr.Action1<String>>(), eq(String::class.java)) }
+        verify { mockHub.on(eq("BindCancelled"), any<com.microsoft.signalr.Action>()) }
+        verify { mockHub.on(eq("YouWereKicked"), any<com.microsoft.signalr.Action>()) }
+        verify { mockHub.on(eq("Error"), any<com.microsoft.signalr.Action1<String>>(), eq(String::class.java)) }
+        verify { mockHub.onClosed(any()) }
+    }
+
+    @Test
+    fun `second connect disconnects first`() = runTest(testDispatcher) {
+        client.connect("http://server1:5062")
+        advanceUntilIdle()
+
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+
+        // Second connect should stop first connection
+        client.connect("http://server2:5062")
+        advanceUntilIdle()
+
+        verify { mockHub.stop() }
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    // --- joinRealm() ---
+
+    @Test
+    fun `joinRealm invokes hub method`() = runTest(testDispatcher) {
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm("123456", "client-1")
+        advanceUntilIdle()
+
+        verify { mockHub.invoke(eq("JoinRealm"), eq("123456"), eq("client-1"), any()) }
+    }
+
+    @Test
+    fun `joinRealm with profile sends profile data`() = runTest(testDispatcher) {
+        val profileSlot = slot<HashMap<String, Any>>()
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), capture(profileSlot)) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm(
+            joinCode = "123456",
+            clientId = "client-1",
+            name = "Alice",
+            age = 30,
+            heightCm = 170.0,
+            weightKg = 65.0,
+            strideFactor = 0.415
+        )
+        advanceUntilIdle()
+
+        assertTrue(profileSlot.isCaptured)
+        val profile = profileSlot.captured
+        assertEquals("Alice", profile["name"])
+        assertEquals(30, profile["age"])
+        assertEquals(170.0, profile["heightCm"])
+        assertEquals(65.0, profile["weightKg"])
+    }
+
+    @Test
+    fun `joinRealm without profile sends null`() = runTest(testDispatcher) {
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm("123456", "client-1")
+        advanceUntilIdle()
+
+        verify { mockHub.invoke("JoinRealm", "123456", "client-1", null) }
+    }
+
+    @Test
+    fun `joinRealm sets error on failure`() = runTest(testDispatcher) {
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.error(
+            RuntimeException("Realm not found")
+        )
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        try {
+            client.joinRealm("999999", "client-1")
+        } catch (_: Exception) { }
+        advanceUntilIdle()
+
+        assertNotNull(client.error.value)
+    }
+
+    @Test
+    fun `joinRealm with zone bounds includes them in profile`() = runTest(testDispatcher) {
+        val profileSlot = slot<HashMap<String, Any>>()
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), capture(profileSlot)) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm(
+            joinCode = "123456",
+            clientId = "client-1",
+            name = "Bob",
+            age = 25,
+            heightCm = 180.0,
+            weightKg = 80.0,
+            zoneBounds = doubleArrayOf(100.0, 120.0, 140.0, 160.0),
+            maxHr = 190
+        )
+        advanceUntilIdle()
+
+        assertTrue(profileSlot.isCaptured)
+        val profile = profileSlot.captured
+        assertNotNull(profile["zoneBounds"])
+        assertEquals(190, profile["maxHr"])
+    }
+
+    // --- sendWearableData when connected ---
+
+    @Test
+    fun `sendWearableData sends data map when connected`() = runTest(testDispatcher) {
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        val data = WearableData("client-1", 140, 500, "2026-01-01T00:00:00Z")
+        client.sendWearableData("realm-abc", data)
+
+        verify { mockHub.send(eq("SendWearableData"), eq("realm-abc"), any<HashMap<String, Any>>()) }
+    }
+
+    @Test
+    fun `sendWearableData skips when hub not connected`() = runTest(testDispatcher) {
+        every { mockHub.connectionState } returns HubConnectionState.DISCONNECTED
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        val data = WearableData("client-1", 140, 500, "2026-01-01T00:00:00Z")
+        client.sendWearableData("realm-abc", data)
+
+        verify(exactly = 0) { mockHub.send(any(), any(), any<HashMap<String, Any>>()) }
+    }
+
+    // --- leaveRealm with hub ---
+
+    @Test
+    fun `leaveRealm returns true when server returns summary`() = runTest(testDispatcher) {
+        every { mockHub.invoke(Boolean::class.java, "LeaveRealm") } returns Single.just(true)
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        val result = client.leaveRealm()
+        assertTrue(result)
+    }
+
+    @Test
+    fun `leaveRealm returns false and disconnects when no summary`() = runTest(testDispatcher) {
+        every { mockHub.invoke(Boolean::class.java, "LeaveRealm") } returns Single.just(false)
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        val result = client.leaveRealm()
+        assertFalse(result)
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `leaveRealm handles exception gracefully`() = runTest(testDispatcher) {
+        every { mockHub.invoke(Boolean::class.java, "LeaveRealm") } returns Single.error(RuntimeException("error"))
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        val result = client.leaveRealm()
+        assertFalse(result)
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    // --- respondBind with hub ---
+
+    @Test
+    fun `respondBind sends to hub when connected`() = runTest(testDispatcher) {
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.respondBind("realm-1", true)
+        verify { mockHub.send("RespondBind", "realm-1", true) }
+    }
+
+    @Test
+    fun `respondBind sends false when denied`() = runTest(testDispatcher) {
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.respondBind("realm-1", false)
+        verify { mockHub.send("RespondBind", "realm-1", false) }
+    }
+
+    // --- Hub handler callbacks ---
+
+    @Test
+    fun `RealmStarted handler sets realmStarted to true`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("RealmStarted"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        // Simulate server sending RealmStarted
+        handlerSlot.captured.invoke("started")
+        assertTrue(client.realmStarted.value)
+    }
+
+    @Test
+    fun `BindRequest handler sets bindRequest`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<String>>()
+        every { mockHub.on(eq("BindRequest"), capture(handlerSlot), eq(String::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        handlerSlot.captured.invoke("ABC123")
+        assertNotNull(client.bindRequest.value)
+        assertEquals("ABC123", client.bindRequest.value?.code)
+    }
+
+    @Test
+    fun `BindCancelled handler clears bindRequest`() = runTest(testDispatcher) {
+        val bindReqSlot = slot<com.microsoft.signalr.Action1<String>>()
+        val cancelSlot = slot<com.microsoft.signalr.Action>()
+        every { mockHub.on(eq("BindRequest"), capture(bindReqSlot), eq(String::class.java)) } returns mockk()
+        every { mockHub.on(eq("BindCancelled"), capture(cancelSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        // First set a bind request
+        bindReqSlot.captured.invoke("ABC")
+        assertNotNull(client.bindRequest.value)
+
+        // Then cancel it
+        cancelSlot.captured.invoke()
+        assertNull(client.bindRequest.value)
+    }
+
+    @Test
+    fun `ClientEliminated handler sets eliminated when matching clientId`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<String>>()
+        every { mockHub.on(eq("ClientEliminated"), capture(handlerSlot), eq(String::class.java)) } returns mockk()
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm("123456", "my-client-id")
+        advanceUntilIdle()
+
+        handlerSlot.captured.invoke("my-client-id")
+        assertTrue(client.eliminated.value)
+    }
+
+    @Test
+    fun `ClientEliminated handler ignores different clientId`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<String>>()
+        every { mockHub.on(eq("ClientEliminated"), capture(handlerSlot), eq(String::class.java)) } returns mockk()
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm("123456", "my-client-id")
+        advanceUntilIdle()
+
+        handlerSlot.captured.invoke("other-client-id")
+        assertFalse(client.eliminated.value)
+    }
+
+    @Test
+    fun `Error handler sets error from server message`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<String>>()
+        every { mockHub.on(eq("Error"), capture(handlerSlot), eq(String::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        handlerSlot.captured.invoke("Realm is full")
+        assertNotNull(client.error.value)
+        // UserFriendlyErrors passes through realm-related messages
+        assertTrue(client.error.value!!.contains("Realm"))
+    }
+
+    @Test
+    fun `YouWereKicked handler sets error and disconnects`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action>()
+        every { mockHub.on(eq("YouWereKicked"), capture(handlerSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        handlerSlot.captured.invoke()
+        assertEquals("You were kicked from the realm", client.error.value)
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `RealmEnded handler parses summary data`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("RealmEnded"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        val summaryMap = mapOf<String, Any>(
+            "durationSeconds" to 300.0,
+            "totalDistanceMeters" to 1500.0,
+            "totalSteps" to 1800,
+            "averageHeartRate" to 140,
+            "maxHeartRate" to 175,
+            "averageSpeedKmh" to 8.5,
+            "avgCadenceSpm" to 160,
+            "timeInZone" to mapOf("1" to 60, "2" to 120),
+            "activePeriodSeconds" to 280.0,
+            "participantCount" to 2,
+            "isTeamFormat" to true,
+            "clientSummaries" to listOf(
+                mapOf<String, Any>(
+                    "clientId" to "c1",
+                    "name" to "Alice",
+                    "steps" to 1000,
+                    "distanceMeters" to 800.0,
+                    "averageHeartRate" to 135,
+                    "maxHeartRate" to 170,
+                    "avgCadenceSpm" to 155,
+                    "timeInZone" to mapOf("1" to 30, "2" to 60),
+                    "teamName" to "Red",
+                    "teamColor" to "#FF0000"
+                )
+            )
+        )
+
+        handlerSlot.captured.invoke(summaryMap)
+
+        val result = client.realmEnded.value
+        assertNotNull(result)
+        assertEquals(300.0, result!!.durationSeconds, 0.001)
+        assertEquals(1500.0, result.totalDistanceMeters, 0.001)
+        assertEquals(1800, result.totalSteps)
+        assertEquals(140, result.averageHeartRate)
+        assertEquals(175, result.maxHeartRate)
+        assertEquals(8.5, result.averageSpeedKmh, 0.001)
+        assertEquals(160, result.avgCadenceSpm)
+        assertEquals(2, result.timeInZone.size)
+        assertEquals(60, result.timeInZone["1"])
+        assertEquals(280.0, result.activePeriodSeconds, 0.001)
+        assertEquals(2, result.participantCount)
+        assertTrue(result.isTeamFormat)
+        assertEquals(1, result.clientSummaries.size)
+        assertEquals("Alice", result.clientSummaries[0].name)
+        assertEquals(1000, result.clientSummaries[0].steps)
+        assertEquals("Red", result.clientSummaries[0].teamName)
+        assertEquals("#FF0000", result.clientSummaries[0].teamColor)
+    }
+
+    @Test
+    fun `RealmEnded handler handles empty summary`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("RealmEnded"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        handlerSlot.captured.invoke(emptyMap<String, Any>())
+
+        val result = client.realmEnded.value
+        assertNotNull(result)
+        assertEquals(0.0, result!!.durationSeconds, 0.001)
+        assertEquals(0, result.totalSteps)
+        assertTrue(result.clientSummaries.isEmpty())
+    }
+
+    @Test
+    fun `RealmEnded handler handles non-map input`() = runTest(testDispatcher) {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("RealmEnded"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        // Pass a non-map value — should use empty map fallback
+        handlerSlot.captured.invoke("not a map")
+
+        val result = client.realmEnded.value
+        assertNotNull(result)
+        assertEquals(0.0, result!!.durationSeconds, 0.001)
+    }
+
+    // --- onClosed handler ---
+
+    @Test
+    fun `onClosed sets DISCONNECTED when intentional`() = runTest(testDispatcher) {
+        val closedSlot = slot<com.microsoft.signalr.OnClosedCallback>()
+        every { mockHub.onClosed(capture(closedSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        // disconnect() sets intentionalDisconnect = true
+        client.disconnect()
+
+        // Simulate onClosed callback
+        closedSlot.captured.invoke(null)
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `onClosed sets RECONNECTING when unintentional with joinCode`() = runTest(testDispatcher) {
+        val closedSlot = slot<com.microsoft.signalr.OnClosedCallback>()
+        every { mockHub.onClosed(capture(closedSlot)) } returns mockk()
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        client.connect("http://server:5062")
+        advanceUntilIdle()
+
+        client.joinRealm("123456", "client-1")
+        advanceUntilIdle()
+
+        // Simulate unexpected close
+        closedSlot.captured.invoke(RuntimeException("connection lost"))
+        assertEquals(ConnectionState.RECONNECTING, client.connectionState.value)
     }
 }
 
