@@ -619,4 +619,320 @@ describe("useRealmHub", () => {
       expect(result.current.connected).toBe(false);
     });
   });
+
+  describe("ClientKicked event", () => {
+    it("removes client from clients and profiles", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-kick", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("ClientJoined", {
+          clientId: "kick-me",
+          name: "Kicked",
+          heightCm: 170,
+          weightKg: 70,
+        });
+      });
+
+      expect(result.current.clients).toContain("kick-me");
+
+      act(() => {
+        mockConnectionInstance._trigger("ClientKicked", "kick-me");
+      });
+
+      expect(result.current.clients).not.toContain("kick-me");
+      expect(result.current.clientProfiles["kick-me"]).toBeUndefined();
+    });
+  });
+
+  describe("ClientDisconnected event", () => {
+    it("adds clientId to disconnectedClients set", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-disc", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("ClientDisconnected", "disc-client");
+      });
+
+      expect(result.current.disconnectedClients.has("disc-client")).toBe(true);
+    });
+  });
+
+  describe("InclineChanged event", () => {
+    it("updates clientInclines", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-incl", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("InclineChanged", "c1", 7.5);
+      });
+
+      expect(result.current.clientInclines["c1"]).toBe(7.5);
+    });
+  });
+
+  describe("SpeedOverrideChanged event", () => {
+    it("sets speed override when speedKmh > 0", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-speed", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("SpeedOverrideChanged", "c1", 8.5);
+      });
+
+      expect(result.current.clientSpeedOverrides["c1"]).toBe(8.5);
+    });
+
+    it("removes speed override when speedKmh <= 0", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-speed-rm", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("SpeedOverrideChanged", "c1", 5);
+      });
+      expect(result.current.clientSpeedOverrides["c1"]).toBe(5);
+
+      act(() => {
+        mockConnectionInstance._trigger("SpeedOverrideChanged", "c1", 0);
+      });
+      expect(result.current.clientSpeedOverrides["c1"]).toBeUndefined();
+    });
+  });
+
+  describe("BindCodeGenerated event", () => {
+    it("sets bindCode and bindPending", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-bind", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("BindCodeGenerated", "123456", "c1");
+      });
+
+      expect(result.current.bindCode).toBe("123456");
+      expect(result.current.bindPending).toBe(true);
+      expect(result.current.bindResult).toBeNull();
+    });
+  });
+
+  describe("BindResponse event", () => {
+    it("sets boundClientId when approved", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-bind-ok", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("BindResponse", "c1", true);
+      });
+
+      expect(result.current.boundClientId).toBe("c1");
+      expect(result.current.bindResult).toBe("approved");
+      expect(result.current.bindPending).toBe(false);
+    });
+
+    it("sets declined result when not approved", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-bind-no", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("BindResponse", "c1", false);
+      });
+
+      expect(result.current.boundClientId).toBeNull();
+      expect(result.current.bindResult).toBe("declined");
+    });
+  });
+
+  describe("ClientBound event", () => {
+    it("updates clientBindings", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-cbound", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        mockConnectionInstance._trigger("ClientBound", "c1");
+      });
+
+      expect(result.current.clientBindings["c1"]).toBe(true);
+    });
+  });
+
+  describe("LobbySettingsUpdated event", () => {
+    it("parses and sets lobby settings", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-lobby", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      const settings = { mode: "race", laps: 3 };
+      act(() => {
+        mockConnectionInstance._trigger("LobbySettingsUpdated", JSON.stringify(settings));
+      });
+
+      expect(result.current.lobbySettings).toMatchObject(settings);
+    });
+  });
+
+  describe("requestBind callback", () => {
+    it("invokes RequestBind on the connection", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-rb", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        result.current.requestBind("c1");
+      });
+
+      expect(mockConnectionInstance.invoke).toHaveBeenCalledWith("RequestBind", "realm-rb", "c1");
+      expect(result.current.bindPending).toBe(true);
+    });
+  });
+
+  describe("cancelBind callback", () => {
+    it("invokes CancelBind and resets bind state", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-cb", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        result.current.cancelBind("c1");
+      });
+
+      expect(mockConnectionInstance.invoke).toHaveBeenCalledWith("CancelBind", "realm-cb", "c1");
+      expect(result.current.bindPending).toBe(false);
+      expect(result.current.bindCode).toBeNull();
+    });
+  });
+
+  describe("setIncline callback", () => {
+    it("invokes SetIncline on the connection", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-si", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        result.current.setIncline("c1", 5.0);
+      });
+
+      expect(mockConnectionInstance.invoke).toHaveBeenCalledWith("SetIncline", "realm-si", "c1", 5.0);
+    });
+  });
+
+  describe("setSpeedOverride callback", () => {
+    it("invokes SetSpeedOverride on the connection", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-so", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        result.current.setSpeedOverride("c1", 10.0);
+      });
+
+      expect(mockConnectionInstance.invoke).toHaveBeenCalledWith("SetSpeedOverride", "realm-so", "c1", 10.0);
+    });
+  });
+
+  describe("kickClient callback", () => {
+    it("invokes KickClient on the connection", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-kc", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      act(() => {
+        result.current.kickClient("c1");
+      });
+
+      expect(mockConnectionInstance.invoke).toHaveBeenCalledWith("KickClient", "realm-kc", "c1");
+    });
+  });
+
+  describe("updateLobbySettings callback", () => {
+    it("invokes UpdateLobbySettings with serialized JSON", async () => {
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-uls", "http://localhost:5062/hubs/realm")
+      );
+
+      await waitFor(() => expect(result.current.connected).toBe(true));
+
+      const settings = { videoId: "abc" };
+      act(() => {
+        result.current.updateLobbySettings(settings);
+      });
+
+      expect(mockConnectionInstance.invoke).toHaveBeenCalledWith(
+        "UpdateLobbySettings", "realm-uls", JSON.stringify(settings)
+      );
+    });
+  });
+
+  describe("connection.start failure", () => {
+    it("does not set connected when start() rejects", async () => {
+      mockConnectionInstance.start.mockRejectedValueOnce(new Error("Connection failed"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const { useRealmHub } = await import("./useSessionHub");
+      const { result } = renderHook(() =>
+        useRealmHub("realm-fail", "http://localhost:5062/hubs/realm")
+      );
+
+      // Give the rejected promise time to settle
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.connected).toBe(false);
+      vi.restoreAllMocks();
+    });
+  });
 });

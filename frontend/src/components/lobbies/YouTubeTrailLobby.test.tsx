@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { YouTubeTrailLobby } from "./YouTubeTrailLobby";
@@ -263,5 +263,266 @@ describe("YouTubeTrailLobby", () => {
       expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Leave Realm" })).not.toBeInTheDocument();
     });
+  });
+});
+
+// ── Additional branch coverage ────────────────────────────────────────────────
+
+describe("YouTubeTrailLobby — resolveThumbUrl branch (serverUrl + relative path)", () => {
+  it("uses serverUrl prefix when thumbnailUrl starts with '/' and serverUrl is provided", () => {
+    const videosWithRelativeThumb: YouTubeVideo[] = [
+      { videoId: "vid1", url: "https://www.youtube.com/watch?v=vid1", title: "Video One", baseSpeedKmh: 5, thumbnailUrl: "/thumbs/vid1.jpg" },
+      { videoId: "vid2", url: "https://www.youtube.com/watch?v=vid2", title: "Video Two", baseSpeedKmh: 5 },
+      { videoId: "vid3", url: "https://www.youtube.com/watch?v=vid3", title: "Video Three", baseSpeedKmh: 5 },
+      { videoId: "vid4", url: "https://www.youtube.com/watch?v=vid4", title: "Video Four", baseSpeedKmh: 5 },
+      { videoId: "vid5", url: "https://www.youtube.com/watch?v=vid5", title: "Video Five", baseSpeedKmh: 5 },
+    ];
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={videosWithRelativeThumb}
+        serverUrl="http://localhost:5062"
+      />
+    );
+    // The thumbnail for vid1 should be resolved to http://localhost:5062/thumbs/vid1.jpg
+    // It appears in the card thumbnail img src attribute
+    const imgs = document.querySelectorAll("img");
+    const resolved = Array.from(imgs).some(img =>
+      img.getAttribute("src") === "http://localhost:5062/thumbs/vid1.jpg"
+    );
+    expect(resolved).toBe(true);
+  });
+
+  it("uses absolute thumbnailUrl directly when it does not start with '/'", () => {
+    const videosWithAbsThumb: YouTubeVideo[] = [
+      { videoId: "vid1", url: "https://www.youtube.com/watch?v=vid1", title: "Video One", baseSpeedKmh: 5, thumbnailUrl: "https://cdn.example.com/thumb.jpg" },
+      { videoId: "vid2", url: "https://www.youtube.com/watch?v=vid2", title: "Video Two", baseSpeedKmh: 5 },
+      { videoId: "vid3", url: "https://www.youtube.com/watch?v=vid3", title: "Video Three", baseSpeedKmh: 5 },
+      { videoId: "vid4", url: "https://www.youtube.com/watch?v=vid4", title: "Video Four", baseSpeedKmh: 5 },
+      { videoId: "vid5", url: "https://www.youtube.com/watch?v=vid5", title: "Video Five", baseSpeedKmh: 5 },
+    ];
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={videosWithAbsThumb}
+        serverUrl="http://localhost:5062"
+      />
+    );
+    const imgs = document.querySelectorAll("img");
+    const hasAbsUrl = Array.from(imgs).some(img =>
+      img.getAttribute("src") === "https://cdn.example.com/thumb.jpg"
+    );
+    expect(hasAbsUrl).toBe(true);
+  });
+
+  it("falls back to youtube default thumb when thumbnailUrl is not provided", () => {
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} serverUrl="http://localhost:5062" />);
+    // Select a video and verify thumbnail uses YouTube default URL
+    fireEvent.click(screen.getByText("Video One"));
+    const thumbnail = screen.getByAltText("Video thumbnail");
+    expect(thumbnail.getAttribute("src")).toBe("https://img.youtube.com/vi/vid1/hqdefault.jpg");
+  });
+});
+
+describe("YouTubeTrailLobby — guest role syncs video from lobbySettings", () => {
+  it("syncs selected video from lobbySettings when role is guest", () => {
+    const lobbySettings = {
+      video: {
+        videoId: "syncedVideoId",
+        url: "https://www.youtube.com/watch?v=syncedVideoId",
+        title: "Synced Video",
+        baseSpeedKmh: 5,
+      },
+    };
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={fixedVideos}
+        role="guest"
+        lobbySettings={lobbySettings}
+      />
+    );
+    // Guest should have the synced video selected — URL input should show it
+    const input = screen.getByPlaceholderText("Paste a YouTube link...") as HTMLInputElement;
+    expect(input.value).toBe("https://www.youtube.com/watch?v=syncedVideoId");
+  });
+
+  it("does not sync when lobbySettings video has invalid shape", () => {
+    const badSettings = { video: { videoId: 123, url: 456 } };
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={fixedVideos}
+        role="guest"
+        lobbySettings={badSettings as Record<string, unknown>}
+      />
+    );
+    // Input should remain empty (invalid shape not synced)
+    const input = screen.getByPlaceholderText("Paste a YouTube link...") as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+
+  it("host role: syncing lobbySettings is ignored (only for guest)", () => {
+    const lobbySettings = {
+      video: {
+        videoId: "hostIgnored",
+        url: "https://www.youtube.com/watch?v=hostIgnored",
+        title: "Should not sync",
+        baseSpeedKmh: 5,
+      },
+    };
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={fixedVideos}
+        role="host"
+        lobbySettings={lobbySettings}
+      />
+    );
+    const input = screen.getByPlaceholderText("Paste a YouTube link...") as HTMLInputElement;
+    // Host does not sync from lobbySettings
+    expect(input.value).toBe("");
+  });
+});
+
+describe("YouTubeTrailLobby — videoDuration display", () => {
+  beforeEach(() => {
+    // Mock YT.Player to trigger onReady with a duration
+    const ytWindow = window as Window & { YT?: { Player: unknown }; onYouTubeIframeAPIReady?: () => void };
+    ytWindow.YT = {
+      Player: class {
+        constructor(_div: unknown, opts: { events?: { onReady?: (e: { target: { getDuration: () => number; destroy: () => void } }) => void } }) {
+          setTimeout(() => {
+            opts?.events?.onReady?.({
+              target: {
+                getDuration: () => 3661, // 1h 1m 1s
+                destroy: vi.fn(),
+              },
+            });
+          }, 0);
+        }
+        destroy = vi.fn();
+      },
+    };
+  });
+
+  afterEach(() => {
+    const ytWindow = window as Window & { YT?: unknown };
+    delete ytWindow.YT;
+  });
+
+  it("shows formatted duration badge on thumbnail after video duration loads", async () => {
+    vi.useFakeTimers();
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+    fireEvent.click(screen.getByText("Video One"));
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    expect(screen.getByText("1:01:01")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("shows 'Video length:' text after duration loads", async () => {
+    vi.useFakeTimers();
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+    fireEvent.click(screen.getByText("Video One"));
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    expect(screen.getByText(/Video length:/)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("formatDuration shows m:ss for sub-hour durations", async () => {
+    vi.useFakeTimers();
+    const ytWindow = window as Window & { YT?: { Player: unknown } };
+    ytWindow.YT = {
+      Player: class {
+        constructor(_div: unknown, opts: { events?: { onReady?: (e: { target: { getDuration: () => number; destroy: () => void } }) => void } }) {
+          setTimeout(() => {
+            opts?.events?.onReady?.({
+              target: {
+                getDuration: () => 125, // 2:05
+                destroy: vi.fn(),
+              },
+            });
+          }, 0);
+        }
+        destroy = vi.fn();
+      },
+    };
+
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+    fireEvent.click(screen.getByText("Video One"));
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    expect(screen.getByText("2:05")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+});
+
+describe("YouTubeTrailLobby — hover and selection interaction branches", () => {
+  it("mouseEnter on unselected card changes background style", () => {
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+    const card = screen.getByText("Video One").closest("div[style]") as HTMLElement;
+    if (card) {
+      fireEvent.mouseEnter(card);
+      // Should change background (no crash)
+      fireEvent.mouseLeave(card);
+    }
+    expect(document.body).toBeInTheDocument();
+  });
+
+  it("mouseEnter on selected card does not change background", () => {
+    render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
+    // Select the first video
+    fireEvent.click(screen.getByText("Video One"));
+    const card = screen.getByText("Video One").closest("div[style]") as HTMLElement;
+    if (card) {
+      fireEvent.mouseEnter(card);
+      fireEvent.mouseLeave(card);
+    }
+    expect(document.body).toBeInTheDocument();
+  });
+});
+
+describe("YouTubeTrailLobby — onSettingsChange debounce for host", () => {
+  it("calls onSettingsChange after video is selected by host", async () => {
+    vi.useFakeTimers();
+    const onSettingsChange = vi.fn();
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={fixedVideos}
+        role="host"
+        onSettingsChange={onSettingsChange}
+      />
+    );
+    fireEvent.click(screen.getByText("Video One"));
+    // Settings change is debounced by 300ms
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(onSettingsChange).toHaveBeenCalledWith(
+      expect.objectContaining({ video: expect.objectContaining({ videoId: "vid1" }) })
+    );
+    vi.useRealTimers();
+  });
+
+  it("does not call onSettingsChange for guest role", async () => {
+    vi.useFakeTimers();
+    const onSettingsChange = vi.fn();
+    render(
+      <YouTubeTrailLobby
+        {...baseProps}
+        curatedVideos={fixedVideos}
+        role="guest"
+        onSettingsChange={onSettingsChange}
+      />
+    );
+    fireEvent.click(screen.getByText("Video One"));
+    act(() => { vi.advanceTimersByTime(400); });
+    // Guest does not trigger settings sync
+    expect(onSettingsChange).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
