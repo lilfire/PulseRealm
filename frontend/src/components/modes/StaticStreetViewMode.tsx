@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ClientProfile, RealmRole, WearableData } from "../../types/session";
 import type { StreetViewLocation } from "../lobbies/StreetViewLobby";
-import { estimateCaloriesPerSecond, getZoneForHr, getMaxHrForProfile, ZONE_COLORS, formatPace } from "../../utils/wearable";
+import { estimateCaloriesPerSecond } from "../../utils/wearable";
+import { PlayerHud } from "./PlayerHud";
+import { overlayPanel } from "./StreetViewMode";
 import {
   moveAlongHeading,
   streetViewImageUrl,
@@ -267,72 +269,46 @@ export function StaticStreetViewMode({
         Static mode (limited browser)
       </div>
 
-      {/* End realm button */}
-      {role !== "guest" && (
-        <button
-          onClick={() => onEnd(totalDistanceRef.current)}
-          style={{
-            position: "absolute",
-            top: "1rem",
-            left: "1rem",
-            zIndex: 10,
-            background: "rgba(0,0,0,0.75)",
-            color: "#fff",
-            border: "1px solid rgba(255,61,90,0.5)",
-            borderRadius: "8px",
-            padding: "0.5rem 1rem",
-            fontSize: "0.9rem",
-            cursor: "pointer",
-          }}
-        >
-          End Realm
-        </button>
-      )}
-
       {/* HUD overlay */}
       <div
         style={{
+          ...overlayPanel,
           position: "absolute",
-          bottom: "1rem",
+          top: "1rem",
           left: "1rem",
           zIndex: 10,
-          background: "rgba(0,0,0,0.75)",
-          color: "#fff",
           padding: "0.75rem 1rem",
-          borderRadius: "8px",
           fontSize: "0.95rem",
           lineHeight: 1.8,
-          pointerEvents: "none",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
         }}
       >
-        <div style={{ fontWeight: 600 }}>{profile?.name || clientId || "Waiting for player..."}</div>
-        {latestData ? (
-          <>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{latestData.speedKmh.toFixed(1)} km/h</div>
-            <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: -4 }}>{formatPace(latestData.speedKmh)}</div>
-            <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "6px" } as React.CSSProperties}>
-              <span>{latestData.heartRate} bpm</span>
-              {latestData.heartRate > 0 && (() => {
-                const maxHr = getMaxHrForProfile(profile);
-                const zone = getZoneForHr(latestData.heartRate, maxHr, profile?.zoneBounds);
-                return (
-                  <span style={{
-                    background: ZONE_COLORS[zone - 1],
-                    color: zone <= 2 ? "#111" : "#fff",
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    padding: "1px 6px",
-                    borderRadius: 4,
-                  }}>Z{zone}</span>
-                );
-              })()}
-            </div>
-            <div>{latestData.steps} steps</div>
-            {caloriesDisplay > 0 && <div>{caloriesDisplay} kcal</div>}
-            <div style={{ fontSize: "0.8rem", color: "#aaa" }}>{totalDistanceDisplay.toFixed(0)} m</div>
-          </>
-        ) : (
-          <div style={{ color: "#888" }}>No data yet</div>
+        <PlayerHud
+          name={profile?.name || clientId || "Waiting for player..."}
+          latestData={latestData}
+          profile={profile ?? null}
+          caloriesDisplay={caloriesDisplay}
+          totalDistanceDisplay={totalDistanceDisplay.toFixed(0)}
+        />
+        {role !== "guest" && (
+          <button
+            onClick={() => onEnd(totalDistanceRef.current)}
+            style={{
+              marginTop: "0.25rem",
+              background: "rgba(255,61,90,0.15)",
+              color: "#FF5C75",
+              border: "1px solid rgba(255,61,90,0.4)",
+              borderRadius: 6,
+              padding: "0.35rem 0.75rem",
+              fontSize: "0.8rem",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            End Realm
+          </button>
         )}
       </div>
 
