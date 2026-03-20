@@ -877,6 +877,9 @@ public class RealmHub : Hub
         session.ClientConnectionId = Context.ConnectionId;
         session.HeightCm = heightCm;
 
+        // Notify the joining client so it knows this is a calibration session
+        await Clients.Caller.SendAsync("JoinedCalibrationSession", sessionId);
+
         // Notify dashboard that the client has connected (include height from client profile)
         await Clients.Client(session.DashboardConnectionId)
             .SendAsync("CalibrationClientJoined", sessionId, clientId, heightCm);

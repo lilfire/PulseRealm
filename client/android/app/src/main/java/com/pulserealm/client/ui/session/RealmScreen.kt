@@ -64,6 +64,7 @@ fun RealmScreen(
     val eliminated by viewModel.eliminated.collectAsState()
     val realmStarted by viewModel.realmStarted.collectAsState()
     val bindRequest by viewModel.bindRequest.collectAsState()
+    val calibrationComplete by viewModel.calibrationComplete.collectAsState()
 
     // Keep screen on only while in the realm (active workout)
     val activity = LocalContext.current as? Activity
@@ -73,6 +74,22 @@ fun RealmScreen(
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+
+    // Calibration mode: show dedicated UI and handle auto-save on completion
+    if (viewModel.isCalibrationMode) {
+        CalibrationScreen(
+            heartRate = heartRate,
+            steps = steps,
+            connectionState = connectionState,
+            calibrationComplete = calibrationComplete,
+            onSaveCalibration = { points -> viewModel.saveStrideCalibration(points) },
+            onLeave = {
+                viewModel.disconnect()
+                onDisconnected()
+            }
+        )
+        return
     }
 
     // Reset step counter when realm starts so pre-lobby steps don't carry over
@@ -148,6 +165,111 @@ fun RealmScreen(
                         // If leaveRealm returned true, summary screen will appear via realmEnded state
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationScreen(
+    heartRate: Int,
+    steps: Int,
+    connectionState: ConnectionState,
+    calibrationComplete: List<*>?,
+    onSaveCalibration: (List<com.pulserealm.client.data.network.StrideCalibrationPoint>) -> Unit,
+    onLeave: () -> Unit
+) {
+    var saved by remember { mutableStateOf(false) }
+
+    // Auto-save when calibration results arrive from the server
+    LaunchedEffect(calibrationComplete) {
+        if (calibrationComplete != null) {
+            @Suppress("UNCHECKED_CAST")
+            onSaveCalibration(calibrationComplete as List<com.pulserealm.client.data.network.StrideCalibrationPoint>)
+            saved = true
+        }
+    }
+
+    val listState = rememberScalingLazyListState()
+
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }
+    ) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            item {
+                val statusColor = when (connectionState) {
+                    ConnectionState.CONNECTED -> PulseColors.Cyan
+                    ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> PulseColors.Yellow
+                    ConnectionState.DISCONNECTED -> PulseColors.Red
+                }
+                Text(
+                    text = "CALIBRATING",
+                    color = statusColor,
+                    style = MaterialTheme.typography.title3,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            item {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$heartRate",
+                        color = PulseColors.Red,
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "BPM",
+                        color = PulseColors.Red.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.caption3
+                    )
+                }
+            }
+
+            item {
+                StatItem(value = "$steps", label = "STEPS", color = PulseColors.Green)
+            }
+
+            item {
+                if (saved) {
+                    Text(
+                        text = "Calibration saved!",
+                        color = PulseColors.Green,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                } else {
+                    Text(
+                        text = "Follow dashboard instructions",
+                        color = Color.White.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.caption3,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            item {
+                Button(
+                    onClick = onLeave,
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .padding(vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = PulseColors.BrightRed
+                    )
+                ) {
+                    Text(text = "LEAVE", color = Color.White)
+                }
             }
         }
     }

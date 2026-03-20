@@ -101,6 +101,9 @@ class SignalRClient(
     private val _calibrationComplete = MutableStateFlow<List<StrideCalibrationPoint>?>(null)
     val calibrationComplete: StateFlow<List<StrideCalibrationPoint>?> = _calibrationComplete.asStateFlow()
 
+    private val _calibrationSessionId = MutableStateFlow<String?>(null)
+    val calibrationSessionId: StateFlow<String?> = _calibrationSessionId.asStateFlow()
+
     suspend fun connect(serverUrl: String) = withContext(Dispatchers.IO) {
         intentionalDisconnect.set(true)
         disconnectInternal()
@@ -227,6 +230,10 @@ class SignalRClient(
                 }
             }, Any::class.java)
 
+            on("JoinedCalibrationSession", { sessionId ->
+                _calibrationSessionId.value = sessionId
+            }, String::class.java)
+
             on("Error", { message ->
                 _error.value = UserFriendlyErrors.fromRawMessage(message, "Something went wrong")
             }, String::class.java)
@@ -314,6 +321,14 @@ class SignalRClient(
         }
     }
 
+    fun sendCalibrationData(sessionId: String, steps: Int) {
+        val conn = hubConnection
+        if (conn == null || conn.connectionState != HubConnectionState.CONNECTED) return
+        try {
+            conn.send("SendCalibrationData", sessionId, steps)
+        } catch (_: Exception) { }
+    }
+
     /**
      * Intentionally leave the realm. If the realm was started, the server sends
      * a RealmEnded summary and this returns true — the caller should wait for the
@@ -356,6 +371,7 @@ class SignalRClient(
         _eliminated.value = false
         _realmStarted.value = false
         _bindRequest.value = null
+        _calibrationSessionId.value = null
     }
 
     /**

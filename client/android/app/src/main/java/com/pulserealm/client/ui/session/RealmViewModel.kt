@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.pulserealm.client.data.network.BindRequestData
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.RealmSummaryData
@@ -19,7 +20,11 @@ import org.json.JSONObject
 import com.pulserealm.client.data.sensor.SensorDataCollector
 import com.pulserealm.client.service.DataStreamingService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -48,7 +53,11 @@ class RealmViewModel @Inject constructor(
     val realmStarted: StateFlow<Boolean> = signalRClient.realmStarted
     val bindRequest: StateFlow<BindRequestData?> = signalRClient.bindRequest
 
+    /** True when the join code was for a calibration session rather than a realm. */
+    val isCalibrationMode: Boolean = signalRClient.calibrationSessionId.value != null
+
     private var isStreaming = false
+    private var calibrationJob: Job? = null
 
     fun saveStrideFactor(factor: Double) {
         prefs.edit().putFloat("stride_factor", factor.toFloat()).apply()
@@ -93,14 +102,25 @@ class RealmViewModel @Inject constructor(
 
         requestBatteryOptimizationExemption()
 
-        val intent = Intent(application, DataStreamingService::class.java).apply {
-            putExtra(DataStreamingService.EXTRA_REALM_ID, realmId)
-            putExtra(DataStreamingService.EXTRA_CLIENT_ID, clientId)
-            putExtra(DataStreamingService.EXTRA_INTERVAL_MS, 1000L)
-            putExtra(DataStreamingService.EXTRA_WEIGHT_KG, weightKg)
-            putExtra(DataStreamingService.EXTRA_AGE, age)
+        if (isCalibrationMode) {
+            // Calibration sessions are not realms — send step data directly via SignalR
+            // without starting the foreground DataStreamingService.
+            calibrationJob = viewModelScope.launch(Dispatchers.IO) {
+                while (true) {
+                    delay(1000L)
+                    signalRClient.sendCalibrationData(realmId, sensorDataCollector.steps.value)
+                }
+            }
+        } else {
+            val intent = Intent(application, DataStreamingService::class.java).apply {
+                putExtra(DataStreamingService.EXTRA_REALM_ID, realmId)
+                putExtra(DataStreamingService.EXTRA_CLIENT_ID, clientId)
+                putExtra(DataStreamingService.EXTRA_INTERVAL_MS, 1000L)
+                putExtra(DataStreamingService.EXTRA_WEIGHT_KG, weightKg)
+                putExtra(DataStreamingService.EXTRA_AGE, age)
+            }
+            application.startForegroundService(intent)
         }
-        application.startForegroundService(intent)
     }
 
     private fun requestBatteryOptimizationExemption() {
@@ -125,7 +145,11 @@ class RealmViewModel @Inject constructor(
     fun stopStreaming() {
         if (!isStreaming) return
         isStreaming = false
-        application.stopService(Intent(application, DataStreamingService::class.java))
+        calibrationJob?.cancel()
+        calibrationJob = null
+        if (!isCalibrationMode) {
+            application.stopService(Intent(application, DataStreamingService::class.java))
+        }
     }
 
     /** Intentionally leave the realm. Returns true if a summary screen will appear. */

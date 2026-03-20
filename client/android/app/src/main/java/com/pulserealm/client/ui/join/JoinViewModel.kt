@@ -13,6 +13,7 @@ import com.pulserealm.client.data.model.RealmInfo
 import com.pulserealm.client.data.network.RealmApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -255,6 +256,27 @@ class JoinViewModel @Inject constructor(
                     zoneBounds,
                     maxHrOverride
                 )
+
+                // 3b. Give the server a moment to deliver JoinedCalibrationSession if applicable,
+                //     since the server send fires on a different thread from blockingAwait.
+                delay(100)
+
+                // 3c. If this was a calibration join code, skip the REST call — calibration
+                //     sessions are not realms and have no REST endpoint.
+                val calibrationSessionId = signalRClient.calibrationSessionId.value
+                if (calibrationSessionId != null) {
+                    prefs.edit().putString(PREF_SERVER_URL, state.serverUrl).apply()
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        realmInfo = RealmInfo(
+                            id = calibrationSessionId,
+                            joinCode = state.joinCode,
+                            mode = "calibration"
+                        ),
+                        isJoined = true
+                    )
+                    return@launch
+                }
 
                 // 4. Fetch realm info via REST to get the realmId
                 val api = realmApiFactory(state.serverUrl)
