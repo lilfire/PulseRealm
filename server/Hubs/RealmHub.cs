@@ -695,7 +695,7 @@ public class RealmHub : Hub
 
             // TryAutoEndRealm will build the full summary (including this client's stats)
             // and handle cleanup if no connected clients remain.
-            var autoEnded = await TryAutoEndRealm(mapping.RealmId);
+            var autoEnded = await TryAutoEndRealm(mapping.RealmId, clientLeft: true);
 
             // If auto-end didn't fire (other clients still connected), clean up
             // this client's stats now since they won't be needed for their personal summary.
@@ -745,7 +745,7 @@ public class RealmHub : Hub
                 _lastAcceptedTime.TryRemove(mapping.ClientId, out _);
             }
             await Clients.Group(mapping.RealmId).SendAsync("ClientDisconnected", mapping.ClientId);
-            await TryAutoEndRealm(mapping.RealmId);
+            await TryAutoEndRealm(mapping.RealmId, clientLeft: false);
         }
 
         await base.OnDisconnectedAsync(exception);
@@ -754,7 +754,7 @@ public class RealmHub : Hub
     /// <summary>
     /// Checks if a realm has no connected clients left and, if so, ends it automatically.
     /// </summary>
-    private async Task<bool> TryAutoEndRealm(string realmId)
+    private async Task<bool> TryAutoEndRealm(string realmId, bool clientLeft = false)
     {
         var realm = _realmManager.GetById(realmId);
         if (realm is null)
@@ -766,8 +766,9 @@ public class RealmHub : Hub
                 return false;
             if (r.ConnectedClientIds.Count > 0)
                 return false;
-            // Don't auto-end if the dashboard/host is still connected
-            if (r.HostConnectionId is not null)
+            // If clients explicitly left, end even if the host dashboard is still watching.
+            // If clients lost connection, only end if the host is also gone.
+            if (!clientLeft && r.HostConnectionId is not null)
                 return false;
             return true;
         });

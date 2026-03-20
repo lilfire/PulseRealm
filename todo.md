@@ -31,5 +31,5 @@
 - [x] Youtube hud. Ingen space mellom labels
 - [x] route er blitt en rett linje igjen...
 - [x] route har feil hud og mangler controls
-- [ ] når client forlater avsluttetes ikke realm
+- [x] når client forlater avsluttetes ikke realm
 - [ ] 
