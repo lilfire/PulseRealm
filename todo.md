@@ -13,7 +13,7 @@
 - [x] fullscreen i home og lobbies
 - [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
 - [ ] fullscreen sosial mode
-- [ ] android clients reconnect setting page
+- [x] android clients reconnect setting page
 - [ ] stride egen modus for calibrering da dette må være et array bassert på hastighet 
 - [ ] fullscreen i dungeon mode
 - [ ] dungeon mode mangler overstyre hastighet, trengs dette? 

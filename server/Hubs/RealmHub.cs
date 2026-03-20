@@ -47,6 +47,11 @@ public class RealmHub : Hub
     }
 
     /// <summary>
+    /// Lightweight health-check ping. Returns true so clients can verify the connection is alive.
+    /// </summary>
+    public bool Ping() => true;
+
+    /// <summary>
     /// Called by the dashboard to authenticate as the host of a realm.
     /// Must be called before any privileged operations (StartRealm, EndRealm, etc.).
     /// </summary>

@@ -72,6 +72,7 @@ class SignalRClient(
     @Volatile private var currentMaxHr: Int = 0
     private val intentionalDisconnect = AtomicBoolean(false)
     private var reconnectJob: Job? = null
+    private var healthCheckJob: Job? = null
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -112,6 +113,7 @@ class SignalRClient(
             connection.start()?.blockingAwait()
             hubConnection = connection
             _connectionState.value = ConnectionState.CONNECTED
+            startHealthCheck()
         } catch (e: Exception) {
             _connectionState.value = ConnectionState.DISCONNECTED
             _error.value = UserFriendlyErrors.fromException(e, "Could not connect to the server")
@@ -255,7 +257,15 @@ class SignalRClient(
     }
 
     fun sendWearableData(realmId: String, data: WearableData) {
-        if (hubConnection?.connectionState != HubConnectionState.CONNECTED) return
+        val conn = hubConnection
+        if (conn == null || conn.connectionState != HubConnectionState.CONNECTED) {
+            // Hub reports not connected — sync our state and trigger reconnect
+            if (_connectionState.value == ConnectionState.CONNECTED && !intentionalDisconnect.get() && currentJoinCode != null) {
+                _connectionState.value = ConnectionState.RECONNECTING
+                attemptReconnect()
+            }
+            return
+        }
 
         val dataMap = hashMapOf<String, Any>(
             "clientId" to data.clientId,
@@ -263,7 +273,15 @@ class SignalRClient(
             "steps" to data.steps,
             "timestamp" to data.timestamp
         )
-        hubConnection?.send("SendWearableData", realmId, dataMap)
+        try {
+            conn.send("SendWearableData", realmId, dataMap)
+        } catch (_: Exception) {
+            // Send failed — connection is likely dead, trigger reconnect
+            if (_connectionState.value == ConnectionState.CONNECTED && !intentionalDisconnect.get() && currentJoinCode != null) {
+                _connectionState.value = ConnectionState.RECONNECTING
+                attemptReconnect()
+            }
+        }
     }
 
     /**
@@ -291,6 +309,8 @@ class SignalRClient(
     }
 
     private fun disconnectInternal() {
+        healthCheckJob?.cancel()
+        healthCheckJob = null
         reconnectJob?.cancel()
         reconnectJob = null
         try {
@@ -312,6 +332,19 @@ class SignalRClient(
      * Called externally when network connectivity is restored (e.g. WiFi back after Doze).
      * Skips backoff and reconnects immediately if the connection is currently down.
      */
+    /**
+     * Manually triggered reconnect (e.g. from a UI button).
+     * Resets the intentional-disconnect flag so reconnection is allowed.
+     */
+    fun manualReconnect() {
+        if (_connectionState.value == ConnectionState.CONNECTED) return
+        if (currentJoinCode == null || currentServerUrl == null) return
+        intentionalDisconnect.set(false)
+        _connectionState.value = ConnectionState.RECONNECTING
+        reconnectJob?.cancel()
+        attemptReconnect(immediateFirstAttempt = true)
+    }
+
     fun onNetworkAvailable() {
         val conn = hubConnection
         if (intentionalDisconnect.get()) return
@@ -321,6 +354,49 @@ class SignalRClient(
         _connectionState.value = ConnectionState.RECONNECTING
         reconnectJob?.cancel()
         attemptReconnect(immediateFirstAttempt = true)
+    }
+
+    /**
+     * Periodically pings the server to verify the connection is truly alive.
+     * Catches silent disconnects where onClosed never fires (e.g. server loses WiFi,
+     * or Android network drops without a clean TCP close).
+     * Uses invoke("Ping") which requires a server response — if unreachable, it throws.
+     */
+    private fun startHealthCheck() {
+        healthCheckJob?.cancel()
+        healthCheckJob = reconnectScope.launch {
+            var consecutiveFailures = 0
+            while (true) {
+                delay(10_000L)
+                if (intentionalDisconnect.get()) break
+                val conn = hubConnection ?: break
+
+                if (conn.connectionState != HubConnectionState.CONNECTED) {
+                    triggerReconnectIfNeeded()
+                    break
+                }
+
+                try {
+                    conn.invoke(Boolean::class.java, "Ping")
+                        .timeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                        .blockingGet()
+                    consecutiveFailures = 0
+                } catch (_: Exception) {
+                    consecutiveFailures++
+                    if (consecutiveFailures >= 2) {
+                        triggerReconnectIfNeeded()
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    private fun triggerReconnectIfNeeded() {
+        if (_connectionState.value == ConnectionState.CONNECTED && !intentionalDisconnect.get() && currentJoinCode != null) {
+            _connectionState.value = ConnectionState.RECONNECTING
+            attemptReconnect()
+        }
     }
 
     private fun attemptReconnect(immediateFirstAttempt: Boolean = false) {
@@ -363,6 +439,7 @@ class SignalRClient(
                         if (currentMaxHr > 0) it["maxHr"] = currentMaxHr
                     } else null
                     hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
+                    startHealthCheck()
                     return@launch
                 } catch (_: Exception) {
                     // Will retry on next iteration

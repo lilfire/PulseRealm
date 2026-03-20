@@ -82,6 +82,10 @@ class RealmViewModel @Inject constructor(
         }
     }
 
+    fun reconnect() {
+        signalRClient.manualReconnect()
+    }
+
     fun respondBind(approved: Boolean) {
         signalRClient.respondBind(realmId, approved)
     }

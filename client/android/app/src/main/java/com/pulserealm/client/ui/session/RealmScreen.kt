@@ -139,6 +139,8 @@ fun RealmScreen(
                     sensorsAvailable = sensorsAvailable
                 )
                 1 -> RealmSettingsPage(
+                    connectionState = connectionState,
+                    onReconnect = { viewModel.reconnect() },
                     onLeave = {
                         if (!viewModel.leaveRealm()) {
                             onDisconnected()
@@ -612,6 +614,8 @@ private fun RealmSummaryPage(summary: RealmSummaryData) {
 
 @Composable
 private fun RealmSettingsPage(
+    connectionState: ConnectionState,
+    onReconnect: () -> Unit,
     onLeave: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
@@ -631,7 +635,28 @@ private fun RealmSettingsPage(
             )
         }
 
-        // Leave button at the top of settings
+        // Reconnect button — only visible when disconnected or reconnecting
+        if (connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.RECONNECTING) {
+            item {
+                Button(
+                    onClick = onReconnect,
+                    enabled = connectionState != ConnectionState.RECONNECTING,
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .padding(vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = PulseColors.Amber
+                    )
+                ) {
+                    Text(
+                        text = if (connectionState == ConnectionState.RECONNECTING) "RECONNECTING..." else "RECONNECT",
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
+        // Leave button
         item {
             Button(
                 onClick = onLeave,
