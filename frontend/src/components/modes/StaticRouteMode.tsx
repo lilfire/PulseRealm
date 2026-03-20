@@ -44,6 +44,8 @@ export function StaticRouteMode({
   const [progressPct, setProgressPct] = useState(0);
   const [finished, setFinished] = useState(false);
   const [mapError, setMapError] = useState("");
+  // Whether the directions fetch has completed (success or failure)
+  const [directionsLoaded, setDirectionsLoaded] = useState(false);
 
   // Map image URL — only updated when the image is confirmed loadable
   const [mapUrl, setMapUrl] = useState("");
@@ -62,6 +64,11 @@ export function StaticRouteMode({
    *  Retries with exponential backoff (2s, 4s, 8s, 16s) on failure. */
   function tryLoadMap(url: string, isInitial: boolean, attempt?: number) {
     var currentAttempt = attempt || 0;
+    // Cancel any stale retry timer when starting a fresh request
+    if (currentAttempt === 0 && retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
     if (pendingFetchRef.current && currentAttempt === 0) return;
     pendingFetchRef.current = true;
     fetch(url)
@@ -115,12 +122,15 @@ export function StaticRouteMode({
           }
           cumulativeDistRef.current = distances;
         }
+        setDirectionsLoaded(true);
       })
-      .catch(function () { /* fallback to straight line */ });
+      .catch(function () { setDirectionsLoaded(true); /* fallback to straight line */ });
   }, [route]);
 
-  // Build the initial map URL
+  // Build the initial map URL — wait until directions fetch completes so we
+  // always use the encoded polyline when available (avoids straight-line race).
   useEffect(function () {
+    if (!directionsLoaded) return;
     var opts: any = {
       width: IMG_W,
       height: IMG_H,
@@ -138,7 +148,7 @@ export function StaticRouteMode({
     }
     var url = staticMapUrl(opts);
     tryLoadMap(url, true);
-  }, [route, directionsData]);
+  }, [route, directionsLoaded]);
 
   // Track speed
   useEffect(() => {

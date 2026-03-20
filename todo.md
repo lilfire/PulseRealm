@@ -17,7 +17,7 @@
 - [ ] stride egen modus for calibrering da dette må være et array bassert på hastighet 
 - [x] fullscreen i dungeon mode
 - [ ] dungeon mode mangler overstyre hastighet, trengs dette? 
-- [ ] trang med plass i høyde på dungeon boss precision
+- [x] trang med plass i høyde på dungeon boss precision
 - [ ] boss endurance 133+ på easy blir for stor overgang 
 - [x] link clients trenger litt css
 - [x] fallback / static streetview mangler controls / har feil hud 
@@ -29,7 +29,7 @@
 - [x] route mangler duration
 - [x] Youtube starter ikke om pause for lenge. Trenger en manuell knapp for play
 - [x] Youtube hud. Ingen space mellom labels
-- [ ] route er blitt en rett linje igjen...
+- [x] route er blitt en rett linje igjen...
 - [x] route har feil hud og mangler controls
 - [ ] når client forlater avsluttetes ikke realm
 - [ ] 
