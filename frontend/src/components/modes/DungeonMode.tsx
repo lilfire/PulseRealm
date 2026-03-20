@@ -136,7 +136,7 @@ interface DifficultyParams {
   bossTrapSafeTarget: number;
   bossTrapDamageLimit: number;
   bossEnduranceSeconds: number;
-  bossEnduranceHrThreshold: number;
+  bossEnduranceHrFraction: number;
 }
 
 function getDifficultyParams(difficulty: DungeonDifficulty, timeframe: number): DifficultyParams {
@@ -165,7 +165,7 @@ function getDifficultyParams(difficulty: DungeonDifficulty, timeframe: number): 
 
     // Fixed thresholds (not step-based)
     restHrThreshold: 114,
-    bossEnduranceHrThreshold: 133,
+    bossEnduranceHrFraction: difficulty === "easy" ? 0.6 : difficulty === "hard" ? 0.8 : 0.7,
   };
 
   // Cadence windows: difficulty only (not timeframe)
@@ -406,14 +406,10 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
     g.bossPhase = phase;
 
     if (phase === 0) {
-      let hp = p.bossHp * scale;
-      if (g.hpReductionBuff) {
-        hp = Math.round(hp * 0.8);
-        g.hpReductionBuff = false;
+      for (const t of trackers.current.values()) {
+        t.enduranceHrAboveSince = null;
+        t.enduranceReady = false;
       }
-      g.bossMaxHp = hp;
-      g.bossHp = hp;
-      g.bossLowCadenceSince = null;
     } else if (phase === 1) {
       g.bossTrapSafe = 0;
       g.bossTrapSafeTarget = Math.round(p.bossTrapSafeTarget * scale * (g.stepReductionBuff ? 0.9 : 1));
@@ -423,10 +419,14 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       g.bossTrapCadenceMin = p.bossTrapCadenceMin;
       g.bossTrapCadenceMax = p.bossTrapCadenceMax;
     } else if (phase === 2) {
-      for (const t of trackers.current.values()) {
-        t.enduranceHrAboveSince = null;
-        t.enduranceReady = false;
+      let hp = p.bossHp * scale;
+      if (g.hpReductionBuff) {
+        hp = Math.round(hp * 0.8);
+        g.hpReductionBuff = false;
       }
+      g.bossMaxHp = hp;
+      g.bossHp = hp;
+      g.bossLowCadenceSince = null;
     }
   }, [playerScale]);
 
@@ -485,12 +485,6 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
       case "boss":
         g.bossPhase = 0;
         initBossPhase(0);
-        if (g.calorieBurstStored > 0) {
-          const burstDmg = Math.round(g.bossMaxHp * 0.15);
-          g.bossHp = Math.max(0, g.bossHp - burstDmg);
-          g.calorieBurstStored--;
-          setBurstNotification(`Stored Calorie Burst! ${burstDmg} damage to boss!`);
-        }
         break;
     }
   }, [playerScale, initBossPhase]);
@@ -618,17 +612,17 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           g.treasureSteps += stepDelta;
           break;
         case "boss":
-          if (g.bossPhase === 0) {
-            g.bossHp = Math.max(0, g.bossHp - stepDelta);
-          } else if (g.bossPhase === 1) {
+          // Phase 0 (Endurance): steps don't affect completion
+          if (g.bossPhase === 1) {
             const inWindow = t.cadence >= g.bossTrapCadenceMin && t.cadence <= g.bossTrapCadenceMax;
             if (inWindow) {
               g.bossTrapSafe += stepDelta;
             } else {
               g.bossTrapDamage += stepDelta;
             }
+          } else if (g.bossPhase === 2) {
+            g.bossHp = Math.max(0, g.bossHp - stepDelta);
           }
-          // Phase 2: steps are counted but don't affect completion
           break;
       }
     }
@@ -686,7 +680,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
         hr: t.heartRate,
         holdSeconds: Math.round(holdSeconds * 10) / 10,
         holdTarget: p.bossEnduranceSeconds,
-        hrThreshold: Math.round(getDungeonMaxHr(clients, clientProfiles) * 0.7),
+        hrThreshold: Math.round(getDungeonMaxHr(clients, clientProfiles) * p.bossEnduranceHrFraction),
       };
     });
 
@@ -728,9 +722,9 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           roomMessage = "Collect as many steps as you can!";
           break;
         case "boss":
-          if (g.bossPhase === 0) roomMessage = g.bossHp > 0 ? "Strike! Every step damages the boss!" : "Boss staggered!";
+          if (g.bossPhase === 0) roomMessage = `Raise HR above ${Math.round(getDungeonMaxHr(clients, clientProfiles) * p.bossEnduranceHrFraction)} bpm!`;
           else if (g.bossPhase === 1) roomMessage = `Keep cadence ${g.bossTrapCadenceMin}–${g.bossTrapCadenceMax} spm`;
-          else roomMessage = `Raise HR above ${Math.round(getDungeonMaxHr(clients, clientProfiles) * 0.7)} bpm!`;
+          else roomMessage = g.bossHp > 0 ? "Strike! Every step damages the boss!" : "Boss staggered!";
           break;
       }
     } else if (g.phase === "corridor") {
@@ -895,36 +889,13 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
 
           case "boss": {
             if (g.bossPhase === 0) {
-              if (g.bossHp <= 0) {
-                initBossPhase(1);
-                break;
-              }
-              const teamCadence = getTeamCadence();
-              if (teamCadence < ENEMY_REGEN_CADENCE_THRESHOLD) {
-                if (g.bossLowCadenceSince === null) {
-                  g.bossLowCadenceSince = now;
-                } else if (now - g.bossLowCadenceSince > ENEMY_REGEN_DELAY_MS) {
-                  g.bossHp = Math.min(g.bossMaxHp, g.bossHp + ENEMY_REGEN_PER_TICK);
-                }
-              } else {
-                g.bossLowCadenceSince = null;
-              }
-            } else if (g.bossPhase === 1) {
-              if (g.bossTrapSafe >= g.bossTrapSafeTarget) {
-                initBossPhase(2);
-                break;
-              }
-              if (g.bossTrapDamage >= g.bossTrapDamageLimit) {
-                g.bossTrapSafe = 0;
-                g.bossTrapDamage = 0;
-              }
-            } else if (g.bossPhase === 2) {
+              // Phase 0: Endurance — hold HR above threshold
               const activeClients = clients.length > 0 ? clients : [...trackers.current.keys()];
               let allReady = activeClients.length > 0;
               for (const cid of activeClients) {
                 const t = getTracker(cid);
                 if (t.enduranceReady) continue;
-                const hrThreshold = getDungeonMaxHr(clients, clientProfiles) * 0.7;
+                const hrThreshold = getDungeonMaxHr(clients, clientProfiles) * p.bossEnduranceHrFraction;
                 if (t.heartRate >= hrThreshold) {
                   if (t.enduranceHrAboveSince === null) {
                     t.enduranceHrAboveSince = now;
@@ -937,7 +908,40 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
                 if (!t.enduranceReady) allReady = false;
               }
               if (allReady && activeClients.length > 0) {
+                initBossPhase(1);
+              }
+            } else if (g.bossPhase === 1) {
+              // Phase 1: Precision — cadence trap
+              if (g.bossTrapSafe >= g.bossTrapSafeTarget) {
+                initBossPhase(2);
+                // Apply stored calorie bursts now that HP phase begins
+                if (g.calorieBurstStored > 0) {
+                  const burstDmg = Math.round(g.bossMaxHp * 0.15);
+                  g.bossHp = Math.max(0, g.bossHp - burstDmg);
+                  g.calorieBurstStored--;
+                  setBurstNotification(`Stored Calorie Burst! ${burstDmg} damage to boss!`);
+                }
+                break;
+              }
+              if (g.bossTrapDamage >= g.bossTrapDamageLimit) {
+                g.bossTrapSafe = 0;
+                g.bossTrapDamage = 0;
+              }
+            } else if (g.bossPhase === 2) {
+              // Phase 2: Damage — deplete boss HP
+              if (g.bossHp <= 0) {
                 advanceRoom();
+                break;
+              }
+              const teamCadence = getTeamCadence();
+              if (teamCadence < ENEMY_REGEN_CADENCE_THRESHOLD) {
+                if (g.bossLowCadenceSince === null) {
+                  g.bossLowCadenceSince = now;
+                } else if (now - g.bossLowCadenceSince > ENEMY_REGEN_DELAY_MS) {
+                  g.bossHp = Math.min(g.bossMaxHp, g.bossHp + ENEMY_REGEN_PER_TICK);
+                }
+              } else {
+                g.bossLowCadenceSince = null;
               }
             }
             break;
@@ -955,7 +959,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
           const burstDmg = Math.round(g.enemyMaxHp * 0.15);
           g.enemyHp = Math.max(0, g.enemyHp - burstDmg);
           setBurstNotification(`Calorie Burst! ${burstDmg} damage to enemy!`);
-        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 0 && g.bossHp > 0) {
+        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 2 && g.bossHp > 0) {
           const burstDmg = Math.round(g.bossMaxHp * 0.15);
           g.bossHp = Math.max(0, g.bossHp - burstDmg);
           setBurstNotification(`Calorie Burst! ${burstDmg} damage to boss!`);
@@ -981,7 +985,7 @@ export function DungeonMode({ clients, clientProfiles, latestData, config, onEnd
             }
           }
           setBurstNotification(`Calorie Burst! Rest timer reduced!`);
-        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 2) {
+        } else if (g.phase === "room" && room?.type === "boss" && g.bossPhase === 0) {
           const activeClients = clients.length > 0 ? clients : [...trackers.current.keys()];
           for (const cid of activeClients) {
             const t = getTracker(cid);
@@ -1483,7 +1487,7 @@ function TreasureRoom({ display }: { display: Display }) {
 }
 
 function BossRoom({ display }: { display: Display }) {
-  const phases = ["Damage", "Precision", "Endurance"];
+  const phases = ["Endurance", "Precision", "Damage"];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "100%" }}>
@@ -1507,28 +1511,6 @@ function BossRoom({ display }: { display: Display }) {
 
       {/* Phase content */}
       {display.bossPhase === 0 && (
-        <HpBar current={display.bossHp} max={display.bossMaxHp} color="#ef4444" label="Boss HP" />
-      )}
-      {display.bossPhase === 1 && (
-        <div style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "auto" }}>
-          <div style={{ marginBottom: "0.4rem", flexShrink: 0 }}>
-            <div style={{
-              display: "inline-block", padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "1.05rem", fontWeight: 700,
-              background: display.bossInWindow ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-              color: display.bossInWindow ? "#22c55e" : "#ef4444",
-              border: `2px solid ${display.bossInWindow ? "#22c55e" : "#ef4444"}`,
-            }}>
-              {display.teamCadence} spm
-            </div>
-            <div style={{ color: "#888", fontSize: "0.75rem", marginTop: "0.2rem" }}>
-              Target: {display.bossTrapCadenceMin}–{display.bossTrapCadenceMax} spm
-            </div>
-          </div>
-          <HpBar current={display.bossTrapSafe} max={display.bossTrapSafeTarget} color="#22c55e" label="Safe Steps" />
-          <HpBar current={display.bossTrapDamage} max={display.bossTrapDamageLimit} color="#ef4444" label="Trap Damage (resets phase)" />
-        </div>
-      )}
-      {display.bossPhase === 2 && (
         <div style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "auto", padding: "0 0.25rem" }}>
           {display.bossEnduranceClients.map((c, i) => {
             const aboveThreshold = c.hr >= c.hrThreshold;
@@ -1583,11 +1565,35 @@ function BossRoom({ display }: { display: Display }) {
                       )}
                     </div>
                   </>
-                ) : null}
+                ) : (
+                  <div style={{ color: "#555", fontSize: "0.8rem" }}>Waiting for HR data...</div>
+                )}
               </div>
             );
           })}
         </div>
+      )}
+      {display.bossPhase === 1 && (
+        <div style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "auto" }}>
+          <div style={{ marginBottom: "0.4rem", flexShrink: 0 }}>
+            <div style={{
+              display: "inline-block", padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "1.05rem", fontWeight: 700,
+              background: display.bossInWindow ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+              color: display.bossInWindow ? "#22c55e" : "#ef4444",
+              border: `2px solid ${display.bossInWindow ? "#22c55e" : "#ef4444"}`,
+            }}>
+              {display.teamCadence} spm
+            </div>
+            <div style={{ color: "#888", fontSize: "0.75rem", marginTop: "0.2rem" }}>
+              Target: {display.bossTrapCadenceMin}–{display.bossTrapCadenceMax} spm
+            </div>
+          </div>
+          <HpBar current={display.bossTrapSafe} max={display.bossTrapSafeTarget} color="#22c55e" label="Safe Steps" />
+          <HpBar current={display.bossTrapDamage} max={display.bossTrapDamageLimit} color="#ef4444" label="Trap Damage (resets phase)" />
+        </div>
+      )}
+      {display.bossPhase === 2 && (
+        <HpBar current={display.bossHp} max={display.bossMaxHp} color="#ef4444" label="Boss HP" />
       )}
     </div>
   );

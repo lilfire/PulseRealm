@@ -1183,7 +1183,7 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
     expect(screen.getByText("Boss Lair")).toBeInTheDocument();
   });
 
-  it("shows Boss HP bar in boss phase 0 (attack phase)", () => {
+  it("shows endurance UI in boss phase 0 (endurance phase)", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1196,10 +1196,11 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
 
     reachBossRoom(rerender, props);
 
-    expect(screen.getByText("Boss HP")).toBeInTheDocument();
+    // Phase 0 is now Endurance — shows HR threshold message
+    expect(screen.getByText(/Raise HR above/)).toBeInTheDocument();
   });
 
-  it("shows Damage phase indicator as active in boss phase 0", () => {
+  it("shows Endurance phase indicator as active in boss phase 0", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1212,13 +1213,13 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
 
     reachBossRoom(rerender, props);
 
-    // Boss room shows three phase labels: Damage, Precision, Endurance
-    expect(screen.getByText("Damage")).toBeInTheDocument();
-    expect(screen.getByText("Precision")).toBeInTheDocument();
+    // Boss room shows three phase labels: Endurance, Precision, Damage
     expect(screen.getByText("Endurance")).toBeInTheDocument();
+    expect(screen.getByText("Precision")).toBeInTheDocument();
+    expect(screen.getByText("Damage")).toBeInTheDocument();
   });
 
-  it("shows attack message for boss phase 0 when HP above zero", () => {
+  it("shows endurance message for boss phase 0", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1231,11 +1232,12 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
 
     reachBossRoom(rerender, props);
 
-    expect(screen.getByText("Strike! Every step damages the boss!")).toBeInTheDocument();
+    expect(screen.getByText(/Raise HR above \d+ bpm!/)).toBeInTheDocument();
   });
 
-  it("transitions boss to Precision phase after boss HP reaches zero", () => {
-    // easy/15min single client: bossHp = Math.round(500 * 0.35) = 175
+  it("transitions boss to Precision phase after endurance hold completes", () => {
+    // easy: bossEnduranceHrFraction=0.6, bossEnduranceSeconds=30s
+    // Default maxHr=190 (no age), threshold = 190*0.6 = 114 bpm
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1248,10 +1250,12 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
 
     let cum = reachBossRoom(rerender, props);
 
-    // Deal 250 damage (> 175 HP ceiling) to kill boss phase 0
-    cum += 250;
-    rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
-    act(() => { vi.advanceTimersByTime(600); });
+    // Hold HR above threshold for 30s (60 ticks at 500ms)
+    for (let i = 0; i < 65; i++) {
+      cum += 1;
+      rerender(<DungeonMode {...props} latestData={makeData("client-1", 130, cum)} />);
+      act(() => { vi.advanceTimersByTime(500); });
+    }
 
     // Boss enters phase 1 (Precision/trap phase): shows cadence window (easy: 105–155 spm)
     expect(screen.getAllByText(/105.*155 spm/).length).toBeGreaterThan(0);
@@ -1437,14 +1441,17 @@ describe("DungeonMode — CompleteView guest role (branch coverage)", () => {
     const { rerender } = render(<DungeonMode {...props} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    const cum = reachBossRoomLocal(rerender, props);
+    let c = reachBossRoomLocal(rerender, props);
 
-    // Kill boss phase 0: hp=175, send 300 delta
-    let c = cum + 300;
-    rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
-    act(() => { vi.advanceTimersByTime(600); });
+    // Boss phase 0 (Endurance). Clear it: hold HR >= threshold for bossEnduranceSeconds=30s
+    // bossEnduranceHrFraction = 0.6 (easy) of maxHr (default 190 with no age). Threshold ~114 bpm.
+    for (let i = 0; i < 70; i++) {
+      c += 1;
+      rerender(<DungeonMode {...props} latestData={makeData("client-1", 160, c)} />);
+      act(() => { vi.advanceTimersByTime(500); });
+    }
 
-    // Now in boss phase 1 (Precision). Clear it: 80 in-window steps at 1/500ms
+    // Boss phase 1 (Precision). Clear it: 80 in-window steps at 1/500ms
     // bossTrapSafeTarget = round(120 * 0.35) = 42 for easy/15min single
     for (let i = 0; i < 80; i++) {
       c += 1;
@@ -1452,13 +1459,10 @@ describe("DungeonMode — CompleteView guest role (branch coverage)", () => {
       act(() => { vi.advanceTimersByTime(500); });
     }
 
-    // Boss phase 2 (Endurance). Clear it: hold HR >= threshold for bossEnduranceSeconds=30s
-    // bossEnduranceHrThreshold = 70% of maxHr (default ~220-age bpm). With no age set, ~154 bpm.
-    for (let i = 0; i < 70; i++) {
-      c += 1;
-      rerender(<DungeonMode {...props} latestData={makeData("client-1", 160, c)} />);
-      act(() => { vi.advanceTimersByTime(500); });
-    }
+    // Boss phase 2 (Damage): hp=175, send 300 delta
+    c += 300;
+    rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
+    act(() => { vi.advanceTimersByTime(600); });
 
     // If dungeon completed, guest should not see Finish button
     if (screen.queryByText("Dungeon Complete!")) {
@@ -1484,24 +1488,24 @@ describe("DungeonMode — CompleteView guest role (branch coverage)", () => {
 
     let c = reachBossRoomLocal(rerender, props);
 
-    // Kill boss phase 0
-    c += 300;
-    rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
-    act(() => { vi.advanceTimersByTime(600); });
+    // Clear boss phase 0 (Endurance): hold HR >= 114 for 30s
+    for (let i = 0; i < 70; i++) {
+      c += 1;
+      rerender(<DungeonMode {...props} latestData={makeData("client-1", 160, c)} />);
+      act(() => { vi.advanceTimersByTime(500); });
+    }
 
-    // Clear boss phase 1 trap
+    // Clear boss phase 1 (Precision) trap
     for (let i = 0; i < 80; i++) {
       c += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
       act(() => { vi.advanceTimersByTime(500); });
     }
 
-    // Clear boss phase 2 endurance
-    for (let i = 0; i < 70; i++) {
-      c += 1;
-      rerender(<DungeonMode {...props} latestData={makeData("client-1", 160, c)} />);
-      act(() => { vi.advanceTimersByTime(500); });
-    }
+    // Clear boss phase 2 (Damage): hp=175, send 300 delta
+    c += 300;
+    rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
+    act(() => { vi.advanceTimersByTime(600); });
 
     if (screen.queryByText("Dungeon Complete!")) {
       expect(screen.getByRole("button", { name: "Finish" })).toBeInTheDocument();
@@ -1511,9 +1515,9 @@ describe("DungeonMode — CompleteView guest role (branch coverage)", () => {
   });
 });
 
-// ── BossRoom phase 2 endurance rendering (lines 1524-1529) ────────────────────
+// ── BossRoom phase 0 endurance rendering ──────────────────────────────────────
 
-describe("DungeonMode — boss room phase 2 endurance display (deterministic)", () => {
+describe("DungeonMode — boss room phase 0 endurance display (deterministic)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(Math, "random").mockReturnValue(0);
@@ -1523,8 +1527,8 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     vi.restoreAllMocks();
   });
 
-  /** Navigate to boss room and advance to phase 2 (after killing boss and clearing trap). */
-  function reachBossPhase2(rerender: (ui: React.ReactElement) => void, props: Parameters<typeof DungeonMode>[0]): number {
+  /** Navigate to boss room (endurance is now phase 0, immediately active). */
+  function reachBossEndurance(rerender: (ui: React.ReactElement) => void, props: Parameters<typeof DungeonMode>[0]): number {
     // Corridor 0 → enemy
     let c = 0;
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
@@ -1557,29 +1561,17 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 100, c)} />);
       act(() => { vi.advanceTimersByTime(500); });
     }
-    // Corridor 3 → boss
+    // Corridor 3 → boss (phase 0 = endurance, immediately active)
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
     act(() => { vi.advanceTimersByTime(600); });
     c += 15;
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    // Kill boss phase 0 (hp=175)
-    c += 300;
-    rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
-    act(() => { vi.advanceTimersByTime(600); });
-
-    // Clear boss phase 1 trap: bossTrapSafeTarget = round(120*0.35)=42, in-window at 120 spm
-    for (let i = 0; i < 80; i++) {
-      c += 1;
-      rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
-      act(() => { vi.advanceTimersByTime(500); });
-    }
-
     return c;
   }
 
-  it("shows Endurance phase active indicator in boss phase 2", () => {
+  it("shows Endurance phase active indicator in boss phase 0", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1590,19 +1582,17 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     const { rerender } = render(<DungeonMode {...props} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    reachBossPhase2(rerender, props);
+    reachBossEndurance(rerender, props);
 
-    // If we made it to phase 2, Endurance label should be visible and active
-    if (screen.queryByText("Raise HR")) {
-      // Phase 2 is active — shows endurance clients list
+    // Phase 0 is Endurance — shows endurance clients list
+    if (screen.queryByText(/Raise HR/)) {
       expect(screen.getAllByText("Alice").length).toBeGreaterThan(0);
     } else {
-      // Still in phase 0 or 1 — verify boss content
       expect(screen.queryByText("Boss Lair") || screen.queryByText("Monster Den") || document.body).toBeTruthy();
     }
   });
 
-  it("boss phase 2 endurance client shows hr data or 'No data' state", () => {
+  it("boss phase 0 endurance client shows hr data or 'No data' state", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1613,9 +1603,9 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     const { rerender } = render(<DungeonMode {...props} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    let c = reachBossPhase2(rerender, props);
+    let c = reachBossEndurance(rerender, props);
 
-    // Send HR data in boss phase 2 to exercise the endurance rendering branches
+    // Send HR data in boss phase 0 to exercise the endurance rendering branches
     c += 1;
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 160, c)} />);
     act(() => { vi.advanceTimersByTime(600); });
@@ -1624,7 +1614,7 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     expect(document.body).toBeInTheDocument();
   });
 
-  it("boss phase 2: client with no HR data shows 'No data' in endurance panel", () => {
+  it("boss phase 0: client with no HR data shows 'No data' in endurance panel", () => {
     const props = {
       clients: singleClient,
       clientProfiles: singleProfiles,
@@ -1635,11 +1625,9 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     const { rerender } = render(<DungeonMode {...props} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    reachBossPhase2(rerender, props);
+    reachBossEndurance(rerender, props);
 
-    // In phase 2, clients with hr=0 show "No data" in endurance panel
-    // No data is shown when hr=0; the client stats bar also renders "No data" hr=0 as "0 bpm"
-    // Just verify no crash in the endurance phase render
+    // In phase 0, clients with hr=0 show "No data" in endurance panel
     expect(document.body).toBeInTheDocument();
   });
 
@@ -1654,9 +1642,9 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     const { rerender } = render(<DungeonMode {...props} />);
     act(() => { vi.advanceTimersByTime(600); });
 
-    let c = reachBossPhase2(rerender, props);
+    let c = reachBossEndurance(rerender, props);
 
-    // Send low HR (below 70% maxHr threshold) so "Too low" branch is hit
+    // Send low HR (below 60% maxHr threshold on easy) so "Too low" branch is hit
     c += 1;
     rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, c)} />);
     act(() => { vi.advanceTimersByTime(600); });
@@ -1664,7 +1652,6 @@ describe("DungeonMode — boss room phase 2 endurance display (deterministic)", 
     if (screen.queryByText(/Too low/)) {
       expect(screen.getByText(/Too low/)).toBeInTheDocument();
     } else {
-      // Phase transition happened — just verify no crash
       expect(document.body).toBeInTheDocument();
     }
   });
