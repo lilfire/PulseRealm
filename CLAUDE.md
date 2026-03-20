@@ -7,7 +7,7 @@ PulseRealm is a real-time treadmill workout platform. Wearable devices stream he
 ## Tech Stack
 
 - **Server**: ASP.NET Core 8, SignalR, C# — runs on `http://localhost:5062`
-- **Frontend**: React 19, TypeScript 5.9, Vite 8 — runs on `http://localhost:5173`
+- **Frontend**: React 19, TypeScript 5.9, Vite 8 — runs on `http://localhost:5173` — must support **Chrome 74+**
 - **Android Client**: Kotlin, Jetpack Compose for Wear OS, Hilt DI, SignalR client
 - **Desktop Test Client**: Avalonia .NET (simulates wearable data for testing)
 - **Containerization**: Docker multi-stage build (Node 22 + .NET 8), docker-compose
@@ -39,6 +39,7 @@ cd client/android && ./gradlew assembleDebug
 
 ## Code Conventions
 
+- All CSS/styling MUST work on **Chrome 74** — do not use `gap` in flexbox, or other features unavailable in Chrome 74. Use `margin` instead.
 - Frontend is **desktop-first** with wide layouts, but includes responsive breakpoints for tablets and phones
 - UI is **dark mode only** — dark backgrounds, light text, red (#FF5C75) + cyan (#33DFFF) branding
 - Realm modes each have a lobby component (`frontend/src/components/lobbies/`) and a gameplay component (`frontend/src/components/modes/`)
