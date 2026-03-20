@@ -1016,7 +1016,7 @@ public class RealmHubTests
         await hub.JoinRealm(realm.JoinCode, clientId, profile);
 
         var stored = manager.GetClientProfile(realm.Id, clientId);
-        Assert.Equal(0.415, stored!.StrideFactor);
+        Assert.Equal(0, stored!.StrideFactor);
     }
 
     // -------------------------------------------------------------------------

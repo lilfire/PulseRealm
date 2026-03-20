@@ -14,7 +14,7 @@
 - [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
 - [x] fullscreen sosial mode
 - [x] android clients reconnect setting page
-- [ ] stride egen modus for calibrering da dette må være et array bassert på hastighet 
+- [x] stride egen modus for calibrering da dette må være et array bassert på hastighet 
 - [x] fullscreen i dungeon mode
 - [x] dungeon mode mangler overstyre hastighet, trengs dette? 
 - [x] trang med plass i høyde på dungeon boss precision
@@ -22,6 +22,7 @@
 - [x] link clients trenger litt css
 - [x] fallback / static streetview mangler controls / har feil hud 
 - [x] Youtube lobby selcted video flytter alt ned out of recht så kan ikke endre
+- [ ] 3 solo modus 3 toghetere modus. grupper i front view
 
 ## BUGS
 

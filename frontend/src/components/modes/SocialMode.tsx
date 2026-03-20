@@ -164,7 +164,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
     if (t.prevSteps > 0 && steps > t.prevSteps) {
       const delta = steps - t.prevSteps;
       const height = clientProfiles[clientId]?.heightCm ?? 170;
-      const dist = delta * height * getStrideFactor(clientProfiles[clientId]);
+      const dist = delta * height * getStrideFactor(clientProfiles[clientId], latestData.speedKmh);
       totalDistRef.current += dist;
       t.distanceMeters += dist;
     }
@@ -585,11 +585,13 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 <span style={{ fontSize: 14, color: "var(--text)" }}>incline</span>
               </div>
 
-              {/* Stride length */}
+              {/* Stride length (at walking speed as baseline) */}
               {profile?.heightCm && (() => {
-                const strideCm = profile.heightCm * getStrideFactor(profile) * 100;
-                const isCalibrated = profile.strideFactor != null && profile.strideFactor > 0 && profile.strideFactor !== 0.415;
-                const diffCm = isCalibrated ? strideCm - profile.heightCm * STRIDE_FACTOR * 100 : null;
+                const strideCm = profile.heightCm * getStrideFactor(profile, 5) * 100;
+                const hasCalibration = profile.strideCalibration && profile.strideCalibration.length >= 2;
+                const isCalibrated = hasCalibration || (profile.strideFactor != null && profile.strideFactor > 0 && profile.strideFactor !== 0.415);
+                const baselineCm = profile.heightCm * STRIDE_FACTOR * 100;
+                const diffCm = isCalibrated ? strideCm - baselineCm : null;
                 return (
                   <div className="fg-row" style={{ display: "flex", alignItems: "baseline", "--fg": "8px" } as React.CSSProperties}>
                     <span style={{

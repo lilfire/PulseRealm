@@ -13,6 +13,9 @@ import com.pulserealm.client.data.network.BindRequestData
 import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.RealmSummaryData
 import com.pulserealm.client.data.network.SignalRClient
+import com.pulserealm.client.data.network.StrideCalibrationPoint
+import org.json.JSONArray
+import org.json.JSONObject
 import com.pulserealm.client.data.sensor.SensorDataCollector
 import com.pulserealm.client.service.DataStreamingService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -50,6 +53,35 @@ class RealmViewModel @Inject constructor(
     fun saveStrideFactor(factor: Double) {
         prefs.edit().putFloat("stride_factor", factor.toFloat()).apply()
     }
+
+    fun saveStrideCalibration(points: List<StrideCalibrationPoint>) {
+        val jsonArray = JSONArray()
+        for (p in points) {
+            val obj = JSONObject()
+            obj.put("speedKmh", p.speedKmh)
+            obj.put("strideFactor", p.strideFactor)
+            jsonArray.put(obj)
+        }
+        prefs.edit().putString("stride_calibration", jsonArray.toString()).apply()
+    }
+
+    fun loadStrideCalibration(): List<StrideCalibrationPoint>? {
+        val json = prefs.getString("stride_calibration", null) ?: return null
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                StrideCalibrationPoint(
+                    speedKmh = obj.getDouble("speedKmh"),
+                    strideFactor = obj.getDouble("strideFactor")
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    val calibrationComplete: StateFlow<List<StrideCalibrationPoint>?> = signalRClient.calibrationComplete
 
     fun resetSteps() {
         sensorDataCollector.resetSteps()

@@ -43,13 +43,18 @@ export function PlayerHud({ name, latestData, profile, caloriesDisplay, totalDis
     ? `${totalDistanceDisplay.toFixed(0)} m`
     : `${totalDistanceDisplay} m`;
 
+  const currentSpeed = latestData.speedKmh;
   const strideCm = profile?.heightCm
-    ? profile.heightCm * getStrideFactor(profile) * 100
+    ? profile.heightCm * getStrideFactor(profile, currentSpeed) * 100
     : null;
-  const isCalibrated = profile?.strideFactor != null && profile.strideFactor > 0
-    && profile.strideFactor !== 0.415;
-  const strideDiffCm = isCalibrated && profile?.heightCm
-    ? strideCm! - profile.heightCm * STRIDE_FACTOR * 100
+  const hasCalibration = profile?.strideCalibration && profile.strideCalibration.length >= 2;
+  const isCalibrated = hasCalibration || (profile?.strideFactor != null && profile.strideFactor > 0
+    && profile.strideFactor !== 0.415);
+  const baselineStrideCm = profile?.heightCm
+    ? profile.heightCm * STRIDE_FACTOR * 100
+    : null;
+  const strideDiffCm = isCalibrated && strideCm != null && baselineStrideCm != null
+    ? strideCm - baselineStrideCm
     : null;
 
   return (

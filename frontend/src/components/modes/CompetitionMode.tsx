@@ -269,7 +269,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
     if (t.prevSteps > 0 && steps > t.prevSteps) {
       const delta = steps - t.prevSteps;
       const height = clientProfiles[clientId]?.heightCm ?? 170;
-      const dist = delta * height * getStrideFactor(clientProfiles[clientId]);
+      const dist = delta * height * getStrideFactor(clientProfiles[clientId], latestData.speedKmh);
       t.distanceMeters += dist;
     }
     if (steps > 0) t.prevSteps = steps;
@@ -1047,13 +1047,15 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                   </div>
                 )}
 
-                {/* Stride length */}
+                {/* Stride length (at walking speed as baseline) */}
                 {(() => {
                   const p = clientProfiles[entry.id];
                   if (!p?.heightCm) return null;
-                  const strideCm = p.heightCm * getStrideFactor(p) * 100;
-                  const cal = p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415;
-                  const diff = cal ? strideCm - p.heightCm * STRIDE_FACTOR * 100 : null;
+                  const strideCm = p.heightCm * getStrideFactor(p, 5) * 100;
+                  const hasCalibration = p.strideCalibration && p.strideCalibration.length >= 2;
+                  const cal = hasCalibration || (p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415);
+                  const baselineCm = p.heightCm * STRIDE_FACTOR * 100;
+                  const diff = cal ? strideCm - baselineCm : null;
                   return (
                     <div style={{ textAlign: "right", minWidth: 60 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)" }}>

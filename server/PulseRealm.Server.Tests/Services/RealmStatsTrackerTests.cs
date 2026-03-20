@@ -294,14 +294,19 @@ public class RealmStatsTrackerTests
     }
 
     [Fact]
-    public void BuildSummary_CalculatesDistance_FromStepsAndStride()
+    public void BuildSummary_CalculatesDistance_FromIncrementalSteps()
     {
         var realm = CreateRealm("c1");
-        realm.ClientProfiles["c1"] = CreateProfile(height: 180);
+        var profile = CreateProfile(height: 180);
+        realm.ClientProfiles["c1"] = profile;
 
-        // stride = 180 * 0.415 / 100 = 0.747m
-        _tracker.Record(realm.Id, "c1", 1000, 120, 5.0, CreateProfile(height: 180));
+        // First record sets PrevSteps; second record accumulates distance
+        _tracker.Record(realm.Id, "c1", 0, 120, 5.0, profile);
+        _tracker.Record(realm.Id, "c1", 1000, 120, 5.0, profile);
 
+        // Distance is accumulated using speed-dependent stride at 5 km/h
+        // stride at 5 km/h = 180 * 0.415 / 100 = 0.747m
+        // distance = 1000 * 0.747 = 747m
         var summary = _tracker.BuildSummary(realm);
         Assert.True(summary.TotalDistanceMeters > 700);
         Assert.True(summary.TotalDistanceMeters < 800);
@@ -362,11 +367,13 @@ public class RealmStatsTrackerTests
     public void BuildSummary_DefaultStrideForMissingProfile()
     {
         var realm = CreateRealm("c1");
-        // No profile set => uses default height 170 and stride 0.415
+        // No profile set => uses default height 170 and speed-dependent stride
+        _tracker.Record(realm.Id, "c1", 0, 120, 5.0, null);
         _tracker.Record(realm.Id, "c1", 1000, 120, 5.0, null);
 
         var summary = _tracker.BuildSummary(realm);
-        // Default: 1000 * 170 * 0.415 / 100 = 705.5m
+        // At 5 km/h: stride factor 0.415, height 170 => stride = 0.7055m
+        // distance = 1000 * 0.7055 = 705.5m
         Assert.True(summary.TotalDistanceMeters > 700);
         Assert.True(summary.TotalDistanceMeters < 710);
     }

@@ -14,6 +14,10 @@ vi.mock("../../utils/wearable", () => ({
   getMaxHrForProfile: vi.fn(() => 190),
   ZONE_COLORS: ["#93c5fd", "#4ade80", "#facc15", "#fb923c", "#ef4444"],
   formatPace: vi.fn(() => "7:30 /km"),
+  getStrideFactor: vi.fn(() => 0.00415),
+  getSpeedDependentStrideFactor: vi.fn(() => 0.415),
+  STRIDE_FACTOR: 0.00415,
+  DEFAULT_WALKING_FACTOR: 0.415,
 }));
 
 import { StaticRouteMode } from "./StaticRouteMode";
