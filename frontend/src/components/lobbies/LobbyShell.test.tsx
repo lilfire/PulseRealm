@@ -185,4 +185,346 @@ describe("LobbyShell", () => {
       expect(screen.getByAltText("PulseRealm")).toBeInTheDocument();
     });
   });
+
+  describe("kick button", () => {
+    it("shows kick button for host with onKick", () => {
+      const onKick = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          onKick={onKick}
+          role="host"
+          mode="competition"
+        />,
+      );
+      expect(screen.getByTitle("Kick player")).toBeInTheDocument();
+    });
+
+    it("calls onKick when kick button clicked", () => {
+      const onKick = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          onKick={onKick}
+          role="host"
+          mode="competition"
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Kick player"));
+      expect(onKick).toHaveBeenCalledWith("c1");
+    });
+
+    it("hides kick button for guest", () => {
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          onKick={vi.fn()}
+          role="guest"
+          mode="competition"
+        />,
+      );
+      expect(screen.queryByTitle("Kick player")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("End Realm button", () => {
+    it("shows End Realm when onEnd is provided for host", () => {
+      render(<LobbyShell {...baseProps} onEnd={vi.fn()} role="host" mode="competition" />);
+      expect(screen.getByText("End Realm")).toBeInTheDocument();
+    });
+
+    it("calls onEnd when clicked", () => {
+      const onEnd = vi.fn();
+      render(<LobbyShell {...baseProps} onEnd={onEnd} role="host" mode="competition" />);
+      fireEvent.click(screen.getByText("End Realm"));
+      expect(onEnd).toHaveBeenCalledTimes(1);
+    });
+
+    it("hides End Realm for guest", () => {
+      render(<LobbyShell {...baseProps} onEnd={vi.fn()} role="guest" mode="competition" />);
+      expect(screen.queryByText("End Realm")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("min players warning", () => {
+    it("shows minimum players message when below threshold", () => {
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 0, weightKg: 0 } }}
+          minPlayers={3}
+          mode="competition"
+        />,
+      );
+      expect(screen.getByText("Minimum 3 players required")).toBeInTheDocument();
+    });
+
+    it("does not show warning when enough players", () => {
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1", "c2", "c3"]}
+          clientProfiles={{}}
+          minPlayers={3}
+          mode="competition"
+        />,
+      );
+      expect(screen.queryByText(/Minimum.*players/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("auto-bind for single-client modes", () => {
+    it("calls onRequestBind when one client joins in single-client mode", () => {
+      const onRequestBind = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="streetview"
+          onRequestBind={onRequestBind}
+        />,
+      );
+      expect(onRequestBind).toHaveBeenCalledWith("c1");
+    });
+
+    it("does not auto-bind in multi-client modes", () => {
+      const onRequestBind = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={onRequestBind}
+        />,
+      );
+      expect(onRequestBind).not.toHaveBeenCalled();
+    });
+
+    it("does not auto-bind when already bound", () => {
+      const onRequestBind = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="streetview"
+          onRequestBind={onRequestBind}
+          boundClientId="c1"
+        />,
+      );
+      expect(onRequestBind).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("bind modal", () => {
+    // The bind modal requires bindTargetId (internal state) to be set.
+    // In single-client mode (streetview), auto-bind sets it via useEffect.
+    // So we must render with conditions that trigger auto-bind first.
+
+    it("shows Bound! when approved", () => {
+      // Auto-bind fires for single-client mode, setting bindTargetId
+      const onRequestBind = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="streetview"
+          onRequestBind={onRequestBind}
+          bindCode="654321"
+          bindResult="approved"
+        />,
+      );
+      expect(screen.getByText("Bound!")).toBeInTheDocument();
+    });
+
+    it("shows Declined when declined", () => {
+      const onRequestBind = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="streetview"
+          onRequestBind={onRequestBind}
+          bindCode="654321"
+          bindResult="declined"
+        />,
+      );
+      expect(screen.getByText("Declined")).toBeInTheDocument();
+    });
+
+    it("shows bind code in multi-client mode when clicking a client", () => {
+      const onRequestBind = vi.fn();
+      const { rerender } = render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={onRequestBind}
+        />,
+      );
+
+      // Click the client to trigger bind request
+      fireEvent.click(screen.getByText(/Alice/));
+      expect(onRequestBind).toHaveBeenCalledWith("c1");
+
+      // Re-render with bindCode now set (simulating server response)
+      rerender(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={onRequestBind}
+          bindCode="654321"
+          bindPending={true}
+        />,
+      );
+
+      expect(screen.getByText("654321")).toBeInTheDocument();
+      expect(screen.getByText("Waiting for approval...")).toBeInTheDocument();
+    });
+
+    it("calls onCancelBind when Cancel clicked in multi-client mode", () => {
+      const onRequestBind = vi.fn();
+      const onCancelBind = vi.fn();
+
+      const { rerender } = render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={onRequestBind}
+          onCancelBind={onCancelBind}
+        />,
+      );
+
+      // Click client to set bindTargetId
+      fireEvent.click(screen.getByText(/Alice/));
+
+      // Re-render with bindCode
+      rerender(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={onRequestBind}
+          onCancelBind={onCancelBind}
+          bindCode="654321"
+          bindPending={true}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Cancel"));
+      expect(onCancelBind).toHaveBeenCalled();
+    });
+  });
+
+  describe("HostKeyToggle", () => {
+    it("shows Show Host Key button when hostSecret provided", () => {
+      render(<LobbyShell {...baseProps} hostSecret="SECRET123" role="host" mode="competition" />);
+      expect(screen.getByText("Show Host Key")).toBeInTheDocument();
+    });
+
+    it("reveals host key when clicked", () => {
+      render(<LobbyShell {...baseProps} hostSecret="SECRET123" role="host" mode="competition" />);
+      fireEvent.click(screen.getByText("Show Host Key"));
+      expect(screen.getByText("SECRET123")).toBeInTheDocument();
+      expect(screen.getByText("Hide Host Key")).toBeInTheDocument();
+    });
+
+    it("hides host key when clicked again", () => {
+      render(<LobbyShell {...baseProps} hostSecret="SECRET123" role="host" mode="competition" />);
+      fireEvent.click(screen.getByText("Show Host Key"));
+      fireEvent.click(screen.getByText("Hide Host Key"));
+      expect(screen.queryByText("SECRET123")).not.toBeInTheDocument();
+    });
+
+    it("does not show host key toggle for guest", () => {
+      render(<LobbyShell {...baseProps} hostSecret="SECRET123" role="guest" mode="competition" />);
+      expect(screen.queryByText("Show Host Key")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("bind indicators in multi-client mode", () => {
+    it("shows bound indicator for bound clients", () => {
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          clientBindings={{ c1: true }}
+        />,
+      );
+      expect(screen.getByTitle("Bound")).toBeInTheDocument();
+    });
+
+    it("shows 'Bound to you' indicator for own bound client", () => {
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          clientBindings={{ c1: true }}
+          boundClientId="c1"
+        />,
+      );
+      expect(screen.getByTitle("Bound to you")).toBeInTheDocument();
+    });
+
+    it("shows 'click to bind' for unbound clients in multi-client mode", () => {
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("click to bind")).toBeInTheDocument();
+    });
+
+    it("calls onRequestBind when clicking an unbound client", () => {
+      const onRequestBind = vi.fn();
+      render(
+        <LobbyShell
+          {...baseProps}
+          clients={["c1"]}
+          clientProfiles={{ c1: { clientId: "c1", name: "Alice", heightCm: 170, weightKg: 60 } }}
+          mode="competition"
+          onRequestBind={onRequestBind}
+        />,
+      );
+      fireEvent.click(screen.getByText(/Alice/));
+      expect(onRequestBind).toHaveBeenCalledWith("c1");
+    });
+  });
+
+  describe("ADMIN role", () => {
+    it("shows ADMIN badge", () => {
+      render(<LobbyShell {...baseProps} role="admin" mode="competition" />);
+      expect(screen.getByText("ADMIN")).toBeInTheDocument();
+    });
+
+    it("shows Start Realm for admin", () => {
+      render(<LobbyShell {...baseProps} role="admin" mode="competition" />);
+      expect(screen.getByRole("button", { name: "Start Realm" })).toBeInTheDocument();
+    });
+  });
 });

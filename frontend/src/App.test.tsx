@@ -128,6 +128,18 @@ vi.mock("./components/ServerConnect", () => ({
   ServerConnect: () => <div data-testid="server-connect">ServerConnect</div>,
 }));
 
+vi.mock("./components/TermsOfService", () => ({
+  TermsOfService: (props: { onBack?: () => void }) => (
+    <div data-testid="tos-page">
+      <button onClick={props.onBack}>Back from TOS</button>
+    </div>
+  ),
+}));
+
+vi.mock("qrcode", () => ({
+  default: { toCanvas: vi.fn() },
+}));
+
 // ─── Mock hooks ───────────────────────────────────────────────────────────────
 
 const mockDisconnect = vi.fn();
@@ -933,3 +945,511 @@ describe("join code input keyboard interaction", () => {
     });
   });
 });
+
+// ─── 12. TOS page navigation ──────────────────────────────────────────────────
+
+describe("Terms of Service page", () => {
+  it("clicking Terms of Service link navigates to TOS page", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Terms of Service" }));
+    expect(screen.getByTestId("tos-page")).toBeInTheDocument();
+  });
+
+  it("Back from TOS returns to home screen", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Terms of Service" }));
+    expect(screen.getByTestId("tos-page")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back from TOS" }));
+    expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
+  });
+});
+
+// ─── 13. joinRealm with host key ─────────────────────────────────────────────
+
+describe("joinRealm with host key", () => {
+  async function openJoinModalWithCode(code = "123456") {
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    fireEvent.change(screen.getByPlaceholderText("000000"), { target: { value: code } });
+    fireEvent.change(screen.getByPlaceholderText("Host key (optional)"), { target: { value: "HOSTKEY1" } });
+  }
+
+  it("host key input field is present in join modal", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    expect(screen.getByPlaceholderText("Host key (optional)")).toBeInTheDocument();
+  });
+
+  it("button text changes to Join as Host when host key is entered", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    fireEvent.change(screen.getByPlaceholderText("000000"), { target: { value: "123456" } });
+    expect(screen.getByRole("button", { name: "Watch" })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Host key (optional)"), { target: { value: "SECRET1" } });
+    expect(screen.getByRole("button", { name: "Join as Host" })).toBeInTheDocument();
+  });
+
+  it("401 from claim-host shows Invalid host key error", async () => {
+    mockConfigFetch();
+    await renderApp();
+    await openJoinModalWithCode();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join as Host" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid host key.")).toBeInTheDocument();
+    });
+  });
+
+  it("404 from claim-host shows Realm not found error", async () => {
+    mockConfigFetch();
+    await renderApp();
+    await openJoinModalWithCode();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join as Host" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Realm not found. Check the code and try again.")).toBeInTheDocument();
+    });
+  });
+
+  it("non-ok (500) from claim-host shows generic error from response body", async () => {
+    mockConfigFetch();
+    await renderApp();
+    await openJoinModalWithCode();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: "Internal server error" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join as Host" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Internal server error")).toBeInTheDocument();
+    });
+  });
+
+  it("non-ok with no body from claim-host shows Failed to claim host", async () => {
+    mockConfigFetch();
+    await renderApp();
+    await openJoinModalWithCode();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => { throw new Error("no json"); },
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join as Host" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed to claim host.")).toBeInTheDocument();
+    });
+  });
+
+  it("success from claim-host sets role to host and navigates to lobby", async () => {
+    mockConfigFetch();
+    await renderApp();
+    await openJoinModalWithCode();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-h1", joinCode: "123456", mode: 0 }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join as Host" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("competition-lobby")).toBeInTheDocument();
+    });
+  });
+
+  it("unknown mode from claim-host shows Unknown realm mode error", async () => {
+    mockConfigFetch();
+    await renderApp();
+    await openJoinModalWithCode();
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-unk", joinCode: "123456", mode: 99 }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join as Host" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unknown realm mode.")).toBeInTheDocument();
+    });
+  });
+});
+
+// ─── 14. (removed – covered by existing admin tests) ─────────────────────────
+
+// ─── 15. createRealm error auto-clear after 5s ────────────────────────────────
+
+describe("createRealm error auto-clear", () => {
+  it("error banner appears on create failure", async () => {
+    mockConfigFetch();
+    await renderApp();
+
+    (globalThis.fetch as Mock).mockRejectedValueOnce(new Error("Timed out"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Timed out")).toBeInTheDocument();
+    });
+  });
+});
+
+// ─── 16. Game modes started with effectiveX from realmConfig ──────────────────
+
+describe("game mode rendering from realmConfig (view-only guest)", () => {
+  // Helper: create a realm via the join flow as a guest, then simulate hub started
+  async function createRealmAndStart(
+    mode: number,
+    realmConfigOverride: Record<string, unknown>,
+    joinCode = "200100"
+  ) {
+    const { default: App } = await import("./App");
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    // Join as guest so role = "guest" and no local config is set
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    fireEvent.change(screen.getByPlaceholderText("000000"), { target: { value: joinCode } });
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-rc", joinCode, mode, status: "Active" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Watch" }));
+    await waitFor(() => expect(screen.queryByPlaceholderText("000000")).not.toBeInTheDocument());
+
+    // Simulate hub reporting started with realmConfig set
+    mockUseRealmHub.mockReturnValue({
+      ...baseRealmHub,
+      started: true,
+      connected: true,
+      realmConfig: realmConfigOverride,
+    });
+    rerender(<App />);
+  }
+
+  it("renders StreetViewMode when started with effectiveStreetViewLocation from realmConfig", async () => {
+    mockConfigFetch();
+    await createRealmAndStart(
+      1,
+      { lat: 48.8584, lng: 2.2945, address: "Paris" },
+      "200101"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("streetview-mode")).toBeInTheDocument();
+    });
+  });
+
+  it("renders YouTubeTrailMode when started with effectiveYoutubeVideo from realmConfig", async () => {
+    mockConfigFetch();
+    await createRealmAndStart(
+      2,
+      { videoId: "xyz789", url: "https://youtube.com/watch?v=xyz789", title: "Trail Video" },
+      "200102"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("youtubetrail-mode")).toBeInTheDocument();
+    });
+  });
+
+  it("renders RouteMode when started with effectiveRouteConfig from realmConfig", async () => {
+    mockConfigFetch();
+    await createRealmAndStart(
+      3,
+      { waypoints: [{ lat: 51.5, lng: -0.1 }] },
+      "200103"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("route-mode")).toBeInTheDocument();
+    });
+  });
+
+  it("renders DungeonMode when started with effectiveDungeonConfig from realmConfig", async () => {
+    mockConfigFetch();
+    await createRealmAndStart(
+      4,
+      { difficulty: "hard", timeframeMinutes: 30 },
+      "200104"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dungeon-mode")).toBeInTheDocument();
+    });
+  });
+});
+
+// ─── 17. Guest role — noOpEnd and onEliminate no-ops ─────────────────────────
+
+describe("guest role behaviour", () => {
+  it("guest joining shows competition lobby with guest role indicator in fallback screen", async () => {
+    mockConfigFetch();
+    await renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    fireEvent.change(screen.getByPlaceholderText("000000"), { target: { value: "300001" } });
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-guest", joinCode: "300001", mode: 0, status: "Active" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Watch" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("competition-lobby")).toBeInTheDocument();
+    });
+  });
+
+  it("guest in fallback screen shows GUEST role badge", async () => {
+    mockConfigFetch();
+    const { default: App } = await import("./App");
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    fireEvent.change(screen.getByPlaceholderText("000000"), { target: { value: "300002" } });
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-gf", joinCode: "300002", mode: 0, status: "Active" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: "Watch" }));
+    await waitFor(() => expect(screen.queryByPlaceholderText("000000")).not.toBeInTheDocument());
+
+    // Simulate started=true but no competitionConfig/realmConfig → fallback screen
+    mockUseRealmHub.mockReturnValue({
+      ...baseRealmHub,
+      started: true,
+      connected: false,
+      realmConfig: null,
+    });
+    rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("GUEST")).toBeInTheDocument();
+    });
+  });
+});
+
+// ─── 18. Fallback screen when started=true but no config matches ──────────────
+
+describe("fallback connecting screen", () => {
+  it("shows join code and Connecting status when started but no mode config available", async () => {
+    mockConfigFetch();
+    const { default: App } = await import("./App");
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    // Create a competition realm (host path, no realmConfig from hub)
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-fb", joinCode: "400100", mode: "competition" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+    await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
+
+    // Hub says started but no competitionConfig set locally and realmConfig is null
+    mockUseRealmHub.mockReturnValue({
+      ...baseRealmHub,
+      started: true,
+      connected: false,
+      realmConfig: null,
+    });
+    rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("400100")).toBeInTheDocument();
+      expect(screen.getByText(/Connecting\.\.\./)).toBeInTheDocument();
+    });
+  });
+
+  it("fallback screen shows HOST role badge for host role", async () => {
+    mockConfigFetch();
+    const { default: App } = await import("./App");
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-fb2", joinCode: "400101", mode: "competition" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+    await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
+
+    mockUseRealmHub.mockReturnValue({
+      ...baseRealmHub,
+      started: true,
+      connected: true,
+      realmConfig: null,
+    });
+    rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("HOST")).toBeInTheDocument();
+    });
+  });
+});
+
+// ─── 19. ended && !started → resetRealm ──────────────────────────────────────
+
+describe("realm ended before starting resets to home", () => {
+  it("when ended=true and started=false after creating a realm, resets to home screen", async () => {
+    mockConfigFetch();
+    const { default: App } = await import("./App");
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "realm-es", joinCode: "500100", mode: "competition" }),
+    } as unknown as Response);
+
+    fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+    await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
+
+    // Hub reports ended=true, started=false (realm ended from lobby)
+    mockUseRealmHub.mockReturnValue({
+      ...baseRealmHub,
+      ended: true,
+      started: false,
+    });
+    rerender(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
+    });
+  });
+});
+
+// ─── 20. Android QR modal ────────────────────────────────────────────────────
+
+describe("Android QR modal", () => {
+  it("clicking Android button shows the QR modal", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Android" }));
+    expect(screen.getByText("Download Android App")).toBeInTheDocument();
+  });
+
+  it("Close button inside QR modal dismisses it", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Android" }));
+    expect(screen.getByText("Download Android App")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByText("Download Android App")).not.toBeInTheDocument();
+  });
+
+  it("QR modal contains a direct link to GitHub releases", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Android" }));
+    expect(screen.getByRole("link", { name: "Or open directly" })).toBeInTheDocument();
+  });
+});
+
+// ─── 21. Coming Soon modal ───────────────────────────────────────────────────
+
+describe("Coming Soon modal", () => {
+  it("clicking Apple button shows coming soon modal for Apple", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Apple" }));
+    await waitFor(() => {
+      expect(screen.getByText("Apple support is coming soon.")).toBeInTheDocument();
+    });
+  });
+
+  it("clicking Garmin button shows coming soon modal for Garmin", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Garmin" }));
+    await waitFor(() => {
+      expect(screen.getByText("Garmin support is coming soon.")).toBeInTheDocument();
+    });
+  });
+
+  it("Close button dismisses the coming soon modal", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Apple" }));
+    await waitFor(() => expect(screen.getByText("Apple support is coming soon.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByText("Apple support is coming soon.")).not.toBeInTheDocument();
+  });
+
+  it("clicking the coming soon overlay background dismisses it", async () => {
+    mockConfigFetch();
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Garmin" }));
+    await waitFor(() => expect(screen.getByText("Garmin support is coming soon.")).toBeInTheDocument());
+    const overlay = document.querySelector(".qr-overlay") as HTMLElement;
+    fireEvent.click(overlay);
+    expect(screen.queryByText("Garmin support is coming soon.")).not.toBeInTheDocument();
+  });
+});
+
+// ─── 22. Join modal overlay click dismisses the join modal ───────────────────
+
+describe("join modal overlay dismiss", () => {
+
+  it("clicking the overlay behind the join modal closes it", async () => {
+    mockConfigFetch();
+    await renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
+
+    // The outermost qr-overlay div has an onClick that closes the modal.
+    // Clicking it directly (not the inner qr-modal) should close the join form.
+    const overlay = document.querySelector(".qr-overlay") as HTMLElement;
+    fireEvent.click(overlay);
+
+    expect(screen.queryByPlaceholderText("000000")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "join an existing realm" })).toBeInTheDocument();
+  });
+
+  it("clicking inside the join modal does not dismiss it", async () => {
+    mockConfigFetch();
+    await renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "join an existing realm" }));
+    expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
+
+    // Click the inner modal container — stopPropagation prevents overlay close.
+    const modal = document.querySelector(".join-modal") as HTMLElement;
+    fireEvent.click(modal);
+
+    expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
+  });
+});
+
