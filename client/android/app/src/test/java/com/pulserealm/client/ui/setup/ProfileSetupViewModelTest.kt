@@ -27,6 +27,7 @@ class ProfileSetupViewModelTest {
 
         editor = mockk(relaxed = true)
         every { editor.putString(any(), any()) } returns editor
+        every { editor.putInt(any(), any()) } returns editor
 
         prefs = mockk(relaxed = true)
         every { prefs.edit() } returns editor
@@ -221,6 +222,30 @@ class ProfileSetupViewModelTest {
         val vm = createViewModel()
         vm.updateAge("abc")
         assertEquals("", vm.uiState.value.age)
+    }
+
+    @Test
+    fun `updateAge auto-calculates max HR for valid age`() {
+        val vm = createViewModel()
+        vm.updateAge("30")
+        verify { editor.putInt("max_hr", 190) }
+    }
+
+    @Test
+    fun `updateAge auto-calculates max HR at boundary ages`() {
+        val vm = createViewModel()
+        vm.updateAge("5")
+        verify { editor.putInt("max_hr", 215) }
+
+        vm.updateAge("120")
+        verify { editor.putInt("max_hr", 100) }
+    }
+
+    @Test
+    fun `updateAge does not set max HR for invalid age`() {
+        val vm = createViewModel()
+        vm.updateAge("3")
+        verify(exactly = 0) { editor.putInt("max_hr", any()) }
     }
 
     // ── updateHeightCm ──────────────────────────────────────────────────

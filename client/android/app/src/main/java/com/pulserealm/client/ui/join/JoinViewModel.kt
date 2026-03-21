@@ -34,6 +34,7 @@ data class JoinUiState(
     val zone34: String = "76",
     val zone45: String = "89",
     val maxHrOverride: String = "",
+    val showRecalculateMaxHr: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val realmInfo: RealmInfo? = null,
@@ -141,6 +142,27 @@ class JoinViewModel @Inject constructor(
         val filtered = age.filter { it.isDigit() }
         _uiState.value = _uiState.value.copy(age = filtered)
         prefs.edit().putString(PREF_AGE, filtered).apply()
+
+        // Prompt to recalculate Max HR when age is valid
+        filtered.toIntOrNull()?.let { ageInt ->
+            if (ageInt in 5..120) {
+                _uiState.value = _uiState.value.copy(showRecalculateMaxHr = true)
+            }
+        }
+    }
+
+    fun confirmRecalculateMaxHr() {
+        val ageInt = _uiState.value.age.toIntOrNull() ?: return
+        val newMaxHr = 220 - ageInt
+        _uiState.value = _uiState.value.copy(
+            maxHrOverride = newMaxHr.toString(),
+            showRecalculateMaxHr = false
+        )
+        prefs.edit().putInt(PREF_MAX_HR, newMaxHr).apply()
+    }
+
+    fun dismissRecalculateMaxHr() {
+        _uiState.value = _uiState.value.copy(showRecalculateMaxHr = false)
     }
 
     fun updateHeightCm(height: String) {

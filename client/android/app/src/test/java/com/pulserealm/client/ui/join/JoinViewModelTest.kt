@@ -158,6 +158,41 @@ class JoinViewModelTest {
         verify { editor.putString("weight_kg", "70.2") }
     }
 
+    // --- Age and Max HR recalculation ---
+
+    @Test
+    fun `updateAge sets showRecalculateMaxHr for valid age`() {
+        viewModel.updateAge("30")
+        assertTrue(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `updateAge does not set showRecalculateMaxHr for invalid age`() {
+        viewModel.updateAge("3")
+        assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `confirmRecalculateMaxHr updates maxHrOverride and saves to prefs`() {
+        viewModel.updateAge("30")
+        assertTrue(viewModel.uiState.value.showRecalculateMaxHr)
+
+        viewModel.confirmRecalculateMaxHr()
+        assertEquals("190", viewModel.uiState.value.maxHrOverride)
+        assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
+        verify { editor.putInt("max_hr", 190) }
+    }
+
+    @Test
+    fun `dismissRecalculateMaxHr hides dialog without changing maxHr`() {
+        viewModel.updateAge("30")
+        val maxHrBefore = viewModel.uiState.value.maxHrOverride
+
+        viewModel.dismissRecalculateMaxHr()
+        assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
+        assertEquals(maxHrBefore, viewModel.uiState.value.maxHrOverride)
+    }
+
     // --- Connection mode ---
 
     @Test

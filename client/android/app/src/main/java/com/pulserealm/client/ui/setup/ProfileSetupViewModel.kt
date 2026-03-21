@@ -31,6 +31,7 @@ class ProfileSetupViewModel @Inject constructor(
         private const val PREF_AGE = "age"
         private const val PREF_HEIGHT_CM = "height_cm"
         private const val PREF_WEIGHT_KG = "weight_kg"
+        private const val PREF_MAX_HR = "max_hr"
     }
 
     private val _uiState = MutableStateFlow(ProfileSetupUiState())
@@ -54,6 +55,13 @@ class ProfileSetupViewModel @Inject constructor(
         val filtered = age.filter { it.isDigit() }
         _uiState.value = _uiState.value.copy(age = filtered)
         prefs.edit().putString(PREF_AGE, filtered).apply()
+
+        // Auto-calculate Max HR (220 - age) for valid ages
+        filtered.toIntOrNull()?.let { ageInt ->
+            if (ageInt in 5..120) {
+                prefs.edit().putInt(PREF_MAX_HR, 220 - ageInt).apply()
+            }
+        }
     }
 
     fun updateHeightCm(height: String) {

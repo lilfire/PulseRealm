@@ -241,6 +241,7 @@ private fun SettingsPage(
 ) {
     val listState = rememberScalingLazyListState()
 
+    Box(modifier = Modifier.fillMaxSize()) {
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
@@ -263,6 +264,18 @@ private fun SettingsPage(
                 inputKey = "player_name",
                 value = uiState.playerName,
                 onValueChange = { viewModel.updatePlayerName(it) }
+            )
+        }
+        item {
+            NumericStepperField(
+                label = "Age",
+                value = uiState.age,
+                onValueChange = { viewModel.updateAge(it) },
+                minValue = 5,
+                maxValue = 120,
+                defaultValue = 25,
+                largeStep = 5,
+                unit = " yrs"
             )
         }
         item {
@@ -392,6 +405,59 @@ private fun SettingsPage(
             )
         }
     }
+
+    // Recalculate Max HR dialog
+    if (uiState.showRecalculateMaxHr) {
+        val newMaxHr = uiState.age.toIntOrNull()?.let { 220 - it } ?: 190
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(horizontal = 20.dp)
+            ) {
+                Text(
+                    text = "Recalculate Max HR?",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Set to $newMaxHr bpm",
+                    color = PulseColors.DimText,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.dismissRecalculateMaxHr() },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = PulseColors.DarkSurface
+                        ),
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Text("✕", color = Color.White, fontSize = 16.sp)
+                    }
+                    Button(
+                        onClick = { viewModel.confirmRecalculateMaxHr() },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = PulseColors.Cyan
+                        ),
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Text("✓", color = Color.Black, fontSize = 16.sp)
+                    }
+                }
+            }
+        }
+    }
+    } // Box
 }
 
 @Composable
