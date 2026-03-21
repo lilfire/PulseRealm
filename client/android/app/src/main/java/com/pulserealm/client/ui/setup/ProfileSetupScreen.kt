@@ -91,6 +91,7 @@ fun ProfileSetupScreen(
                     minValue = 5,
                     maxValue = 120,
                     defaultValue = 25,
+                    largeStep = 5,
                     unit = " yrs"
                 )
             }
@@ -102,6 +103,7 @@ fun ProfileSetupScreen(
                     minValue = 100,
                     maxValue = 220,
                     defaultValue = 170,
+                    largeStep = 10,
                     unit = " cm"
                 )
             }
@@ -113,6 +115,7 @@ fun ProfileSetupScreen(
                     minValue = 30,
                     maxValue = 200,
                     defaultValue = 70,
+                    largeStep = 10,
                     unit = " kg"
                 )
             }
