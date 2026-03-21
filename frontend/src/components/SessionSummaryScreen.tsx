@@ -211,6 +211,30 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
   const hasZones = summary.timeInZone && Object.keys(summary.timeInZone).length > 0;
   const activeZones = hasZones ? [1, 2, 3, 4, 5].filter((z) => (summary.timeInZone[z] ?? 0) > 0) : [];
   const totalZoneTime = activeZones.reduce((sum, z) => sum + (summary.timeInZone[z] ?? 0), 0);
+  const hasData = summary.totalSteps > 0 || summary.totalDistanceMeters > 0 || summary.averageHeartRate > 0;
+  const activeTimePct = summary.durationSeconds > 0
+    ? Math.round(((summary.activePeriodSeconds ?? 0) / summary.durationSeconds) * 100)
+    : 0;
+
+  if (!hasData) {
+    return (
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+      }}>
+        <div style={{
+          textAlign: "center",
+          padding: "2rem",
+          color: "var(--text)",
+          fontSize: "0.9rem",
+        }}>
+          No workout data recorded — connect a wearable device to track your activity
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -219,66 +243,94 @@ function SoloSection({ summary }: { summary: RealmSummary }) {
       justifyContent: "center",
       height: "100%",
     }}>
-      <div className="fg-wrap" style={{
+      <div style={{
         display: "flex",
+        flexDirection: "column",
         maxWidth: 900,
         width: "100%",
-        flexWrap: "wrap",
-        "--fg": "1.5rem",
-      } as React.CSSProperties}>
-        {/* Left: stat grid + zone bar */}
-        <div className="fg-col" style={{ flex: 3, display: "flex", flexDirection: "column", "--fg": "1rem" } as React.CSSProperties}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "0.75rem",
-          }}>
-            <StatCard label="Distance" value={formatDistance(summary.totalDistanceMeters)} />
-            <StatCard label="Steps" value={summary.totalSteps.toLocaleString()} />
-            <StatCard label="Avg HR" value={summary.averageHeartRate > 0 ? `${summary.averageHeartRate} bpm` : "—"} />
-            <StatCard label="Peak HR" value={summary.maxHeartRate > 0 ? `${summary.maxHeartRate} bpm` : "—"} />
-            <StatCard label="Calories" value={summary.caloriesBurned > 0 ? `${summary.caloriesBurned} kcal` : "—"} />
-            <StatCard label="Avg Cadence" value={summary.avgCadenceSpm > 0 ? `${summary.avgCadenceSpm} spm` : "—"} />
-            <StatCard label="Avg Speed" value={`${(summary.averageSpeedKmh ?? 0).toFixed(1)} km/h`} />
-            <StatCard label="Avg Pace" value={formatPace(summary.averageSpeedKmh ?? 0)} />
-            <StatCard label="Peak Speed" value={summary.peakSpeedKmh > 0 ? `${summary.peakSpeedKmh.toFixed(1)} km/h` : "—"} />
-            {(summary.elevationGainMeters ?? 0) > 0 && (
-              <StatCard label="Elevation Gain" value={`${summary.elevationGainMeters!.toFixed(1)} m`} />
+      }}>
+        <div className="fg-wrap" style={{
+          display: "flex",
+          flexWrap: "wrap",
+          "--fg": "1.5rem",
+        } as React.CSSProperties}>
+          {/* Left: stat grid + zone bar */}
+          <div className="fg-col" style={{ flex: 3, display: "flex", flexDirection: "column", "--fg": "1rem" } as React.CSSProperties}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "0.75rem",
+            }}>
+              <StatCard label="Distance" value={formatDistance(summary.totalDistanceMeters)} />
+              <StatCard label="Steps" value={summary.totalSteps.toLocaleString()} />
+              <StatCard label="Avg HR" value={summary.averageHeartRate > 0 ? `${summary.averageHeartRate} bpm` : "—"} />
+              <StatCard label="Peak HR" value={summary.maxHeartRate > 0 ? `${summary.maxHeartRate} bpm` : "—"} />
+              <StatCard label="Calories" value={summary.caloriesBurned > 0 ? `${summary.caloriesBurned} kcal` : "—"} />
+              <StatCard label="Avg Cadence" value={summary.avgCadenceSpm > 0 ? `${summary.avgCadenceSpm} spm` : "—"} />
+              <StatCard label="Avg Speed" value={`${(summary.averageSpeedKmh ?? 0).toFixed(1)} km/h`} />
+              <StatCard label="Avg Pace" value={formatPace(summary.averageSpeedKmh ?? 0)} />
+              <StatCard label="Peak Speed" value={summary.peakSpeedKmh > 0 ? `${summary.peakSpeedKmh.toFixed(1)} km/h` : "—"} />
+              {(summary.elevationGainMeters ?? 0) > 0 && (
+                <StatCard label="Elevation Gain" value={`${summary.elevationGainMeters!.toFixed(1)} m`} />
+              )}
+            </div>
+            {activeZones.length > 0 && (
+              <ZoneBar timeInZone={summary.timeInZone} height={32} />
             )}
           </div>
+
+          {/* Right: zone breakdown list */}
           {activeZones.length > 0 && (
-            <ZoneBar timeInZone={summary.timeInZone} height={32} />
+            <div style={{
+              flex: 2,
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(0,212,255,0.2)",
+              borderRadius: 10,
+              padding: "1rem 1.25rem",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+            }}>
+              <div style={{ fontSize: "0.8rem", color: "#888", marginBottom: 8 }}>Zone Breakdown</div>
+              {activeZones.map((z) => {
+                const pct = totalZoneTime > 0 ? Math.round((summary.timeInZone[z] / totalZoneTime) * 100) : 0;
+                return (
+                  <div key={z} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+                    <span style={{ fontSize: "0.85rem", color: ZONE_COLORS[z - 1], fontWeight: 600 }}>
+                      {ZONE_LABELS[z - 1]}
+                    </span>
+                    <span style={{ fontSize: "0.95rem", fontFamily: "var(--mono)", fontWeight: 600, color: "var(--text-h)" }}>
+                      {formatZoneTime(summary.timeInZone[z])} <span style={{ fontSize: "0.75rem", color: "#888" }}>({pct}%)</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {/* Right: zone breakdown list */}
-        {activeZones.length > 0 && (
-          <div style={{
-            flex: 2,
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(0,212,255,0.2)",
-            borderRadius: 10,
-            padding: "1rem 1.25rem",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-          }}>
-            <div style={{ fontSize: "0.8rem", color: "#888", marginBottom: 8 }}>Zone Breakdown</div>
-            {activeZones.map((z) => {
-              const pct = totalZoneTime > 0 ? Math.round((summary.timeInZone[z] / totalZoneTime) * 100) : 0;
-              return (
-                <div key={z} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-                  <span style={{ fontSize: "0.85rem", color: ZONE_COLORS[z - 1], fontWeight: 600 }}>
-                    {ZONE_LABELS[z - 1]}
-                  </span>
-                  <span style={{ fontSize: "0.95rem", fontFamily: "var(--mono)", fontWeight: 600, color: "var(--text-h)" }}>
-                    {formatZoneTime(summary.timeInZone[z])} <span style={{ fontSize: "0.75rem", color: "#888" }}>({pct}%)</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {/* Activity gauges row */}
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          marginTop: "1.5rem",
+        }}>
+          {activeTimePct > 0 && (
+            <ActivityGauge label="Active Time" value={activeTimePct} unit="%" />
+          )}
+          {summary.averageHeartRate > 0 && summary.maxHeartRate > 0 && (
+            <ActivityGauge
+              label="HR Range"
+              value={summary.averageHeartRate}
+              suffix={`– ${summary.maxHeartRate}`}
+              unit="bpm"
+            />
+          )}
+          {summary.averageSpeedKmh > 0 && (
+            <ActivityGauge label="Pace" value={summary.averageSpeedKmh} unit="km/h" />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -654,5 +706,30 @@ function SectionTitle({ title }: { title: string }) {
     }}>
       {title}
     </h2>
+  );
+}
+
+function ActivityGauge({ label, value, unit, suffix }: { label: string; value: number; unit: string; suffix?: string }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(0,212,255,0.15)",
+      borderRadius: 10,
+      padding: "0.6rem 1.25rem",
+      margin: "0 0.5rem",
+      display: "flex",
+      alignItems: "baseline",
+    }}>
+      <span style={{ fontSize: "0.75rem", color: "#888", marginRight: "0.4rem" }}>{label}</span>
+      <span style={{ fontSize: "1.2rem", fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-h)" }}>
+        {typeof value === "number" && value % 1 !== 0 ? value.toFixed(1) : value}
+      </span>
+      {suffix && (
+        <span style={{ fontSize: "1rem", fontWeight: 600, fontFamily: "var(--mono)", color: "var(--text-h)", marginLeft: "0.25rem" }}>
+          {suffix}
+        </span>
+      )}
+      <span style={{ fontSize: "0.75rem", color: "#888", marginLeft: "0.25rem" }}>{unit}</span>
+    </div>
   );
 }
