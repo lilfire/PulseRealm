@@ -42,6 +42,7 @@ class ServerViewModel @Inject constructor(
         private const val PREF_SERVER_URL = "cached_server_url"
         private const val PREF_CONNECTION_MODE = "connection_mode"
         private const val PREF_REMOTE_URL = "remote_server_url"
+        const val DEFAULT_REMOTE_URL = "https://pulserealm.app"
     }
 
     private val _uiState = MutableStateFlow(ServerUiState())
@@ -54,11 +55,11 @@ class ServerViewModel @Inject constructor(
     val scanAttempt: StateFlow<Int> = _scanAttempt.asStateFlow()
 
     init {
-        val savedMode = when (prefs.getString(PREF_CONNECTION_MODE, "local")) {
-            "remote" -> ConnectionMode.REMOTE
-            else -> ConnectionMode.LOCAL
+        val savedMode = when (prefs.getString(PREF_CONNECTION_MODE, "remote")) {
+            "local" -> ConnectionMode.LOCAL
+            else -> ConnectionMode.REMOTE
         }
-        val savedRemoteUrl = prefs.getString(PREF_REMOTE_URL, "") ?: ""
+        val savedRemoteUrl = (prefs.getString(PREF_REMOTE_URL, "") ?: "").ifBlank { DEFAULT_REMOTE_URL }
 
         _uiState.value = _uiState.value.copy(
             connectionMode = savedMode,
@@ -204,10 +205,12 @@ class ServerViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(showManualEntry = false, errorMessage = null)
             scanForServers()
         } else {
+            val url = _uiState.value.remoteUrl.ifBlank { DEFAULT_REMOTE_URL }
             _uiState.value = _uiState.value.copy(
                 showManualEntry = true,
                 errorMessage = null,
-                serverUrl = _uiState.value.remoteUrl.ifBlank { "" }
+                remoteUrl = url,
+                serverUrl = url
             )
         }
     }

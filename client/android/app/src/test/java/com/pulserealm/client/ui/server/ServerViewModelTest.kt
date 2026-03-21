@@ -44,7 +44,7 @@ class ServerViewModelTest {
 
         prefs = mockk(relaxed = true)
         every { prefs.edit() } returns editor
-        every { prefs.getString("connection_mode", "local") } returns "local"
+        every { prefs.getString("connection_mode", "remote") } returns "remote"
         every { prefs.getString("remote_server_url", "") } returns ""
         every { prefs.getString("cached_server_url", null) } returns null
 
@@ -91,10 +91,23 @@ class ServerViewModelTest {
         assertTrue(copy.isLoading)
     }
 
+    // ── Init: default REMOTE mode ──────────────────────────────────────
+
+    @Test
+    fun `init default REMOTE mode prefills default URL and verifies`() {
+        val vm = createViewModel()
+        assertEquals(ConnectionMode.REMOTE, vm.uiState.value.connectionMode)
+        assertEquals(ServerViewModel.DEFAULT_REMOTE_URL, vm.uiState.value.remoteUrl)
+        assertEquals(ServerViewModel.DEFAULT_REMOTE_URL, vm.uiState.value.serverUrl)
+        assertTrue(vm.uiState.value.showManualEntry)
+        assertTrue(vm.uiState.value.isVerifyingServer)
+    }
+
     // ── Init: LOCAL mode, no cached URL ─────────────────────────────────
 
     @Test
     fun `init LOCAL mode no cached URL triggers scan`() = runTest(testDispatcher) {
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
         advanceUntilIdle()
         // scanForServers should have been called, incrementing scanAttempt
@@ -103,6 +116,7 @@ class ServerViewModelTest {
 
     @Test
     fun `init LOCAL mode no cached URL sets LOCAL connection mode`() {
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
         assertEquals(ConnectionMode.LOCAL, vm.uiState.value.connectionMode)
     }
@@ -111,6 +125,7 @@ class ServerViewModelTest {
 
     @Test
     fun `init LOCAL mode with cached URL sets serverUrl and starts verification`() {
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
         val vm = createViewModel()
         assertEquals("http://192.168.1.10:5062", vm.uiState.value.serverUrl)
@@ -121,7 +136,6 @@ class ServerViewModelTest {
 
     @Test
     fun `init REMOTE mode loads remote URL from prefs`() {
-        every { prefs.getString("connection_mode", "local") } returns "remote"
         every { prefs.getString("remote_server_url", "") } returns "http://remote:5062"
         val vm = createViewModel()
         assertEquals(ConnectionMode.REMOTE, vm.uiState.value.connectionMode)
@@ -130,7 +144,6 @@ class ServerViewModelTest {
 
     @Test
     fun `init REMOTE mode with URL sets showManualEntry and isVerifyingServer`() {
-        every { prefs.getString("connection_mode", "local") } returns "remote"
         every { prefs.getString("remote_server_url", "") } returns "http://remote:5062"
         val vm = createViewModel()
         assertTrue(vm.uiState.value.showManualEntry)
@@ -139,19 +152,18 @@ class ServerViewModelTest {
     }
 
     @Test
-    fun `init REMOTE mode with blank URL falls back to scan`() = runTest(testDispatcher) {
-        every { prefs.getString("connection_mode", "local") } returns "remote"
-        every { prefs.getString("remote_server_url", "") } returns ""
+    fun `init REMOTE mode with blank URL uses default URL and verifies`() {
         val vm = createViewModel()
-        advanceUntilIdle()
-        // Falls to else branch: no cached URL → scan
-        assertTrue(vm.scanAttempt.value > 0)
+        assertEquals(ConnectionMode.REMOTE, vm.uiState.value.connectionMode)
+        assertEquals(ServerViewModel.DEFAULT_REMOTE_URL, vm.uiState.value.remoteUrl)
+        assertTrue(vm.uiState.value.isVerifyingServer)
     }
 
     // ── Init: skipAutoConnect ───────────────────────────────────────────
 
     @Test
     fun `init skipAutoConnect LOCAL scans without auto-connecting`() = runTest(testDispatcher) {
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel(skipAutoConnect = true)
         advanceUntilIdle()
         assertTrue(vm.scanAttempt.value > 0)
@@ -159,11 +171,17 @@ class ServerViewModelTest {
 
     @Test
     fun `init skipAutoConnect REMOTE shows manual entry with saved URL`() {
-        every { prefs.getString("connection_mode", "local") } returns "remote"
         every { prefs.getString("remote_server_url", "") } returns "http://saved:5062"
         val vm = createViewModel(skipAutoConnect = true)
         assertTrue(vm.uiState.value.showManualEntry)
         assertEquals("http://saved:5062", vm.uiState.value.serverUrl)
+    }
+
+    @Test
+    fun `init skipAutoConnect REMOTE with blank URL shows default URL`() {
+        val vm = createViewModel(skipAutoConnect = true)
+        assertTrue(vm.uiState.value.showManualEntry)
+        assertEquals(ServerViewModel.DEFAULT_REMOTE_URL, vm.uiState.value.serverUrl)
     }
 
     // ── updateServerUrl ─────────────────────────────────────────────────
@@ -318,7 +336,7 @@ class ServerViewModelTest {
 
     @Test
     fun `setConnectionMode REMOTE uses saved remoteUrl as serverUrl`() {
-        every { prefs.getString("connection_mode", "local") } returns "local"
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
         // Set a remote URL first
         vm.updateRemoteUrl("myserver:5062")
@@ -327,10 +345,12 @@ class ServerViewModelTest {
     }
 
     @Test
-    fun `setConnectionMode REMOTE with blank remoteUrl sets empty serverUrl`() {
+    fun `setConnectionMode REMOTE with blank remoteUrl uses default URL`() {
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
         vm.setConnectionMode(ConnectionMode.REMOTE)
-        assertEquals("", vm.uiState.value.serverUrl)
+        assertEquals(ServerViewModel.DEFAULT_REMOTE_URL, vm.uiState.value.serverUrl)
+        assertEquals(ServerViewModel.DEFAULT_REMOTE_URL, vm.uiState.value.remoteUrl)
     }
 
     // ── updateRemoteUrl ─────────────────────────────────────────────────
@@ -383,6 +403,7 @@ class ServerViewModelTest {
 
     @Test
     fun `toggleManualEntry toggles from false to true`() {
+        every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
         assertFalse(vm.uiState.value.showManualEntry)
         vm.toggleManualEntry()
@@ -392,7 +413,7 @@ class ServerViewModelTest {
     @Test
     fun `toggleManualEntry toggles from true to false`() {
         val vm = createViewModel()
-        vm.toggleManualEntry()
+        // Default REMOTE mode starts with showManualEntry = true
         assertTrue(vm.uiState.value.showManualEntry)
         vm.toggleManualEntry()
         assertFalse(vm.uiState.value.showManualEntry)
@@ -455,6 +476,7 @@ class ServerViewModelTest {
             every { mockConn.responseCode } returns 200
             every { mockConn.inputStream } returns ByteArrayInputStream("PulseRealm Server v1.0".toByteArray())
 
+            every { prefs.getString("connection_mode", "remote") } returns "local"
             every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
             val vm = createViewModel()
             advanceUntilIdle()
@@ -475,6 +497,7 @@ class ServerViewModelTest {
             every { anyConstructed<URL>().openConnection() } returns mockConn
             every { mockConn.responseCode } returns 404
 
+            every { prefs.getString("connection_mode", "remote") } returns "local"
             every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
             val vm = createViewModel()
             advanceUntilIdle()
@@ -495,6 +518,7 @@ class ServerViewModelTest {
             every { mockConn.responseCode } returns 200
             every { mockConn.inputStream } returns ByteArrayInputStream("Some other server".toByteArray())
 
+            every { prefs.getString("connection_mode", "remote") } returns "local"
             every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
             val vm = createViewModel()
             advanceUntilIdle()
@@ -512,6 +536,7 @@ class ServerViewModelTest {
         try {
             every { anyConstructed<URL>().openConnection() } throws java.net.ConnectException("Connection refused")
 
+            every { prefs.getString("connection_mode", "remote") } returns "local"
             every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
             val vm = createViewModel()
             advanceUntilIdle()
