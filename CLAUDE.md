@@ -41,7 +41,7 @@ cd client/android && ./gradlew assembleDebug
 
 After making code changes, **always** run the relevant build/check commands before considering the task done:
 
-- **Frontend**: `cd frontend && npx tsc --noEmit` — must pass with zero errors
+- **Frontend**: `cd frontend && npx tsc -b --noEmit` — must pass with zero errors
 - **Server**: `cd server && dotnet build` — must pass with zero errors
 - **Tests**: Run `npm run test` (frontend) or `dotnet test` (server) if changes touch testable logic
 
