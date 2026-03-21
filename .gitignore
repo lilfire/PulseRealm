@@ -5,6 +5,7 @@ obj/
 *.suo
 *.DotSettings.user
 *.sln.docstates
+*.trx
 
 # Node.js
 node_modules/
@@ -13,6 +14,7 @@ dist/
 
 # Vite
 frontend/dist/
+.vite/
 
 # IDE
 .vs/
@@ -21,6 +23,7 @@ frontend/dist/
 .claude/settings.local.json
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
@@ -33,7 +36,16 @@ Thumbs.db
 
 # Gradle
 .gradle/
+local.properties
+
+# Android
+*.keystore
+*.jks
 
 # Build output
 *.log
 coverage/
+TestResults/
+
+# Cache
+.eslintcache
