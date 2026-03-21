@@ -1,36 +1,9 @@
 # TODO
 
-## New /Changes
+## New features / Changes
 
-- [x] human readable error messeges on clients on exceptions
-- [x] Android custom zone i profil 
-- [x] Lese over Terms of use
-- [x] Settings ui
-- [x] thumbnail youtube/streetview/routes
-- [x] autoclose dead realms
-- [x] mer smoothing
-- [x] sridelength i sosial trenger label og hva som ville vært normalen  +/-
-- [x] fullscreen i home og lobbies
-- [x] Koble frontend til clients med bekreftelse kode på klokka. Mulighet å sette incline, låse hastighet
-- [x] fullscreen sosial mode
-- [x] android clients reconnect setting page
-- [x] stride egen modus for calibrering da dette må være et array bassert på hastighet 
-- [x] fullscreen i dungeon mode
-- [x] dungeon mode mangler overstyre hastighet, trengs dette? 
-- [x] trang med plass i høyde på dungeon boss precision
-- [x] boss endurance 133+ på easy blir for stor overgang 
-- [x] link clients trenger litt css
-- [x] fallback / static streetview mangler controls / har feil hud 
-- [x] Youtube lobby selcted video flytter alt ned out of recht så kan ikke endre
-- [ ] 3 solo modus 3 toghetere modus. grupper i front view
+- [ ] 
 
 ## BUGS
 
-- [x] dugeonmode balansering øke spm krav litt, samt ikke 2 hvile rom etter hverandre, lengere korridor. Reward på boss må være relevant
-- [x] route mangler duration
-- [x] Youtube starter ikke om pause for lenge. Trenger en manuell knapp for play
-- [x] Youtube hud. Ingen space mellom labels
-- [x] route er blitt en rett linje igjen...
-- [x] route har feil hud og mangler controls
-- [x] når client forlater avsluttetes ikke realm
 - [ ] 
