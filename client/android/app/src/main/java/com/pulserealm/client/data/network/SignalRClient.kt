@@ -14,7 +14,30 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Parses a JSON string (produced by [StrideCalibrationPoint] serialization) into a list of
+ * calibration points. Returns null if the input is blank or malformed.
+ *
+ * Expected format: `[{"speedKmh":8.0,"strideFactor":0.42}, ...]`
+ */
+fun parseStrideCalibration(json: String?): List<StrideCalibrationPoint>? {
+    if (json.isNullOrBlank()) return null
+    return try {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            StrideCalibrationPoint(
+                speedKmh = obj.getDouble("speedKmh"),
+                strideFactor = obj.getDouble("strideFactor")
+            )
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
 
 enum class ConnectionState {
     DISCONNECTED,
@@ -60,6 +83,16 @@ data class RealmSummaryData(
     val clientSummaries: List<ClientSummaryData> = emptyList()
 )
 
+/**
+ * SignalR client for the PulseRealm hub.
+ *
+ * This class is annotated [@Singleton][javax.inject.Singleton] via Hilt and therefore lives for
+ * the lifetime of the application process. The default [reconnectScope] uses a [SupervisorJob]
+ * so individual reconnect attempts do not cancel the parent scope. The scope is intentionally
+ * app-scoped — it must not be tied to a ViewModel or Activity lifecycle because reconnects
+ * need to survive configuration changes. Always call [dispose] when the client is no longer
+ * needed (e.g. during app shutdown) to cancel the SupervisorJob and release resources.
+ */
 class SignalRClient(
     private val reconnectScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) {
@@ -261,8 +294,34 @@ class SignalRClient(
         currentZoneBounds = zoneBounds
         currentMaxHr = maxHr
 
+        val profile = buildProfile(clientId, name, age, heightCm, weightKg, strideFactor, strideCalibration, zoneBounds, maxHr)
+
+        try {
+            hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
+        } catch (e: Exception) {
+            val friendlyMessage = UserFriendlyErrors.fromException(e, "Could not join the realm")
+            _error.value = friendlyMessage
+            throw Exception(friendlyMessage, e)
+        }
+    }
+
+    /**
+     * Builds the profile map sent to the server on join and reconnect.
+     * Returns null when the profile is incomplete (no name/age/height/weight).
+     */
+    private fun buildProfile(
+        clientId: String,
+        name: String,
+        age: Int,
+        heightCm: Double,
+        weightKg: Double,
+        strideFactor: Double,
+        strideCalibration: List<StrideCalibrationPoint>?,
+        zoneBounds: DoubleArray?,
+        maxHr: Int
+    ): HashMap<String, Any>? {
         val hasProfile = name.isNotBlank() && age > 0 && heightCm > 0.0 && weightKg > 0.0
-        val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf<String, Any>(
+        return if (hasProfile) hashMapOf<String, Any>(
             "clientId" to clientId,
             "name" to name,
             "age" to age,
@@ -278,14 +337,6 @@ class SignalRClient(
             if (zoneBounds != null) it["zoneBounds"] = zoneBounds.toList()
             if (maxHr > 0) it["maxHr"] = maxHr
         } else null
-
-        try {
-            hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
-        } catch (e: Exception) {
-            val friendlyMessage = UserFriendlyErrors.fromException(e, "Could not join the realm")
-            _error.value = friendlyMessage
-            throw Exception(friendlyMessage, e)
-        }
     }
 
     fun respondBind(realmId: String, approved: Boolean) {
@@ -333,8 +384,10 @@ class SignalRClient(
      * Intentionally leave the realm. If the realm was started, the server sends
      * a RealmEnded summary and this returns true — the caller should wait for the
      * user to dismiss the summary before calling [disconnect].
+     *
+     * Must be called from a coroutine. Blocking hub I/O is dispatched to [Dispatchers.IO].
      */
-    fun leaveRealm(): Boolean {
+    suspend fun leaveRealm(): Boolean = withContext(Dispatchers.IO) {
         intentionalDisconnect.set(true)
         reconnectJob?.cancel()
         reconnectJob = null
@@ -342,13 +395,18 @@ class SignalRClient(
             val hasSummary = hubConnection
                 ?.invoke(Boolean::class.java, "LeaveRealm")
                 ?.blockingGet() ?: false
-            if (hasSummary) return true
+            if (hasSummary) return@withContext true
         } catch (_: Exception) { }
         disconnectInternal()
-        return false
+        false
     }
 
-    fun disconnect() {
+    /**
+     * Intentionally disconnect from the hub.
+     *
+     * Must be called from a coroutine. Blocking hub I/O is dispatched to [Dispatchers.IO].
+     */
+    suspend fun disconnect() = withContext(Dispatchers.IO) {
         intentionalDisconnect.set(true)
         disconnectInternal()
     }
@@ -471,19 +529,11 @@ class SignalRClient(
                     hubConnection = newConnection
                     _connectionState.value = ConnectionState.CONNECTED
 
-                    // Re-join the realm
-                    val hasProfile = currentName.isNotBlank() && currentAge > 0 && currentHeightCm > 0.0 && currentWeightKg > 0.0
-                    val profile: HashMap<String, Any>? = if (hasProfile) hashMapOf<String, Any>(
-                        "clientId" to clientId,
-                        "name" to currentName,
-                        "age" to currentAge,
-                        "heightCm" to currentHeightCm,
-                        "weightKg" to currentWeightKg,
-                        "strideFactor" to currentStrideFactor
-                    ).also {
-                        if (currentZoneBounds != null) it["zoneBounds"] = currentZoneBounds!!.toList()
-                        if (currentMaxHr > 0) it["maxHr"] = currentMaxHr
-                    } else null
+                    // Re-join the realm — use buildProfile() so strideCalibration is included
+                    val profile = buildProfile(
+                        clientId, currentName, currentAge, currentHeightCm, currentWeightKg,
+                        currentStrideFactor, currentStrideCalibration, currentZoneBounds, currentMaxHr
+                    )
                     hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
                     startHealthCheck()
                     return@launch
@@ -506,7 +556,11 @@ class SignalRClient(
     }
 
     fun dispose() {
-        disconnect()
+        // Call disconnectInternal() directly (non-suspend) so dispose() itself
+        // does not need to be a suspend function. This is safe because dispose()
+        // is only called during app teardown (e.g. ViewModel.onCleared via scope).
+        intentionalDisconnect.set(true)
+        disconnectInternal()
         reconnectScope.coroutineContext[Job]?.cancel()
     }
 }

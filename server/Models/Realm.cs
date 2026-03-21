@@ -11,7 +11,12 @@ public class Realm
     public RealmMode Mode { get; set; }
     public RealmStatus Status { get; set; } = RealmStatus.Lobby;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
+
+    private long _lastActivityTicks = DateTime.UtcNow.Ticks;
+
+    /// <summary>Last activity timestamp. Written atomically via TouchActivity(); read is not guaranteed atomic on 32-bit but is safe for the cleanup/inactivity use-case.</summary>
+    public DateTime LastActivityAt => new DateTime(Interlocked.Read(ref _lastActivityTicks), DateTimeKind.Utc);
+
     public DateTime? EndedAt { get; set; }
     public List<string> ConnectedClientIds { get; set; } = new();
     public HashSet<string> KnownClientIds { get; set; } = new();
@@ -47,8 +52,11 @@ public class Realm
         _ => 4,
     };
 
-    /// <summary>Updates LastActivityAt to now. Call under lock or from hub methods on activity.</summary>
-    public void TouchActivity() => LastActivityAt = DateTime.UtcNow;
+    /// <summary>Updates LastActivityAt to now atomically. Safe to call without holding the realm lock.</summary>
+    public void TouchActivity() => Interlocked.Exchange(ref _lastActivityTicks, DateTime.UtcNow.Ticks);
+
+    /// <summary>Sets LastActivityAt to an arbitrary value. For use in tests only.</summary>
+    internal void SetLastActivityAt(DateTime value) => Interlocked.Exchange(ref _lastActivityTicks, value.Ticks);
 
     /// <summary>
     /// Executes the given action while holding the realm's lock.

@@ -65,6 +65,8 @@ fun RealmScreen(
     val realmStarted by viewModel.realmStarted.collectAsState()
     val bindRequest by viewModel.bindRequest.collectAsState()
     val calibrationComplete by viewModel.calibrationComplete.collectAsState()
+    // Fix #3: isCalibrationMode is now a StateFlow — collect reactively
+    val isCalibrationMode by viewModel.isCalibrationMode.collectAsState()
 
     // Keep screen on only while in the realm (active workout)
     val activity = LocalContext.current as? Activity
@@ -73,11 +75,15 @@ fun RealmScreen(
         viewModel.startStreaming()
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // Fix #10: stop streaming when the composable leaves the composition so
+            // sensors and the foreground service are cleaned up even if the user
+            // navigates away without explicitly pressing LEAVE.
+            viewModel.stopStreaming()
         }
     }
 
     // Calibration mode: show dedicated UI and handle auto-save on completion
-    if (viewModel.isCalibrationMode) {
+    if (isCalibrationMode) {
         CalibrationScreen(
             heartRate = heartRate,
             steps = steps,

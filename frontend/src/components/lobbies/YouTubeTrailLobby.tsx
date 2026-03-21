@@ -25,7 +25,7 @@ interface Props {
   hostSecret?: string;
   curatedVideos?: YouTubeVideo[] | null;
   lobbySettings?: Record<string, unknown> | null;
-  onSettingsChange?: (settings: object) => void;
+  onSettingsChange?: (settings: Record<string, unknown>) => void;
   onRequestBind?: (clientId: string) => void;
   onCancelBind?: (clientId: string) => void;
   bindCode?: string | null;
@@ -326,7 +326,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                 padding: "0.6rem 0.75rem",
                 fontSize: "1rem",
                 borderRadius: "6px",
-                border: `2px solid ${video ? "#00D4FF" : urlError ? "#f87171" : "#555"}`,
+                border: `2px solid ${video ? "#33DFFF" : urlError ? "#f87171" : "#555"}`,
                 width: "100%",
                 background: "#1a1a1a",
                 color: "#fff",
@@ -345,12 +345,12 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
               alignItems: "center",
               padding: "0.5rem 0.75rem",
               borderRadius: "6px",
-              border: "2px solid #00D4FF",
+              border: "2px solid #33DFFF",
               background: "rgba(0,212,255,0.1)",
             }}>
               <img
                 src={resolveThumbUrl(video.thumbnailUrl, serverUrl) ?? `https://img.youtube.com/vi/${video.videoId}/default.jpg`}
-                alt=""
+                alt="Video thumbnail"
                 style={{ width: "80px", height: "60px", borderRadius: "4px", objectFit: "cover", flexShrink: 0, marginRight: "0.75rem" }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -395,7 +395,7 @@ export function YouTubeTrailLobby({ joinCode, mode, clients, clientProfiles, con
                   cursor: "pointer",
                   fontSize: "0.9rem",
                   borderRadius: "6px",
-                  border: isSelected ? "2px solid #00D4FF" : "1px solid #333",
+                  border: isSelected ? "2px solid #33DFFF" : "1px solid #333",
                   background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
                   height: "100%",
                   boxSizing: "border-box",

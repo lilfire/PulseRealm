@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.sin
 
 class SensorDataCollector(
     private val sensorManager: SensorManager
@@ -36,10 +37,27 @@ class SensorDataCollector(
     private var simulationScope: CoroutineScope? = null
     private var simSteps = 0
 
-    fun start() {
+    /**
+     * Starts sensor data collection.
+     *
+     * @param hasBodySensorsPermission Whether [android.Manifest.permission.BODY_SENSORS] has been
+     *   granted. Pass the result of [androidx.core.content.ContextCompat.checkSelfPermission].
+     *   When false, heart-rate sensor registration is skipped and [sensorsAvailable] will reflect
+     *   only step sensors (or simulation if none are available).
+     */
+    fun start(hasBodySensorsPermission: Boolean = true) {
         if (!isRunning.compareAndSet(false, true)) return
 
-        val heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+        if (!hasBodySensorsPermission) {
+            // BODY_SENSORS permission not granted — skip heart-rate sensor registration.
+            _sensorsAvailable.value = false
+        }
+
+        val heartRateSensor = if (hasBodySensorsPermission) {
+            sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+        } else {
+            null
+        }
         val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         val stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
 
@@ -58,7 +76,7 @@ class SensorDataCollector(
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, 0)
             }
         } else {
-            // No sensors available (emulator) — use simulated data
+            // No sensors available (emulator or permission denied) — use simulated data
             _sensorsAvailable.value = false
             startSimulation()
         }
@@ -121,7 +139,7 @@ class SensorDataCollector(
         simulationScope?.launch {
             while (isRunning.get()) {
                 // Simulate heart rate between 60-180 bpm with slight variation
-                val baseHr = 90 + (Math.sin(System.currentTimeMillis() / 5000.0) * 40).toInt()
+                val baseHr = 90 + (sin(System.currentTimeMillis() / 5000.0) * 40).toInt()
                 val jitter = (-5..5).random()
                 _heartRate.value = (baseHr + jitter).coerceIn(60, 180)
 

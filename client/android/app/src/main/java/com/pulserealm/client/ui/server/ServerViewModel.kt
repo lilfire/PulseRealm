@@ -105,7 +105,7 @@ class ServerViewModel @Inject constructor(
                 conn.requestMethod = "GET"
 
                 if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().readText()
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
                     conn.disconnect()
                     if (body.contains("PulseRealm")) {
                         _uiState.value = _uiState.value.copy(
@@ -159,7 +159,7 @@ class ServerViewModel @Inject constructor(
                 conn.requestMethod = "GET"
 
                 if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().readText()
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
                     conn.disconnect()
                     if (body.contains("PulseRealm")) {
                         saveServerUrl(url)

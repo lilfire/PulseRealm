@@ -1,7 +1,9 @@
+import type { AdminConfig } from "./AdminDashboard";
+
 interface Props {
   difficulty: string;
   timeframeMinutes: number;
-  onChange: (field: string, value: string | number) => void;
+  onChange: <K extends keyof AdminConfig>(field: K, value: AdminConfig[K]) => void;
 }
 
 export function DungeonDefaults({ difficulty, timeframeMinutes, onChange }: Props) {

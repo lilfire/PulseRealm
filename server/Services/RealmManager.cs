@@ -8,6 +8,7 @@ public class RealmManager
     private readonly ConcurrentDictionary<string, Realm> _realms = new();
     private readonly ConcurrentDictionary<string, Realm> _joinCodes = new();
     private readonly AdminConfigService _adminConfig;
+    private readonly object _createLock = new();
 
     public RealmManager(AdminConfigService adminConfig)
     {
@@ -16,24 +17,27 @@ public class RealmManager
 
     public Realm CreateRealm(RealmMode mode)
     {
-        var maxRealms = _adminConfig.GetConfig().MaxConcurrentRealms;
-        if (maxRealms > 0)
+        lock (_createLock)
         {
-            var activeCount = _realms.Values.Count(r => r.Status != RealmStatus.Ended);
-            if (activeCount >= maxRealms)
-                throw new InvalidOperationException($"Maximum concurrent realms reached ({maxRealms}). Please wait for an existing realm to end.");
+            var maxRealms = _adminConfig.GetConfig().MaxConcurrentRealms;
+            if (maxRealms > 0)
+            {
+                var activeCount = _realms.Values.Count(r => r.Status != RealmStatus.Ended);
+                if (activeCount >= maxRealms)
+                    throw new InvalidOperationException($"Maximum concurrent realms reached ({maxRealms}). Please wait for an existing realm to end.");
+            }
+
+            var realm = new Realm
+            {
+                Mode = mode,
+                JoinCode = GenerateJoinCode(),
+                HostSecret = GenerateHostSecret()
+            };
+
+            _realms[realm.Id] = realm;
+            _joinCodes[realm.JoinCode] = realm;
+            return realm;
         }
-
-        var realm = new Realm
-        {
-            Mode = mode,
-            JoinCode = GenerateJoinCode(),
-            HostSecret = GenerateHostSecret()
-        };
-
-        _realms[realm.Id] = realm;
-        _joinCodes[realm.JoinCode] = realm;
-        return realm;
     }
 
     public Realm? GetByJoinCode(string joinCode)
@@ -54,6 +58,12 @@ public class RealmManager
         {
             realm.WithLock(r =>
             {
+                // Capacity check is performed inside the lock so the check and add are atomic.
+                // Reconnecting clients (already Known) bypass the limit.
+                var isReconnect = r.KnownClientIds.Contains(clientId);
+                if (!isReconnect && r.ConnectedClientIds.Count >= r.MaxClients)
+                    throw new InvalidOperationException($"Realm is full ({r.MaxClients}/{r.MaxClients} players).");
+
                 if (!r.ConnectedClientIds.Contains(clientId))
                 {
                     r.ConnectedClientIds.Add(clientId);

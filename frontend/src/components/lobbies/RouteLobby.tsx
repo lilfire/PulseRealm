@@ -41,7 +41,7 @@ interface Props {
   hostSecret?: string;
   curatedRoutes?: CuratedRouteItem[] | null;
   lobbySettings?: Record<string, unknown> | null;
-  onSettingsChange?: (settings: object) => void;
+  onSettingsChange?: (settings: Record<string, unknown>) => void;
   onRequestBind?: (clientId: string) => void;
   onCancelBind?: (clientId: string) => void;
   bindCode?: string | null;
@@ -197,7 +197,7 @@ function PlaceInput({
             padding: "0.6rem 0.75rem",
             fontSize: "1rem",
             borderRadius: "6px",
-            border: "2px solid " + (value ? "#00D4FF" : "#555"),
+            border: "2px solid " + (value ? "#33DFFF" : "#555"),
             width: "100%",
             background: "#1a1a1a",
             color: "#fff",
@@ -356,7 +356,7 @@ export function RouteLobby({ joinCode, mode, clients, clientProfiles, connected,
                     cursor: "pointer",
                     fontSize: "0.9rem",
                     borderRadius: "6px",
-                    border: isSelected ? "2px solid #00D4FF" : "1px solid #333",
+                    border: isSelected ? "2px solid #33DFFF" : "1px solid #333",
                     background: isSelected ? "rgba(0,212,255,0.1)" : "#1a1a1a",
                     height: "100%",
                     boxSizing: "border-box",

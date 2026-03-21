@@ -1,5 +1,5 @@
 import type { ClientProfile, WearableData } from "../../types/session";
-import { getZoneForHr, getMaxHrForProfile, ZONE_COLORS, formatPace, STRIDE_FACTOR, getStrideFactor } from "../../utils/wearable";
+import { getZoneForHr, getMaxHrForProfile, ZONE_COLORS, formatPace, STRIDE_FACTOR, getStrideFactor, DEFAULT_WALKING_FACTOR } from "../../utils/wearable";
 
 interface Props {
   name: string;
@@ -49,7 +49,7 @@ export function PlayerHud({ name, latestData, profile, caloriesDisplay, totalDis
     : null;
   const hasCalibration = profile?.strideCalibration && profile.strideCalibration.length >= 2;
   const isCalibrated = hasCalibration || (profile?.strideFactor != null && profile.strideFactor > 0
-    && profile.strideFactor !== 0.415);
+    && profile.strideFactor !== DEFAULT_WALKING_FACTOR);
   const baselineStrideCm = profile?.heightCm
     ? profile.heightCm * STRIDE_FACTOR * 100
     : null;

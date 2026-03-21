@@ -52,9 +52,23 @@ public class RealmHubTests
         Mock<IGroupManager> MockGroups)
         CreateHub(string? connectionId = null)
     {
+        var (hub, manager, mockClients, mockProxy, mockGroups, _) = CreateHubWithTracker(connectionId);
+        return (hub, manager, mockClients, mockProxy, mockGroups);
+    }
+
+    private static (
+        RealmHub Hub,
+        RealmManager Manager,
+        Mock<IHubCallerClients> MockClients,
+        Mock<ISingleClientProxy> MockProxy,
+        Mock<IGroupManager> MockGroups,
+        RealmStatsTracker StatsTracker)
+        CreateHubWithTracker(string? connectionId = null)
+    {
         var adminConfig = CreateAdminConfigService();
         var manager = new RealmManager(adminConfig);
-        var hub = new RealmHub(manager, adminConfig, new RealmStatsTracker());
+        var statsTracker = new RealmStatsTracker();
+        var hub = new RealmHub(manager, adminConfig, statsTracker);
 
         var mockClients = new Mock<IHubCallerClients>();
         var mockProxy = new Mock<ISingleClientProxy>();
@@ -69,17 +83,18 @@ public class RealmHubTests
         hub.Clients = mockClients.Object;
         hub.Groups = mockGroups.Object;
 
-        return (hub, manager, mockClients, mockProxy, mockGroups);
+        return (hub, manager, mockClients, mockProxy, mockGroups, statsTracker);
     }
 
     /// <summary>Creates a hub wired as a different client connection for multi-client scenarios.</summary>
     private static (
         RealmHub Hub,
         Mock<ISingleClientProxy> MockProxy)
-        CreateHubForClient(RealmManager manager, string clientId, Realm realm)
+        CreateHubForClient(RealmManager manager, string clientId, Realm realm,
+            RealmStatsTracker? statsTracker = null)
     {
         var adminConfig = CreateAdminConfigService();
-        var hub = new RealmHub(manager, adminConfig, new RealmStatsTracker());
+        var hub = new RealmHub(manager, adminConfig, statsTracker ?? new RealmStatsTracker());
 
         var mockClients = new Mock<IHubCallerClients>();
         var mockProxy = new Mock<ISingleClientProxy>();
@@ -1305,22 +1320,18 @@ public class RealmHubTests
     public async Task EndRealm_WithClientSummaryOverrides_MergesTeamInfo()
     {
         var connId = Guid.NewGuid().ToString();
-        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var (hub, manager, _, mockProxy, _, sharedTracker) = CreateHubWithTracker(connId);
         var realm = manager.CreateRealm(RealmMode.Competition);
         await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
 
         var clientId = Guid.NewGuid().ToString();
-        var clientHub = CreateHubForClient(manager, clientId, realm);
+        // Share the same statsTracker so SendWearableData records into the host hub's tracker
+        var clientHub = CreateHubForClient(manager, clientId, realm, sharedTracker);
         var profile = new ClientProfile { Name = "Player", Age = 25, HeightCm = 175, WeightKg = 70 };
         await clientHub.Hub.JoinRealm(realm.JoinCode, clientId, profile);
         realm.WithLock(r => r.Status = RealmStatus.Started);
 
-        // Record stats so the client appears in the summary
-        var statsTracker = new RealmStatsTracker();
-        statsTracker.Record(realm.Id, clientId, 100, 120, 5.0, profile);
-
-        // Use hub.EndRealm which builds summary from the hub's own stats tracker
-        // Instead, send wearable data through the client hub to register stats
+        // Send wearable data through the client hub to register stats in the shared tracker
         var data = new WearableData { ClientId = clientId, HeartRate = 120, Steps = 100 };
         await clientHub.Hub.SendWearableData(realm.Id, data);
 

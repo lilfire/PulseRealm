@@ -52,49 +52,49 @@ class ServerDiscoveryClient(
         val found = mutableMapOf<String, DiscoveredServer>()
 
         try {
-            // Use ephemeral port to avoid conflicts with concurrent scans or the server
-            val socket = DatagramSocket(null)
-            socket.reuseAddress = true
-            socket.bind(InetSocketAddress(0))
-            socket.broadcast = true
-            socket.soTimeout = SOCKET_TIMEOUT_MS
+            // Use ephemeral port to avoid conflicts with concurrent scans or the server.
+            // DatagramSocket.use{} ensures the socket is closed even if an exception is thrown.
+            DatagramSocket(null).use { socket ->
+                socket.reuseAddress = true
+                socket.bind(InetSocketAddress(0))
+                socket.broadcast = true
+                socket.soTimeout = SOCKET_TIMEOUT_MS
 
-            // Send a discovery request so the server responds immediately
-            // instead of waiting up to 3 seconds for the next broadcast cycle
-            sendDiscoveryRequest(socket)
+                // Send a discovery request so the server responds immediately
+                // instead of waiting up to 3 seconds for the next broadcast cycle
+                sendDiscoveryRequest(socket)
 
-            val buffer = ByteArray(1024)
-            val deadline = System.currentTimeMillis() + LISTEN_TIMEOUT_MS
+                val buffer = ByteArray(1024)
+                val deadline = System.currentTimeMillis() + LISTEN_TIMEOUT_MS
 
-            while (System.currentTimeMillis() < deadline) {
-                try {
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    socket.receive(packet)
+                while (System.currentTimeMillis() < deadline) {
+                    try {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
 
-                    val json = String(packet.data, 0, packet.length, Charsets.UTF_8)
-                    val obj = JSONObject(json)
+                        val json = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                        val obj = JSONObject(json)
 
-                    if (obj.optString("service") == "PulseRealm") {
-                        val server = DiscoveredServer(
-                            name = obj.optString("name", "PulseRealm"),
-                            hostname = obj.optString("hostname", "Unknown"),
-                            urls = obj.optString("urls", ""),
-                            version = obj.optString("version", ""),
-                            address = packet.address
-                        )
-                        val key = packet.address.hostAddress ?: continue
-                        found[key] = server
-                        _discoveredServers.value = found.values.toList()
-                    }
-                } catch (_: java.net.SocketTimeoutException) {
-                    // Re-send discovery request on timeout to handle packet loss
-                    if (found.isEmpty() && System.currentTimeMillis() + SOCKET_TIMEOUT_MS < deadline) {
-                        sendDiscoveryRequest(socket)
+                        if (obj.optString("service") == "PulseRealm") {
+                            val server = DiscoveredServer(
+                                name = obj.optString("name", "PulseRealm"),
+                                hostname = obj.optString("hostname", "Unknown"),
+                                urls = obj.optString("urls", ""),
+                                version = obj.optString("version", ""),
+                                address = packet.address
+                            )
+                            val key = packet.address.hostAddress ?: continue
+                            found[key] = server
+                            _discoveredServers.value = found.values.toList()
+                        }
+                    } catch (_: java.net.SocketTimeoutException) {
+                        // Re-send discovery request on timeout to handle packet loss
+                        if (found.isEmpty() && System.currentTimeMillis() + SOCKET_TIMEOUT_MS < deadline) {
+                            sendDiscoveryRequest(socket)
+                        }
                     }
                 }
             }
-
-            socket.close()
         } catch (_: java.net.BindException) {
             // Port already in use — scan silently fails, user can retry
         } catch (_: Exception) {

@@ -8,7 +8,7 @@ import { ProtectionDefaults } from "./ProtectionDefaults";
 import { YouTubeEditor, type YouTubeVideoItem } from "./YouTubeEditor";
 import "./AdminDashboard.css";
 
-interface AdminConfig {
+export interface AdminConfig {
   competitionSubMode: string;
   competitionPlayerFormat: string;
   competitionTargetDistanceKm: number;
@@ -124,7 +124,7 @@ export function AdminDashboard({ apiUrl, token, onLogout, onJoinRealm }: Props) 
     onLogout();
   }
 
-  function updateField(field: string, value: string | number) {
+  function updateField<K extends keyof AdminConfig>(field: K, value: AdminConfig[K]) {
     if (!config) return;
     setConfig({ ...config, [field]: value });
   }

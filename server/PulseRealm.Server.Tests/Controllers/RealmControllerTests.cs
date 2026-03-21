@@ -260,12 +260,24 @@ public class RealmControllerTests
     }
 
     [Fact]
-    public void ClaimHost_CaseInsensitiveSecret_Returns200()
+    public void ClaimHost_WrongCaseSecret_Returns401()
     {
+        // Host secret comparison is case-sensitive (Ordinal) to prevent guessing via case variations.
         var realm = _realmManager.CreateRealm(RealmMode.Competition);
 
         var result = _controller.ClaimHost(realm.JoinCode,
             new ClaimHostRequest(realm.HostSecret.ToLowerInvariant()));
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public void ClaimHost_ExactSecret_Returns200()
+    {
+        var realm = _realmManager.CreateRealm(RealmMode.Competition);
+
+        var result = _controller.ClaimHost(realm.JoinCode,
+            new ClaimHostRequest(realm.HostSecret));
 
         Assert.IsType<OkObjectResult>(result);
     }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PulseRealm.Server.Models;
 using PulseRealm.Server.Services;
 
@@ -16,6 +17,7 @@ public class RealmController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting("createRealm")]
     public IActionResult Create([FromBody] CreateRealmRequest request)
     {
         try
@@ -46,7 +48,7 @@ public class RealmController : ControllerBase
         if (realm.Status == RealmStatus.Ended)
             return BadRequest(new { error = "Realm has ended." });
 
-        if (!string.Equals(realm.HostSecret, request.HostSecret, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(realm.HostSecret, request.HostSecret, StringComparison.Ordinal))
             return Unauthorized(new { error = "Invalid host key." });
 
         return Ok(new { realm.Id, realm.JoinCode, realm.Mode, Status = realm.Status.ToString() });

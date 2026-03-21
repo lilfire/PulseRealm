@@ -27,6 +27,11 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+// TODO: Several tests in this class use reflection to access private MutableStateFlow fields
+//  (e.g. _error, _bindRequest, _realmStarted). This is a test smell — it couples tests to
+//  implementation details and will break if fields are renamed. The preferred fix would be
+//  to expose test-only factory methods or use a fake/stub for SignalRClient, but that would
+//  require significant refactoring of the class and its callers. Left as-is for now.
 @OptIn(ExperimentalCoroutinesApi::class)
 class SignalRClientTest {
 
@@ -97,7 +102,7 @@ class SignalRClientTest {
     }
 
     @Test
-    fun `disconnect resets all state`() {
+    fun `disconnect resets all state`() = runTest(testDispatcher) {
         client.disconnect()
 
         assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
@@ -107,7 +112,7 @@ class SignalRClientTest {
     }
 
     @Test
-    fun `disconnect is idempotent`() {
+    fun `disconnect is idempotent`() = runTest(testDispatcher) {
         client.disconnect()
         client.disconnect()
 
@@ -148,7 +153,7 @@ class SignalRClientTest {
     }
 
     @Test
-    fun `dispose then disconnect does not throw`() {
+    fun `dispose then disconnect does not throw`() = runTest(testDispatcher) {
         client.dispose()
         client.disconnect()
 
@@ -209,14 +214,14 @@ class SignalRClientTest {
     // --- leaveRealm ---
 
     @Test
-    fun `leaveRealm without hub returns false and disconnects`() {
+    fun `leaveRealm without hub returns false and disconnects`() = runTest(testDispatcher) {
         val result = client.leaveRealm()
         assertFalse(result)
         assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
     }
 
     @Test
-    fun `leaveRealm resets state`() {
+    fun `leaveRealm resets state`() = runTest(testDispatcher) {
         client.leaveRealm()
         assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
         assertFalse(client.isConnected())
@@ -225,7 +230,7 @@ class SignalRClientTest {
     // --- onNetworkAvailable ---
 
     @Test
-    fun `onNetworkAvailable does nothing after intentional disconnect`() {
+    fun `onNetworkAvailable does nothing after intentional disconnect`() = runTest(testDispatcher) {
         client.disconnect() // sets intentionalDisconnect = true
         client.onNetworkAvailable()
         assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
@@ -255,7 +260,7 @@ class SignalRClientTest {
     // --- disconnect clears extended state ---
 
     @Test
-    fun `disconnect resets realmStarted`() {
+    fun `disconnect resets realmStarted`() = runTest(testDispatcher) {
         val field = SignalRClient::class.java.getDeclaredField("_realmStarted")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
@@ -267,7 +272,7 @@ class SignalRClientTest {
     }
 
     @Test
-    fun `disconnect resets bindRequest`() {
+    fun `disconnect resets bindRequest`() = runTest(testDispatcher) {
         val field = SignalRClient::class.java.getDeclaredField("_bindRequest")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
@@ -306,7 +311,7 @@ class SignalRClientTest {
     // --- State after leaveRealm ---
 
     @Test
-    fun `leaveRealm clears realmEnded`() {
+    fun `leaveRealm clears realmEnded`() = runTest(testDispatcher) {
         val field = SignalRClient::class.java.getDeclaredField("_realmEnded")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
@@ -319,7 +324,7 @@ class SignalRClientTest {
     }
 
     @Test
-    fun `leaveRealm clears eliminated`() {
+    fun `leaveRealm clears eliminated`() = runTest(testDispatcher) {
         val field = SignalRClient::class.java.getDeclaredField("_eliminated")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")

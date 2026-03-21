@@ -145,8 +145,10 @@ describe("StaticStreetViewMode", () => {
 
   it("shows speed and HR with wearable data", () => {
     renderMode({ latestData: makeData() });
-    expect(screen.getByText("8.0 km/h")).toBeInTheDocument();
-    expect(screen.getByText("140 bpm")).toBeInTheDocument();
+    expect(screen.getByText("8.0")).toBeInTheDocument();
+    expect(screen.getByText("km/h")).toBeInTheDocument();
+    expect(screen.getByText("140")).toBeInTheDocument();
+    expect(screen.getByText("bpm")).toBeInTheDocument();
   });
 
   it("shows zone badge", () => {

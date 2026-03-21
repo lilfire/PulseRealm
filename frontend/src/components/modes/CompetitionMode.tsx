@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientProfile, CompetitionConfig, RealmRole, WearableData } from "../../types/session";
 import type { ClientSummary, RealmSummary } from "../../hooks/useSessionHub";
-import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, getMaxHrForProfile, formatDuration, getStrideFactor, STRIDE_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
+import { CADENCE_WINDOW_MS, IDLE_TIMEOUT_MS, ZONE_COLORS, getZoneForHr, getZoneBpmRange, getMaxHrForAge, getMaxHrForProfile, formatDuration, getStrideFactor, STRIDE_FACTOR, DEFAULT_WALKING_FACTOR, estimateCaloriesPerSecond } from "../../utils/wearable";
 import { BindControlsHud } from "./BindControlsHud";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -107,6 +107,11 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
   const [elapsed, setElapsed] = useState(0);
   const [, forceRender] = useState(0);
   const rerender = () => forceRender((n) => n + 1);
+  // Issue #14 — keep refs for values used in the game-tick interval to avoid interval churn
+  const clientsRef = useRef(clients);
+  const configRef = useRef(config);
+  useEffect(() => { clientsRef.current = clients; }, [clients]);
+  useEffect(() => { configRef.current = config; }, [config]);
 
   // Enter browser fullscreen on mount
   useEffect(() => {
@@ -354,28 +359,31 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       const trackers = trackersRef.current;
       const now = Date.now();
       const secs = Math.floor((now - startTimeRef.current) / 1000);
+      // Issue #14 — read from refs instead of closure to avoid interval churn
+      const cfg = configRef.current;
+      const cids = clientsRef.current;
 
       // Check timed modes for end
-      if ((config.subMode === "heartzone" || config.subMode === "king") && secs >= config.durationMinutes * 60) {
+      if ((cfg.subMode === "heartzone" || cfg.subMode === "king") && secs >= cfg.durationMinutes * 60) {
         setRealmEnded(true);
         return;
       }
 
       // Heartzone: award points
-      if (config.subMode === "heartzone") {
-        for (const cid of clients) {
+      if (cfg.subMode === "heartzone") {
+        for (const cid of cids) {
           const t = trackers[cid];
           if (!t || !t.active || t.heartRate <= 0) continue;
           const maxHr = getMaxHrForClient(cid);
           const zone = getZoneForHr(t.heartRate, maxHr, getZoneBoundsForClient(cid));
-          if (zone === config.targetZone) {
+          if (zone === cfg.targetZone) {
             t.points += 1;
           }
         }
       }
 
       // Track timeInZone and cadence for all active clients
-      for (const cid of clients) {
+      for (const cid of cids) {
         const t = trackers[cid];
         if (!t || !t.active) continue;
         if (t.heartRate > 0) {
@@ -395,12 +403,12 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       }
 
       // King: award points to current leader
-      if (config.subMode === "king") {
+      if (cfg.subMode === "king") {
         let bestEntity: string | null = null;
         let bestDist = -1;
 
         if (isTeam) {
-          for (const team of config.teams) {
+          for (const team of cfg.teams) {
             const teamDist = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0);
             if (teamDist > bestDist) {
               bestDist = teamDist;
@@ -408,7 +416,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             }
           }
         } else {
-          for (const cid of clients) {
+          for (const cid of cids) {
             const dist = trackers[cid]?.distanceMeters ?? 0;
             if (dist > bestDist) {
               bestDist = dist;
@@ -423,7 +431,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           if (prevKing && bestEntity !== prevKing) {
             // Check if current king is tied
             const prevDist = isTeam
-              ? config.teams.find((t) => t.name === prevKing)?.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0) ?? 0
+              ? cfg.teams.find((t) => t.name === prevKing)?.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0) ?? 0
               : trackers[prevKing]?.distanceMeters ?? 0;
             if (prevDist >= bestDist) {
               bestEntity = prevKing; // defender retains
@@ -440,7 +448,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           if (isTeam) {
             // Track king points per team - use the first client in team as proxy
             // We'll aggregate when rendering
-            const team = config.teams.find((t) => t.name === bestEntity);
+            const team = cfg.teams.find((t) => t.name === bestEntity);
             if (team && team.clientIds.length > 0) {
               // Store points on a "team tracker" keyed by team name
               if (!trackers[`__team__${bestEntity}`]) trackers[`__team__${bestEntity}`] = newTracker();
@@ -457,7 +465,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       }
 
       // Elimination: countdown
-      if (config.subMode === "elimination") {
+      if (cfg.subMode === "elimination") {
         const activeEntities = getActiveEntities(trackers);
 
         // Last man standing — auto-end
@@ -478,20 +486,20 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           if (activeEntities.length > 1) {
             eliminateLowest(trackers, activeEntities);
           }
-          elimTimerRef.current = config.intervalMinutes * 60;
+          elimTimerRef.current = cfg.intervalMinutes * 60;
           setElimCountdown(elimTimerRef.current);
         }
       }
 
       // Race: check finish (1s backup for latestData processing)
-      if (config.subMode === "race") {
+      if (cfg.subMode === "race") {
         if (isTeam) {
           // Team race: aggregated distance vs target
-          for (const team of config.teams) {
+          for (const team of cfg.teams) {
             const teamKey = `__team__${team.name}`;
             if (trackers[teamKey]?.finished) continue;
             const teamDistKm = team.clientIds.reduce((sum, cid) => sum + (trackers[cid]?.distanceMeters ?? 0), 0) / 1000;
-            if (teamDistKm >= config.targetDistanceKm - 0.01) {
+            if (teamDistKm >= cfg.targetDistanceKm - 0.01) {
               if (!trackers[teamKey]) trackers[teamKey] = newTracker();
               trackers[teamKey].finished = true;
               trackers[teamKey].finishTime = now;
@@ -501,10 +509,10 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
           }
         } else {
           // Individual race
-          for (const cid of clients) {
+          for (const cid of cids) {
             const t = trackers[cid];
             if (!t || t.finished || t.eliminated) continue;
-            if (t.distanceMeters / 1000 >= config.targetDistanceKm - 0.01) {
+            if (t.distanceMeters / 1000 >= cfg.targetDistanceKm - 0.01) {
               t.finished = true;
               t.finishTime = now;
               t.finishPosition = nextPositionRef.current++;
@@ -522,8 +530,8 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       rerender();
     }, 1000);
     return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- eliminateLowest/getActiveEntities are stable within the same render
-  }, [clients, config, isTeam, raceWinner]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- clients/config read via refs; eliminateLowest/getActiveEntities are stable within the same render
+  }, [isTeam, raceWinner]);
 
   // ── End handler ────────────────────────────────────────────────────────────
 
@@ -778,13 +786,13 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
       )}
 
       {/* ── Top bar ──────────────────────────────────────────────── */}
-      <div style={{
+      <div className="fg-row" style={{
         display: "flex", justifyContent: "center", alignItems: "center",
         padding: "10px 24px",
         borderBottom: "1px solid var(--border)",
         flexShrink: 0,
-        gap: 16,
-      }}>
+        "--fg": "16px",
+      } as React.CSSProperties}>
         <div className="fg-row" style={{ display: "flex", alignItems: "center", "--fg": "8px" } as React.CSSProperties}>
           <div style={{
             fontSize: 13, fontWeight: 600, textTransform: "uppercase",
@@ -861,7 +869,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
             Target: Zone {config.targetZone}
           </div>
           <div style={{ fontSize: 13, color: "var(--text)" }}>
-            {getZoneBpmRange(config.targetZone, getMaxHrForClient())[0]}–{getZoneBpmRange(config.targetZone, getMaxHrForClient(), undefined)[1]} bpm
+            {getZoneBpmRange(config.targetZone, getMaxHrForClient())[0]}–{getZoneBpmRange(config.targetZone, getMaxHrForClient())[1]} bpm
           </div>
         </div>
       )}
@@ -1053,7 +1061,7 @@ export function CompetitionMode({ clients, clientProfiles, latestData, config, o
                   if (!p?.heightCm) return null;
                   const strideCm = p.heightCm * getStrideFactor(p, 5) * 100;
                   const hasCalibration = p.strideCalibration && p.strideCalibration.length >= 2;
-                  const cal = hasCalibration || (p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== 0.415);
+                  const cal = hasCalibration || (p.strideFactor != null && p.strideFactor > 0 && p.strideFactor !== DEFAULT_WALKING_FACTOR);
                   const baselineCm = p.heightCm * STRIDE_FACTOR * 100;
                   const diff = cal ? strideCm - baselineCm : null;
                   return (

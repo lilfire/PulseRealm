@@ -29,7 +29,7 @@ export function usePlacesProxy() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(function () {
       if (abortRef.current) abortRef.current.abort();
-      var controller = new AbortController();
+      const controller = new AbortController();
       abortRef.current = controller;
 
       fetch("/api/maps/places/autocomplete?input=" + encodeURIComponent(input), {

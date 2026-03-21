@@ -16,7 +16,7 @@ public class RealmHub : Hub
     private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt, double SmoothedSpeed, DateTime LastStepTime)> _lastData = new();
 
     /// <summary>Maps SignalR connection IDs to (realmId, clientId) for disconnect handling.</summary>
-    private static readonly ConcurrentDictionary<string, (string RealmId, string ClientId)> _connectionMap = new();
+    internal static readonly ConcurrentDictionary<string, (string RealmId, string ClientId)> _connectionMap = new();
 
     /// <summary>Step offset per client to handle app restarts where the step counter resets to 0.</summary>
     private static readonly ConcurrentDictionary<string, int> _stepOffsets = new();
@@ -31,10 +31,10 @@ public class RealmHub : Hub
     private static readonly ConcurrentDictionary<string, DateTime> _lastAcceptedTime = new();
 
     /// <summary>Tracks calibration session state per session ID.</summary>
-    private static readonly ConcurrentDictionary<string, CalibrationSession> _calibrationSessions = new();
+    internal static readonly ConcurrentDictionary<string, CalibrationSession> _calibrationSessions = new();
 
     /// <summary>Maps calibration join codes to session IDs.</summary>
-    private static readonly ConcurrentDictionary<string, string> _calibrationJoinCodes = new();
+    internal static readonly ConcurrentDictionary<string, string> _calibrationJoinCodes = new();
 
     /// <summary>EMA smoothing factor (higher = more responsive, noisier).</summary>
     private const double EmaAlpha = 0.15;
@@ -107,7 +107,7 @@ public class RealmHub : Hub
         {
             if (string.IsNullOrWhiteSpace(profile.Name))
                 throw new HubException("Name cannot be blank or empty.");
-            if (!string.IsNullOrWhiteSpace(profile.Name) && profile.Name.Length > 50)
+            if (profile.Name.Length > 50)
                 throw new HubException("Name is too long (max 50 characters).");
             if (profile.Age is < 5 or > 120)
                 throw new HubException("Age must be between 5 and 120.");
@@ -161,12 +161,10 @@ public class RealmHub : Hub
         }
 
         // Read realm state under lock for thread-safe checks
-        var (status, isKnown, isKicked, connectedCount, maxClients) = realm.WithLock(r => (
+        var (status, isKnown, isKicked) = realm.WithLock(r => (
             r.Status,
             r.KnownClientIds.Contains(clientId),
-            r.KickedClientIds.Contains(clientId),
-            r.ConnectedClientIds.Count,
-            r.MaxClients
+            r.KickedClientIds.Contains(clientId)
         ));
 
         if (isKicked)
@@ -186,11 +184,6 @@ public class RealmHub : Hub
 
         var isReconnect = status == RealmStatus.Started;
 
-        if (!isReconnect && connectedCount >= maxClients)
-        {
-            throw new HubException($"Realm is full ({maxClients}/{maxClients} players).");
-        }
-
         // Clear any stale step data from a previous realm so steps start fresh.
         // On reconnect to the same realm we keep the existing offsets.
         if (!isReconnect)
@@ -200,7 +193,14 @@ public class RealmHub : Hub
             _lastAcceptedTime.TryRemove(clientId, out _);
         }
 
-        _realmManager.AddClient(realm.Id, clientId, profile);
+        try
+        {
+            _realmManager.AddClient(realm.Id, clientId, profile);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new HubException(ex.Message);
+        }
         realm.TouchActivity();
         _connectionMap[Context.ConnectionId] = (realm.Id, clientId);
         await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
@@ -255,6 +255,10 @@ public class RealmHub : Hub
     /// </summary>
     public async Task SendWearableData(string realmId, WearableData data)
     {
+        // Verify the connection owns the claimed clientId to prevent spoofing
+        if (_connectionMap.TryGetValue(Context.ConnectionId, out var mapping) && mapping.ClientId != data.ClientId)
+            return;
+
         // Rate limiting: drop messages arriving faster than configured rate
         var maxRate = _adminConfig.GetConfig().MaxWearableMessagesPerSecond;
         if (maxRate > 0)
@@ -599,6 +603,10 @@ public class RealmHub : Hub
     {
         var realm = GetRealmAsHost(realmId);
 
+        // Guard against double-cleanup if the realm was already ended by auto-end or admin
+        var alreadyEnded = realm.WithLock(r => r.Status == RealmStatus.Ended);
+        if (alreadyEnded) return;
+
         realm.WithLock(r =>
         {
             r.Status = RealmStatus.Ended;
@@ -840,7 +848,7 @@ public class RealmHub : Hub
     /// Uses the provided client ID list (from KnownClientIds) so that disconnected clients
     /// whose entries were already removed from _connectionMap are still cleaned up.
     /// </summary>
-    private static void CleanupRealmHubState(string realmId, IEnumerable<string> knownClientIds)
+    internal static void CleanupRealmHubState(string realmId, IEnumerable<string> knownClientIds)
     {
         foreach (var clientId in knownClientIds)
         {
@@ -895,18 +903,23 @@ public class RealmHub : Hub
         if (!_calibrationSessions.TryGetValue(sessionId, out var session))
             throw new HubException("Calibration session not found.");
 
-        if (session.ClientId is not null)
-            throw new HubException("A client is already connected to this calibration session.");
+        string dashboardConnectionId;
+        lock (session.Lock)
+        {
+            if (session.ClientId is not null)
+                throw new HubException("A client is already connected to this calibration session.");
 
-        session.ClientId = clientId;
-        session.ClientConnectionId = Context.ConnectionId;
-        session.HeightCm = heightCm;
+            session.ClientId = clientId;
+            session.ClientConnectionId = Context.ConnectionId;
+            session.HeightCm = heightCm;
+            dashboardConnectionId = session.DashboardConnectionId;
+        }
 
         // Notify the joining client so it knows this is a calibration session
         await Clients.Caller.SendAsync("JoinedCalibrationSession", sessionId);
 
         // Notify dashboard that the client has connected (include height from client profile)
-        await Clients.Client(session.DashboardConnectionId)
+        await Clients.Client(dashboardConnectionId)
             .SendAsync("CalibrationClientJoined", sessionId, clientId, heightCm);
     }
 
@@ -918,13 +931,18 @@ public class RealmHub : Hub
         if (!_calibrationSessions.TryGetValue(sessionId, out var session))
             throw new HubException("Calibration session not found.");
 
-        if (session.ClientConnectionId != Context.ConnectionId)
-            throw new HubException("Not the connected client for this session.");
+        string dashboardConnectionId;
+        lock (session.Lock)
+        {
+            if (session.ClientConnectionId != Context.ConnectionId)
+                throw new HubException("Not the connected client for this session.");
 
-        session.LatestSteps = steps;
+            session.LatestSteps = steps;
+            dashboardConnectionId = session.DashboardConnectionId;
+        }
 
         // Forward step data to the dashboard for UI updates
-        await Clients.Client(session.DashboardConnectionId)
+        await Clients.Client(dashboardConnectionId)
             .SendAsync("CalibrationDataReceived", sessionId, steps);
     }
 
@@ -936,15 +954,18 @@ public class RealmHub : Hub
         if (!_calibrationSessions.TryGetValue(sessionId, out var session))
             throw new HubException("Calibration session not found.");
 
-        if (session.DashboardConnectionId != Context.ConnectionId)
-            throw new HubException("Not the dashboard for this session.");
-
         if (targetSpeedKmh is <= 0 or > 30)
             throw new HubException("Target speed must be between 0 and 30 km/h.");
 
-        session.CurrentTargetSpeedKmh = targetSpeedKmh;
-        session.SampleStartSteps = session.LatestSteps;
-        session.SampleStartTime = DateTime.UtcNow;
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId)
+                throw new HubException("Not the dashboard for this session.");
+
+            session.CurrentTargetSpeedKmh = targetSpeedKmh;
+            session.SampleStartSteps = session.LatestSteps;
+            session.SampleStartTime = DateTime.UtcNow;
+        }
     }
 
     /// <summary>
@@ -955,41 +976,48 @@ public class RealmHub : Hub
         if (!_calibrationSessions.TryGetValue(sessionId, out var session))
             throw new HubException("Calibration session not found.");
 
-        if (session.DashboardConnectionId != Context.ConnectionId)
-            throw new HubException("Not the dashboard for this session.");
-
-        if (session.SampleStartTime is null || session.CurrentTargetSpeedKmh is null)
-            throw new HubException("No active sample to end.");
-
-        var elapsed = (DateTime.UtcNow - session.SampleStartTime.Value).TotalSeconds;
-        if (elapsed < 5)
-            throw new HubException("Sample duration too short (minimum 5 seconds).");
-
-        var stepDelta = session.LatestSteps - (session.SampleStartSteps ?? 0);
-        if (stepDelta <= 0)
-            throw new HubException("No steps recorded during the sample.");
-
-        var stepRate = stepDelta / elapsed; // steps per second
-        var speedMs = session.CurrentTargetSpeedKmh.Value / 3.6;
-        var strideLengthM = speedMs / stepRate;
-        var strideFactor = strideLengthM / (session.HeightCm / 100.0);
-
-        // Clamp to reasonable range
-        strideFactor = Math.Clamp(strideFactor, 0.2, 1.0);
-
-        var point = new StrideCalibrationPoint
+        StrideCalibrationPoint point;
+        string dashboardConnectionId;
+        lock (session.Lock)
         {
-            SpeedKmh = session.CurrentTargetSpeedKmh.Value,
-            StrideFactor = Math.Round(strideFactor, 4),
-        };
-        session.CollectedPoints.Add(point);
+            if (session.DashboardConnectionId != Context.ConnectionId)
+                throw new HubException("Not the dashboard for this session.");
 
-        // Reset sample state
-        session.CurrentTargetSpeedKmh = null;
-        session.SampleStartSteps = null;
-        session.SampleStartTime = null;
+            if (session.SampleStartTime is null || session.CurrentTargetSpeedKmh is null)
+                throw new HubException("No active sample to end.");
 
-        await Clients.Client(session.DashboardConnectionId)
+            var elapsed = (DateTime.UtcNow - session.SampleStartTime.Value).TotalSeconds;
+            if (elapsed < 5)
+                throw new HubException("Sample duration too short (minimum 5 seconds).");
+
+            var stepDelta = session.LatestSteps - (session.SampleStartSteps ?? 0);
+            if (stepDelta <= 0)
+                throw new HubException("No steps recorded during the sample.");
+
+            var stepRate = stepDelta / elapsed; // steps per second
+            var speedMs = session.CurrentTargetSpeedKmh.Value / 3.6;
+            var strideLengthM = speedMs / stepRate;
+            var strideFactor = strideLengthM / (session.HeightCm / 100.0);
+
+            // Clamp to reasonable range
+            strideFactor = Math.Clamp(strideFactor, 0.2, 1.0);
+
+            point = new StrideCalibrationPoint
+            {
+                SpeedKmh = session.CurrentTargetSpeedKmh.Value,
+                StrideFactor = Math.Round(strideFactor, 4),
+            };
+            session.CollectedPoints.Add(point);
+
+            // Reset sample state
+            session.CurrentTargetSpeedKmh = null;
+            session.SampleStartSteps = null;
+            session.SampleStartTime = null;
+
+            dashboardConnectionId = session.DashboardConnectionId;
+        }
+
+        await Clients.Client(dashboardConnectionId)
             .SendAsync("CalibrationSampleResult", sessionId, point);
     }
 
@@ -1002,25 +1030,34 @@ public class RealmHub : Hub
         if (!_calibrationSessions.TryGetValue(sessionId, out var session))
             throw new HubException("Calibration session not found.");
 
-        if (session.DashboardConnectionId != Context.ConnectionId)
-            throw new HubException("Not the dashboard for this session.");
+        StrideCalibrationPoint[] points;
+        string dashboardConnectionId;
+        string? clientConnectionId;
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId)
+                throw new HubException("Not the dashboard for this session.");
 
-        if (session.CollectedPoints.Count < 2)
-            throw new HubException("At least 2 calibration samples are required.");
+            if (session.CollectedPoints.Count < 2)
+                throw new HubException("At least 2 calibration samples are required.");
 
-        var points = session.CollectedPoints
-            .OrderBy(p => p.SpeedKmh)
-            .ToArray();
+            points = session.CollectedPoints
+                .OrderBy(p => p.SpeedKmh)
+                .ToArray();
+
+            dashboardConnectionId = session.DashboardConnectionId;
+            clientConnectionId = session.ClientConnectionId;
+        }
 
         // Send calibration data to the wearable client for storage
-        if (session.ClientConnectionId is not null)
+        if (clientConnectionId is not null)
         {
-            await Clients.Client(session.ClientConnectionId)
+            await Clients.Client(clientConnectionId)
                 .SendAsync("CalibrationComplete", points);
         }
 
         // Notify dashboard of completion
-        await Clients.Client(session.DashboardConnectionId)
+        await Clients.Client(dashboardConnectionId)
             .SendAsync("CalibrationSaved", sessionId, points);
 
         // Clean up session
@@ -1035,9 +1072,12 @@ public class RealmHub : Hub
         if (!_calibrationSessions.TryGetValue(sessionId, out var session))
             return;
 
-        if (session.DashboardConnectionId != Context.ConnectionId &&
-            session.ClientConnectionId != Context.ConnectionId)
-            return;
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId &&
+                session.ClientConnectionId != Context.ConnectionId)
+                return;
+        }
 
         CleanupCalibrationSession(sessionId);
     }
@@ -1052,17 +1092,20 @@ public class RealmHub : Hub
 
     private static string GenerateCalibrationJoinCode()
     {
-        var rng = new Random();
         string code;
         do
         {
-            code = rng.Next(100000, 999999).ToString();
+            // Upper bound is exclusive, so 1000000 gives codes 100000–999999
+            code = Random.Shared.Next(100000, 1000000).ToString();
         } while (_calibrationJoinCodes.ContainsKey(code));
         return code;
     }
 
-    private class CalibrationSession
+    internal class CalibrationSession
     {
+        /// <summary>Lock guarding all mutable state on this session.</summary>
+        public readonly object Lock = new();
+
         public string SessionId { get; set; } = string.Empty;
         public string JoinCode { get; set; } = string.Empty;
         public string DashboardConnectionId { get; set; } = string.Empty;
@@ -1070,6 +1113,9 @@ public class RealmHub : Hub
         public string? ClientConnectionId { get; set; }
         public double HeightCm { get; set; }
         public int LatestSteps { get; set; }
+
+        /// <summary>When this session was created, used for TTL-based cleanup.</summary>
+        public DateTime CreatedAt { get; } = DateTime.UtcNow;
 
         // Current sample state
         public double? CurrentTargetSpeedKmh { get; set; }

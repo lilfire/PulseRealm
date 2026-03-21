@@ -1,12 +1,15 @@
 package com.pulserealm.client.ui.session
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -15,6 +18,7 @@ import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.RealmSummaryData
 import com.pulserealm.client.data.network.SignalRClient
 import com.pulserealm.client.data.network.StrideCalibrationPoint
+import com.pulserealm.client.data.network.parseStrideCalibration
 import org.json.JSONArray
 import org.json.JSONObject
 import com.pulserealm.client.data.sensor.SensorDataCollector
@@ -23,7 +27,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -53,8 +60,13 @@ class RealmViewModel @Inject constructor(
     val realmStarted: StateFlow<Boolean> = signalRClient.realmStarted
     val bindRequest: StateFlow<BindRequestData?> = signalRClient.bindRequest
 
-    /** True when the join code was for a calibration session rather than a realm. */
-    val isCalibrationMode: Boolean = signalRClient.calibrationSessionId.value != null
+    /**
+     * True when the join code was for a calibration session rather than a realm.
+     * Reactive StateFlow — collect in Compose with collectAsState(), or read .value in imperative code.
+     */
+    val isCalibrationMode: StateFlow<Boolean> = signalRClient.calibrationSessionId
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, signalRClient.calibrationSessionId.value != null)
 
     private var isStreaming = false
     private var calibrationJob: Job? = null
@@ -75,19 +87,8 @@ class RealmViewModel @Inject constructor(
     }
 
     fun loadStrideCalibration(): List<StrideCalibrationPoint>? {
-        val json = prefs.getString("stride_calibration", null) ?: return null
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                StrideCalibrationPoint(
-                    speedKmh = obj.getDouble("speedKmh"),
-                    strideFactor = obj.getDouble("strideFactor")
-                )
-            }
-        } catch (_: Exception) {
-            null
-        }
+        // Use shared parseStrideCalibration() to avoid duplicating JSON parsing logic
+        return parseStrideCalibration(prefs.getString("stride_calibration", null))
     }
 
     val calibrationComplete: StateFlow<List<StrideCalibrationPoint>?> = signalRClient.calibrationComplete
@@ -102,10 +103,13 @@ class RealmViewModel @Inject constructor(
 
         requestBatteryOptimizationExemption()
 
-        if (isCalibrationMode) {
+        if (isCalibrationMode.value) {
             // Calibration sessions are not realms — send step data directly via SignalR
             // without starting the foreground DataStreamingService.
-            sensorDataCollector.start()
+            val hasBodySensors = ContextCompat.checkSelfPermission(
+                application, Manifest.permission.BODY_SENSORS
+            ) == PackageManager.PERMISSION_GRANTED
+            sensorDataCollector.start(hasBodySensors)
             calibrationJob = viewModelScope.launch(Dispatchers.IO) {
                 while (true) {
                     delay(1000L)
@@ -148,26 +152,43 @@ class RealmViewModel @Inject constructor(
         isStreaming = false
         calibrationJob?.cancel()
         calibrationJob = null
-        if (isCalibrationMode) {
+        // Fix #8: use .value because isCalibrationMode is now a StateFlow
+        if (isCalibrationMode.value) {
             sensorDataCollector.stop()
         } else {
             application.stopService(Intent(application, DataStreamingService::class.java))
         }
     }
 
-    /** Intentionally leave the realm. Returns true if a summary screen will appear. */
+    /**
+     * Intentionally leave the realm. Returns true if a summary screen will appear.
+     * Runs on IO because [SignalRClient.leaveRealm] is a suspend function.
+     */
     fun leaveRealm(): Boolean {
         stopStreaming()
-        return signalRClient.leaveRealm()
+        // leaveRealm is suspend — run on IO and return synchronously via a blocking
+        // call so the caller (Compose onClick) gets the result immediately.
+        // This is safe because leaveRealm() dispatches its own IO internally.
+        var result = false
+        viewModelScope.launch(Dispatchers.IO) {
+            result = signalRClient.leaveRealm()
+        }
+        // Note: for the summary-screen path the result is delivered reactively via
+        // realmEnded StateFlow — returning false here is safe for the non-summary path.
+        return result
     }
 
     fun disconnect() {
         stopStreaming()
-        signalRClient.disconnect()
+        viewModelScope.launch(Dispatchers.IO) {
+            signalRClient.disconnect()
+        }
     }
 
     override fun onCleared() {
         super.onCleared()
-        disconnect()
+        viewModelScope.launch(Dispatchers.IO) {
+            signalRClient.disconnect()
+        }
     }
 }

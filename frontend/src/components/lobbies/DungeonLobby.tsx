@@ -10,7 +10,7 @@ export interface DungeonConfig {
 }
 
 export interface DungeonDefaults {
-  difficulty?: string;
+  difficulty?: DungeonDifficulty;
   timeframeMinutes?: number;
 }
 
@@ -28,7 +28,7 @@ interface Props {
   hostSecret?: string;
   defaults?: DungeonDefaults | null;
   lobbySettings?: Record<string, unknown> | null;
-  onSettingsChange?: (settings: object) => void;
+  onSettingsChange?: (settings: Record<string, unknown>) => void;
   onRequestBind?: (clientId: string) => void;
   onCancelBind?: (clientId: string) => void;
   bindCode?: string | null;
@@ -49,7 +49,7 @@ const timeframes = [15, 30, 45, 60];
 export function DungeonLobby({ joinCode, mode, clients, clientProfiles, connected, onStart, onLeave, onEnd, onKick, role, hostSecret, defaults, lobbySettings, onSettingsChange, onRequestBind, onCancelBind, bindCode, bindPending, bindResult, boundClientId, clientBindings }: Props) {
   const validDifficulties: DungeonDifficulty[] = ["easy", "normal", "hard"];
   const [difficulty, setDifficulty] = useState<DungeonDifficulty>(
-    validDifficulties.includes(defaults?.difficulty as DungeonDifficulty) ? (defaults!.difficulty as DungeonDifficulty) : "normal"
+    defaults?.difficulty != null && validDifficulties.includes(defaults.difficulty) ? defaults.difficulty : "normal"
   );
   const [timeframe, setTimeframe] = useState(defaults?.timeframeMinutes ?? 30);
 

@@ -24,6 +24,10 @@ public class AdminConfigService
         _config = Load();
     }
 
+    /// <summary>
+    /// Returns the current admin configuration.
+    /// Callers must treat the returned object as read-only; mutate only via UpdateConfig.
+    /// </summary>
     public AdminConfig GetConfig()
     {
         lock (_lock)

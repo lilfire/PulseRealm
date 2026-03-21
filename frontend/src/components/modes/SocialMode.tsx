@@ -396,7 +396,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           <div style={{
             fontSize: 40, fontWeight: 700, lineHeight: 1,
             fontFamily: "var(--mono)", color: "var(--text-h)",
-            transition: "all 0.4s ease",
+            transition: "color 0.4s ease, font-size 0.4s ease",
           }}>
             {totalSteps.toLocaleString()}
           </div>
@@ -408,7 +408,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           <div style={{
             fontSize: 24, fontWeight: 600, lineHeight: 1,
             fontFamily: "var(--mono)", color: "var(--text-h)",
-            transition: "all 0.4s ease",
+            transition: "color 0.4s ease, font-size 0.4s ease",
           }}>
             {totalDistKm.toFixed(2)}
           </div>
@@ -420,7 +420,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           <div style={{
             fontSize: 24, fontWeight: 600, lineHeight: 1,
             fontFamily: "var(--mono)", color: avgHr > 0 ? "var(--text-h)" : "var(--text)",
-            transition: "all 0.4s ease",
+            transition: "color 0.4s ease, font-size 0.4s ease",
           }}>
             {avgHr > 0 ? avgHr : "—"}
           </div>
@@ -432,7 +432,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
           <div style={{
             fontSize: 24, fontWeight: 600, lineHeight: 1,
             fontFamily: "var(--mono)", color: totalCalories > 0 ? "var(--text-h)" : "var(--text)",
-            transition: "all 0.4s ease",
+            transition: "color 0.4s ease, font-size 0.4s ease",
           }}>
             {totalCalories > 0 ? Math.round(totalCalories) : "—"}
           </div>
@@ -507,7 +507,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 <span style={{
                   fontSize: 24, fontWeight: 700, fontFamily: "var(--mono)",
                   color: active && hr > 0 ? "var(--text-h)" : "var(--text)",
-                  transition: "all 0.4s ease",
+                  transition: "color 0.4s ease, font-size 0.4s ease",
                 }}>
                   {active && hr > 0 ? hr : "—"}
                 </span>
@@ -543,7 +543,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 <span style={{
                   fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
                   color: active && cadence > 0 ? "var(--text-h)" : "var(--text)",
-                  transition: "all 0.4s ease",
+                  transition: "color 0.4s ease, font-size 0.4s ease",
                 }}>
                   {active && cadence > 0 ? cadence : "—"}
                 </span>
@@ -555,7 +555,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 <span style={{
                   fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
                   color: active && (t?.caloriesBurned ?? 0) > 0 ? "var(--text-h)" : "var(--text)",
-                  transition: "all 0.4s ease",
+                  transition: "color 0.4s ease, font-size 0.4s ease",
                 }}>
                   {active && (t?.caloriesBurned ?? 0) > 0 ? Math.round(t!.caloriesBurned) : "—"}
                 </span>
@@ -567,7 +567,7 @@ export function SocialMode({ clients, clientProfiles, latestData, onEnd, role = 
                 <span style={{
                   fontSize: 24, fontWeight: 600, fontFamily: "var(--mono)",
                   color: active && (t?.currentSpeedKmh ?? 0) > 0 ? "var(--text-h)" : "var(--text)",
-                  transition: "all 0.4s ease",
+                  transition: "color 0.4s ease, font-size 0.4s ease",
                 }}>
                   {active && (t?.currentSpeedKmh ?? 0) > 0 ? t!.currentSpeedKmh.toFixed(1) : "—"}
                 </span>

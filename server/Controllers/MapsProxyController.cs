@@ -14,6 +14,21 @@ public class MapsProxyController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
 
+    // Allowlists of query parameters accepted per endpoint type.
+    // The 'key' parameter is always stripped from incoming requests to prevent callers
+    // from overriding the server-side API key.
+    private static readonly HashSet<string> StaticMapAllowedParams = new(StringComparer.OrdinalIgnoreCase)
+        { "size", "maptype", "center", "zoom", "markers", "path", "style", "scale", "format", "language", "region" };
+
+    private static readonly HashSet<string> StreetViewAllowedParams = new(StringComparer.OrdinalIgnoreCase)
+        { "size", "location", "heading", "pitch", "fov", "pano", "radius", "source", "return_error_code" };
+
+    private static readonly HashSet<string> DirectionsAllowedParams = new(StringComparer.OrdinalIgnoreCase)
+        { "origin", "destination", "mode", "waypoints", "alternatives", "avoid", "language", "region", "units" };
+
+    // PlacesAutocomplete and PlacesDetails use [FromQuery] bound parameters and build their
+    // URLs explicitly, so no allowlist filtering is needed for those endpoints.
+
     public MapsProxyController(IConfiguration configuration, IHttpClientFactory httpClientFactory)
     {
         _configuration = configuration;
@@ -28,7 +43,7 @@ public class MapsProxyController : ControllerBase
     [ResponseCache(Duration = 300)]
     public async Task<IActionResult> StaticMap()
     {
-        return await ProxyGet("https://maps.googleapis.com/maps/api/staticmap");
+        return await ProxyGet("https://maps.googleapis.com/maps/api/staticmap", StaticMapAllowedParams);
     }
 
     /// <summary>
@@ -39,7 +54,7 @@ public class MapsProxyController : ControllerBase
     [ResponseCache(Duration = 300)]
     public async Task<IActionResult> StreetView()
     {
-        return await ProxyGet("https://maps.googleapis.com/maps/api/streetview");
+        return await ProxyGet("https://maps.googleapis.com/maps/api/streetview", StreetViewAllowedParams);
     }
 
     /// <summary>
@@ -49,7 +64,7 @@ public class MapsProxyController : ControllerBase
     [HttpGet("streetview/metadata")]
     public async Task<IActionResult> StreetViewMetadata()
     {
-        return await ProxyGet("https://maps.googleapis.com/maps/api/streetview/metadata");
+        return await ProxyGet("https://maps.googleapis.com/maps/api/streetview/metadata", StreetViewAllowedParams);
     }
 
     /// <summary>
@@ -67,9 +82,9 @@ public class MapsProxyController : ControllerBase
             return BadRequest("Google Maps API key not configured");
         }
 
-        var qs = HttpContext.Request.QueryString.Value ?? "";
-        var separator = qs.Length > 0 ? "&" : "?";
-        var url = $"https://maps.googleapis.com/maps/api/directions/json{qs}{separator}mode=walking&key={apiKey}";
+        var filteredQs = BuildFilteredQueryString(DirectionsAllowedParams);
+        var separator = filteredQs.Length > 0 ? "&" : "?";
+        var url = $"https://maps.googleapis.com/maps/api/directions/json{filteredQs}{separator}mode=walking&key={apiKey}";
 
         var client = _httpClientFactory.CreateClient();
         var response = await client.GetAsync(url);
@@ -313,7 +328,30 @@ public class MapsProxyController : ControllerBase
         });
     }
 
-    private async Task<IActionResult> ProxyGet(string baseGoogleUrl)
+    /// <summary>
+    /// Builds a filtered query string from the incoming request, allowing only parameters
+    /// present in the allowlist. The 'key' parameter is always excluded to prevent overriding
+    /// the server-side API key.
+    /// </summary>
+    private string BuildFilteredQueryString(HashSet<string> allowedParams)
+    {
+        var query = HttpContext.Request.Query;
+        var parts = new List<string>();
+        foreach (var (name, values) in query)
+        {
+            if (string.Equals(name, "key", StringComparison.OrdinalIgnoreCase))
+                continue; // Never forward the key parameter
+            if (!allowedParams.Contains(name))
+                continue;
+            foreach (var value in values)
+            {
+                parts.Add($"{Uri.EscapeDataString(name)}={Uri.EscapeDataString(value ?? "")}");
+            }
+        }
+        return parts.Count > 0 ? "?" + string.Join("&", parts) : "";
+    }
+
+    private async Task<IActionResult> ProxyGet(string baseGoogleUrl, HashSet<string> allowedParams)
     {
         var apiKey = _configuration["GOOGLE_MAPS_API_KEY"];
         if (string.IsNullOrEmpty(apiKey))
@@ -321,10 +359,10 @@ public class MapsProxyController : ControllerBase
             return BadRequest("Google Maps API key not configured");
         }
 
-        // Forward the original query string and append the API key
-        var qs = HttpContext.Request.QueryString.Value ?? "";
-        var separator = qs.Length > 0 ? "&" : "?";
-        var url = $"{baseGoogleUrl}{qs}{separator}key={apiKey}";
+        // Build a filtered query string from allowed parameters only, then append the API key
+        var filteredQs = BuildFilteredQueryString(allowedParams);
+        var separator = filteredQs.Length > 0 ? "&" : "?";
+        var url = $"{baseGoogleUrl}{filteredQs}{separator}key={apiKey}";
 
         var client = _httpClientFactory.CreateClient();
         var response = await client.GetAsync(url);

@@ -3,8 +3,8 @@ import type { ClientProfile, CompetitionConfig, CompetitionSubMode, PlayerFormat
 import { LobbyShell } from "./LobbyShell";
 
 export interface CompetitionDefaults {
-  subMode?: string;
-  playerFormat?: string;
+  subMode?: CompetitionSubMode;
+  playerFormat?: PlayerFormat;
   targetDistanceKm?: number;
   intervalMinutes?: number;
   targetZone?: number;
@@ -25,7 +25,7 @@ interface Props {
   hostSecret?: string;
   defaults?: CompetitionDefaults | null;
   lobbySettings?: Record<string, unknown> | null;
-  onSettingsChange?: (settings: object) => void;
+  onSettingsChange?: (settings: Record<string, unknown>) => void;
   onRequestBind?: (clientId: string) => void;
   onCancelBind?: (clientId: string) => void;
   bindCode?: string | null;
@@ -63,10 +63,10 @@ export function CompetitionLobby({ joinCode, mode, clients, clientProfiles, conn
   const validSubModes: CompetitionSubMode[] = ["race", "elimination", "heartzone", "king"];
   const validFormats: PlayerFormat[] = ["individual", "team"];
   const [subMode, setSubMode] = useState<CompetitionSubMode>(
-    validSubModes.includes(defaults?.subMode as CompetitionSubMode) ? (defaults!.subMode as CompetitionSubMode) : "race"
+    defaults?.subMode != null && validSubModes.includes(defaults.subMode) ? defaults.subMode : "race"
   );
   const [playerFormat, setPlayerFormat] = useState<PlayerFormat>(
-    validFormats.includes(defaults?.playerFormat as PlayerFormat) ? (defaults!.playerFormat as PlayerFormat) : "individual"
+    defaults?.playerFormat != null && validFormats.includes(defaults.playerFormat) ? defaults.playerFormat : "individual"
   );
   const [teams, setTeams] = useState<TeamAssignment[]>([
     { name: "Team 1", color: TEAM_COLORS[0], clientIds: [] },

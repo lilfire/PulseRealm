@@ -37,6 +37,8 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
   const containerRef = useRef<HTMLDivElement>(null);
   const prevYTCallbackRef = useRef<(() => void) | undefined>(undefined);
   const speedRef = useRef(0);
+  // Issue #6 — store latestData in a ref to decouple calories interval from latestData changes
+  const latestDataRef = useRef(latestData);
   const totalDistanceRef = useRef(0);
   const [totalDistanceDisplay, setTotalDistanceDisplay] = useState(0);
   const caloriesRef = useRef(0);
@@ -59,21 +61,24 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
   // Track speed from wearable data
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
+    latestDataRef.current = latestData;
   }, [latestData]);
 
   // Accumulate calories (1-second tick)
+  // Issue #6 — use latestDataRef so this interval is not recreated on every data packet
   useEffect(() => {
     const id = setInterval(() => {
       const clientId = clients[0];
-      if (!clientId || !latestData) return;
+      const data = latestDataRef.current;
+      if (!clientId || !data) return;
       const profile = clientProfiles[clientId];
-      if (profile?.weightKg && profile?.age && latestData.heartRate > 0) {
-        caloriesRef.current += estimateCaloriesPerSecond(latestData.heartRate, profile.weightKg, profile.age);
+      if (profile?.weightKg && profile?.age && data.heartRate > 0) {
+        caloriesRef.current += estimateCaloriesPerSecond(data.heartRate, profile.weightKg, profile.age);
         setCaloriesDisplay(Math.round(caloriesRef.current));
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [clients, clientProfiles, latestData]);
+  }, [clients, clientProfiles]);
 
   // Accumulate distance for summary
   useEffect(() => {
@@ -297,6 +302,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
 
       {/* Left panel: HUD stats + mute + End Realm */}
       <div
+        className="fg-col"
         style={{
           ...overlayPanel,
           position: "absolute",
@@ -308,8 +314,8 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
           lineHeight: 1.8,
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-        }}
+          "--fg": "0.5rem",
+        } as React.CSSProperties}
       >
         <PlayerHud
           name={profile?.name || clientId || "Waiting for player..."}
@@ -318,7 +324,7 @@ export function YouTubeTrailMode({ clients, clientProfiles, latestData, video, o
           caloriesDisplay={caloriesDisplay}
           totalDistanceDisplay={totalDistanceDisplay.toFixed(0)}
         />
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+        <div className="fg-row" style={{ display: "flex", marginTop: "0.25rem", "--fg": "0.5rem" } as React.CSSProperties}>
           <button
             onClick={toggleMute}
             style={{

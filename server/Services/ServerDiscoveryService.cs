@@ -116,8 +116,15 @@ public class ServerDiscoveryService : BackgroundService
                 {
                     break;
                 }
+                catch (SocketException ex) when (ex.SocketErrorCode == SocketError.OperationAborted)
+                {
+                    // Socket was closed due to cancellation — exit cleanly
+                    break;
+                }
                 catch (Exception ex)
                 {
+                    if (stoppingToken.IsCancellationRequested)
+                        break;
                     _logger.LogDebug(ex, "Error handling discovery request");
                 }
             }

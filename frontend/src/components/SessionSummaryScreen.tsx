@@ -9,7 +9,8 @@ interface Props {
   onClose: () => void;
 }
 
-function formatDuration(seconds: number): string {
+// Issue #20 — renamed to avoid shadowing formatDuration from utils/wearable
+function formatDurationLong(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
@@ -81,8 +82,8 @@ export function RealmSummaryScreen({ summary, clientProfiles, onClose }: Props) 
         flexWrap: "wrap",
         "--fg": "1rem",
       } as React.CSSProperties}>
-        <StatCard label="Duration" value={formatDuration(summary.durationSeconds)} />
-        <StatCard label="Active Time" value={formatDuration(summary.activePeriodSeconds ?? 0)} />
+        <StatCard label="Duration" value={formatDurationLong(summary.durationSeconds)} />
+        <StatCard label="Active Time" value={formatDurationLong(summary.activePeriodSeconds ?? 0)} />
         <StatCard label="Participants" value={`${summary.participantCount ?? 0}`} />
       </div>
 

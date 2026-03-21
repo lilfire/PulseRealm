@@ -156,9 +156,11 @@ describe("StaticRouteMode", () => {
 
   it("shows speed and HR when latestData is provided", () => {
     renderMode({ latestData: makeData() });
-    expect(screen.getByText("8.0 km/h")).toBeInTheDocument();
-    expect(screen.getByText("140 bpm")).toBeInTheDocument();
-    expect(screen.getByText("500 steps")).toBeInTheDocument();
+    expect(screen.getByText("8.0")).toBeInTheDocument();
+    expect(screen.getByText("km/h")).toBeInTheDocument();
+    expect(screen.getByText("140")).toBeInTheDocument();
+    expect(screen.getByText("bpm")).toBeInTheDocument();
+    expect(screen.getByText("500")).toBeInTheDocument();
   });
 
   it("shows zone badge for non-zero HR", () => {

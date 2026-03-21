@@ -4,47 +4,14 @@ import {
   HubConnectionBuilder,
   LogLevel,
 } from "@microsoft/signalr";
-import type { ClientProfile, WearableData } from "../types/session";
-
-export interface ClientSummary {
-  clientId: string;
-  name: string;
-  steps: number;
-  distanceMeters: number;
-  averageHeartRate: number;
-  maxHeartRate: number;
-  avgCadenceSpm: number;
-  caloriesBurned: number;
-  timeInZone: Record<string, number>;
-  averageSpeedKmh: number;
-  peakSpeedKmh: number;
-  elevationGainMeters?: number;
-  teamName?: string;
-  teamColor?: string;
-}
-
-export interface RealmSummary {
-  durationSeconds: number;
-  totalDistanceMeters: number;
-  totalSteps: number;
-  averageHeartRate: number;
-  maxHeartRate: number;
-  averageSpeedKmh: number;
-  avgCadenceSpm: number;
-  caloriesBurned: number;
-  peakSpeedKmh: number;
-  timeInZone: Record<string, number>;
-  activePeriodSeconds: number;
-  participantCount: number;
-  isTeamFormat?: boolean;
-  elevationGainMeters?: number;
-  clientSummaries?: ClientSummary[];
-}
+import type { ClientProfile, RealmSummary, WearableData } from "../types/session";
+export type { ClientSummary, RealmSummary } from "../types/session";
 
 const DEFAULT_HUB_URL = import.meta.env.VITE_HUB_URL ?? "";
 
 export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?: string) {
   const connectionRef = useRef<HubConnection | null>(null);
+  const bindTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [connected, setConnected] = useState(false);
   const [started, setStarted] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -152,7 +119,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     connection.on("RealmStarted", (config?: string) => {
       setStarted(true);
       if (config) {
-        try { setRealmConfig(JSON.parse(config)); } catch { /* ignore */ }
+        try { setRealmConfig(JSON.parse(config)); } catch (e) { console.error("Failed to parse realm config:", e); }
       }
     });
 
@@ -173,7 +140,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
         setStarted(true);
       }
       if (state.config) {
-        try { setRealmConfig(JSON.parse(state.config)); } catch { /* ignore */ }
+        try { setRealmConfig(JSON.parse(state.config)); } catch (e) { console.error("Failed to parse realm config:", e); }
       }
       if (state.clientBindings?.length) {
         const bindings: Record<string, boolean> = {};
@@ -189,7 +156,7 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     });
 
     connection.on("LobbySettingsUpdated", (settingsJson: string) => {
-      try { setLobbySettings(JSON.parse(settingsJson)); } catch { /* ignore */ }
+      try { setLobbySettings(JSON.parse(settingsJson)); } catch (e) { console.error("Failed to parse lobby settings:", e); }
     });
 
     connection.on("BindCodeGenerated", (code: string, _clientId: string) => {
@@ -206,8 +173,13 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
       } else {
         setBindResult("declined");
       }
-      // Auto-clear bind code after a short delay
-      setTimeout(() => { setBindCode(null); setBindResult(null); }, approved ? 1000 : 2000);
+      // Auto-clear bind code after a short delay; store ID so cleanup can cancel it
+      if (bindTimerRef.current !== undefined) clearTimeout(bindTimerRef.current);
+      bindTimerRef.current = setTimeout(() => {
+        setBindCode(null);
+        setBindResult(null);
+        bindTimerRef.current = undefined;
+      }, approved ? 1000 : 2000);
     });
 
     connection.on("ClientBound", (clientId: string) => {
@@ -245,6 +217,11 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
 
     return () => {
       active = false;
+      // Clear any pending bind-result auto-dismiss timer
+      if (bindTimerRef.current !== undefined) {
+        clearTimeout(bindTimerRef.current);
+        bindTimerRef.current = undefined;
+      }
       connection.stop();
     };
   }, [realmId, resolvedUrl, hostSecret]);
@@ -291,5 +268,6 @@ export function useRealmHub(realmId: string | null, hubUrl?: string, hostSecret?
     connectionRef.current?.invoke("SetSpeedOverride", realmId, clientId, speedKmh);
   }, [realmId]);
 
+  // disconnectedClients: available for future use (e.g. greyed-out player indicators)
   return { connected, started, ended, realmSummary, clients, clientProfiles, latestData, realmConfig, lobbySettings, disconnectedClients, startRealm, endRealm, notifyEliminated, kickClient, updateLobbySettings, boundClientId, bindCode, bindPending, bindResult, clientBindings, clientInclines, clientSpeedOverrides, requestBind, cancelBind, setIncline, setSpeedOverride };
 }

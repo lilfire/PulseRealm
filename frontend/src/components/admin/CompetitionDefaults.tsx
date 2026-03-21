@@ -1,3 +1,5 @@
+import type { AdminConfig } from "./AdminDashboard";
+
 interface Props {
   subMode: string;
   playerFormat: string;
@@ -5,7 +7,7 @@ interface Props {
   intervalMinutes: number;
   targetZone: number;
   durationMinutes: number;
-  onChange: (field: string, value: string | number) => void;
+  onChange: <K extends keyof AdminConfig>(field: K, value: AdminConfig[K]) => void;
 }
 
 export function CompetitionDefaults({ subMode, playerFormat, targetDistanceKm, intervalMinutes, targetZone, durationMinutes, onChange }: Props) {

@@ -186,7 +186,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
         // Walked-portion polyline (bright, drawn on top)
         walkedPolylineRef.current = new google.maps.Polyline({
           path: [path[0]],
-          strokeColor: "#00D4FF",
+          strokeColor: "#33DFFF",
           strokeOpacity: 1,
           strokeWeight: 6,
           map,
@@ -361,6 +361,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
 
       {/* Left panel: HUD stats + End Realm */}
       <div
+        className="fg-col"
         style={{
           ...overlayPanel,
           position: "absolute",
@@ -372,8 +373,8 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
           lineHeight: 1.8,
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-        }}
+          "--fg": "0.5rem",
+        } as React.CSSProperties}
       >
         <PlayerHud
           name={profile?.name || clientId || "Waiting for player..."}
@@ -419,7 +420,7 @@ export function RouteMode({ clients, clientProfiles, latestData, route, onEnd, r
           <div style={{ fontWeight: 600 }}>{routeInfo.distanceText}</div>
           <div style={{ color: "#aaa", fontSize: "0.75rem" }}>Est. {routeInfo.durationText}</div>
           <div style={{ color: "#fff", fontSize: "0.8rem", marginTop: "0.2rem" }}>{formatDuration(elapsed)}</div>
-          <div style={{ color: "#00D4FF", fontSize: "0.8rem", marginTop: "0.2rem" }}>{progressPct.toFixed(0)}%</div>
+          <div style={{ color: "#33DFFF", fontSize: "0.8rem", marginTop: "0.2rem" }}>{progressPct.toFixed(0)}%</div>
         </div>
       )}
 

@@ -1181,7 +1181,7 @@ describe("game mode rendering from realmConfig (view-only guest)", () => {
     mockConfigFetch();
     await createRealmAndStart(
       3,
-      { waypoints: [{ lat: 51.5, lng: -0.1 }] },
+      { from: { lat: 51.5, lng: -0.1, address: "Start" }, to: { lat: 51.6, lng: -0.2, address: "End" } },
       "200103"
     );
 

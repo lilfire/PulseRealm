@@ -26,7 +26,7 @@ function createCombinedSignal(parentSignal: AbortSignal, timeoutMs: number): Abo
   parentSignal.addEventListener("abort", () => {
     clearTimeout(timer);
     controller.abort();
-  });
+  }, { once: true });
   return controller.signal;
 }
 

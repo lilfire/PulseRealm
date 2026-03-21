@@ -59,6 +59,23 @@ public class AdminAuthService
         }
     }
 
+    /// <summary>
+    /// Removes all tokens that have exceeded the TTL. Called periodically by RealmCleanupService.
+    /// </summary>
+    public void CleanupExpiredTokens()
+    {
+        lock (_lock)
+        {
+            var now = DateTime.UtcNow;
+            var expired = _tokens
+                .Where(kvp => now - kvp.Value > TokenTtl)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var token in expired)
+                _tokens.Remove(token);
+        }
+    }
+
     private static bool TimingSafeEqual(string a, string b)
     {
         var bytesA = Encoding.UTF8.GetBytes(a);

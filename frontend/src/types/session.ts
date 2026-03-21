@@ -43,7 +43,11 @@ export function maxClientsForMode(mode: RealmMode): number {
     case "route": return 1;
     case "dungeon": return 4;
     case "social": return 4;
-    default: return 4;
+    default: {
+      const _exhaustive: never = mode;
+      void _exhaustive;
+      return 4;
+    }
   }
 }
 
@@ -58,6 +62,47 @@ export interface ClientProfile {
   maxHr?: number;
   strideCalibration?: { speedKmh: number; strideFactor: number }[];
 }
+
+export type LobbySettings = Record<string, unknown> | null;
+
+export type OnEndSimple = (totalDistanceMeters: number) => void;
+
+export interface ClientSummary {
+  clientId: string;
+  name: string;
+  steps: number;
+  distanceMeters: number;
+  averageHeartRate: number;
+  maxHeartRate: number;
+  avgCadenceSpm: number;
+  caloriesBurned: number;
+  timeInZone: Record<string, number>;
+  averageSpeedKmh: number;
+  peakSpeedKmh: number;
+  elevationGainMeters?: number;
+  teamName?: string;
+  teamColor?: string;
+}
+
+export interface RealmSummary {
+  durationSeconds: number;
+  totalDistanceMeters: number;
+  totalSteps: number;
+  averageHeartRate: number;
+  maxHeartRate: number;
+  averageSpeedKmh: number;
+  avgCadenceSpm: number;
+  caloriesBurned: number;
+  peakSpeedKmh: number;
+  timeInZone: Record<string, number>;
+  activePeriodSeconds: number;
+  participantCount: number;
+  isTeamFormat?: boolean;
+  elevationGainMeters?: number;
+  clientSummaries?: ClientSummary[];
+}
+
+export type OnEndWithOverrides = (totalDistanceMeters: number, overrides?: Partial<RealmSummary>) => void;
 
 export interface WearableData {
   clientId: string;

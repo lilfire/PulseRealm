@@ -35,7 +35,7 @@ export function BindControlsHud({ boundClientId, clientInclines, onSetIncline, c
 
   return (
     <div className="fg-col" style={{
-      background: "rgba(0,0,0,0.75)",
+      background: "rgba(0,0,0,0.85)",
       backdropFilter: "blur(8px)",
       border: "1px solid rgba(255,255,255,0.12)",
       borderRadius: 8, padding: "10px 14px",

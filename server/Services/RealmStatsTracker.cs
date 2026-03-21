@@ -10,7 +10,7 @@ namespace PulseRealm.Server.Services;
 /// </summary>
 public class RealmStatsTracker
 {
-    private static readonly ConcurrentDictionary<string, ClientStats> _stats = new();
+    private readonly ConcurrentDictionary<string, ClientStats> _stats = new();
 
     private const double CadenceEmaAlpha = 0.3;
 
@@ -84,7 +84,7 @@ public class RealmStatsTracker
             }
 
             // Accumulate distance using speed-dependent stride
-            if (stats.PrevSteps > 0 && steps > stats.PrevSteps)
+            if (stats.HasPrevSteps && steps > stats.PrevSteps)
             {
                 var stepDelta = steps - stats.PrevSteps;
                 var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
@@ -93,7 +93,7 @@ public class RealmStatsTracker
             }
 
             // Cadence from step deltas with EMA smoothing
-            if (stats.PrevSteps > 0 && steps > stats.PrevSteps && stats.PrevStepsTime != default)
+            if (stats.HasPrevSteps && steps > stats.PrevSteps && stats.PrevStepsTime != default)
             {
                 var dtMinutes = (now - stats.PrevStepsTime).TotalMinutes;
                 if (dtMinutes > 0)
@@ -116,6 +116,7 @@ public class RealmStatsTracker
                 }
             }
             stats.PrevSteps = steps;
+            stats.HasPrevSteps = true;
             stats.PrevStepsTime = now;
             stats.LastRecordedAt = now;
         }
@@ -189,7 +190,11 @@ public class RealmStatsTracker
             }
         }
 
-        // Merge zone times across clients
+        // Merge zone times across clients using Max rather than Sum.
+        // This is intentional for team realm summaries: the value represents the longest time
+        // any single participant spent in that zone during the session, not the total across
+        // all participants. Summing would inflate times proportionally to team size and would
+        // exceed the actual session duration, making the summary misleading.
         var mergedZones = new Dictionary<string, int>();
         foreach (var cs in clientSummaries)
         {
@@ -322,6 +327,7 @@ public class RealmStatsTracker
         public double SmoothedCadence;
         public double CaloriesBurned;
         public int PrevSteps;
+        public bool HasPrevSteps;
         public DateTime PrevStepsTime;
         public DateTime LastRecordedAt;
         public double CurrentInclinePercent;

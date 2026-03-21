@@ -8,7 +8,7 @@ import com.pulserealm.client.data.network.ConnectionState
 import com.pulserealm.client.data.network.SignalRClient
 import com.pulserealm.client.data.network.StrideCalibrationPoint
 import com.pulserealm.client.data.network.UserFriendlyErrors
-import org.json.JSONArray
+import com.pulserealm.client.data.network.parseStrideCalibration
 import com.pulserealm.client.data.model.RealmInfo
 import com.pulserealm.client.data.network.RealmApi
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -69,23 +69,9 @@ class JoinViewModel @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = signalRClient.connectionState
 
     private val strideFactor: Double = prefs.getFloat(PREF_STRIDE_FACTOR, 0f).toDouble()
-    private val strideCalibration: List<StrideCalibrationPoint>? = loadStrideCalibration()
-
-    private fun loadStrideCalibration(): List<StrideCalibrationPoint>? {
-        val json = prefs.getString("stride_calibration", null) ?: return null
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                StrideCalibrationPoint(
-                    speedKmh = obj.getDouble("speedKmh"),
-                    strideFactor = obj.getDouble("strideFactor")
-                )
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
+    // Use shared parseStrideCalibration() to avoid duplicating JSON parsing logic
+    private val strideCalibration: List<StrideCalibrationPoint>? =
+        parseStrideCalibration(prefs.getString("stride_calibration", null))
     private val zone12: Int get() = prefs.getInt(PREF_ZONE_1_2, 57)
     private val zone23: Int get() = prefs.getInt(PREF_ZONE_2_3, 63)
     private val zone34: Int get() = prefs.getInt(PREF_ZONE_3_4, 76)
@@ -257,9 +243,11 @@ class JoinViewModel @Inject constructor(
                     maxHrOverride
                 )
 
-                // 3b. Give the server a moment to deliver JoinedCalibrationSession if applicable,
-                //     since the server send fires on a different thread from blockingAwait.
-                delay(100)
+                // 3b. Give the server a moment to deliver JoinedCalibrationSession if applicable.
+                //     The server sends this event on a different thread from blockingAwait, so
+                //     the hub handler may not have fired yet when joinRealm() returns.
+                //     200ms provides a reliable window without a perceptible UX delay.
+                delay(200)
 
                 // 3c. If this was a calibration join code, skip the REST call — calibration
                 //     sessions are not realms and have no REST endpoint.
@@ -301,7 +289,9 @@ class JoinViewModel @Inject constructor(
     }
 
     fun disconnect() {
-        signalRClient.disconnect()
+        viewModelScope.launch(Dispatchers.IO) {
+            signalRClient.disconnect()
+        }
         _uiState.value = _uiState.value.copy(
             isJoined = false,
             realmInfo = null

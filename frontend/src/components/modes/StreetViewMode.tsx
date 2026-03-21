@@ -37,7 +37,8 @@ function findBestLink(
   let bestDiff = 360;
 
   for (const link of links) {
-    const diff = Math.abs(((link.heading! - targetHeading + 540) % 360) - 180);
+    if (link.heading == null) continue;
+    const diff = Math.abs(((link.heading - targetHeading + 540) % 360) - 180);
     if (diff < bestDiff) {
       bestDiff = diff;
       best = link;
@@ -50,7 +51,7 @@ function findBestLink(
 
 /** Shared panel style for all HUD overlays in fullscreen modes. */
 export const overlayPanel: React.CSSProperties = {
-  background: "rgba(0,0,0,0.75)",
+  background: "rgba(0,0,0,0.85)",
   backdropFilter: "blur(8px)",
   border: "1px solid rgba(255,255,255,0.12)",
   borderRadius: 8,
@@ -89,6 +90,10 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
   const svServiceRef = useRef<google.maps.StreetViewService | null>(null);
   const headingRef = useRef(startLocation.heading ?? 0);
   const speedRef = useRef(0);
+  // Issue #5 — collect all scattered setTimeout IDs for cleanup on unmount
+  const timeoutIdsRef = useRef<number[]>([]);
+  // Issue #6 — store latestData in a ref to decouple calories interval from latestData changes
+  const latestDataRef = useRef(latestData);
   const accumulatedDistanceRef = useRef(0);
   const movingRef = useRef(false);
   const totalDistanceRef = useRef(0);
@@ -158,8 +163,8 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
     const candidates = [...allLinks]
       .filter(l => l.pano && !visited.has(l.pano))
       .sort((a, b) => {
-        const diffA = Math.abs(((a.heading! - heading + 540) % 360) - 180);
-        const diffB = Math.abs(((b.heading! - heading + 540) % 360) - 180);
+        const diffA = a.heading != null ? Math.abs(((a.heading - heading + 540) % 360) - 180) : 360;
+        const diffB = b.heading != null ? Math.abs(((b.heading - heading + 540) % 360) - 180) : 360;
         return diffA - diffB;
       });
 
@@ -262,6 +267,14 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
         backTilesListenerRef.current.remove();
         backTilesListenerRef.current = null;
       }
+      // Issue #5 — hide panoramas before nulling to avoid lingering DOM interactions
+      const panoA = panoARef.current;
+      const panoB = panoBRef.current;
+      if (panoA) panoA.setVisible(false);
+      if (panoB) panoB.setVisible(false);
+      // Clear all tracked setTimeout IDs
+      for (const id of timeoutIdsRef.current) clearTimeout(id);
+      timeoutIdsRef.current = [];
       panoARef.current = null;
       panoBRef.current = null;
     };
@@ -275,21 +288,24 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
   useEffect(() => {
     speedRef.current = latestData?.speedKmh ?? 0;
+    latestDataRef.current = latestData;
   }, [latestData]);
 
   // Accumulate calories (1-second tick)
+  // Issue #6 — use latestDataRef so this interval is not recreated on every data packet
   useEffect(() => {
     const id = setInterval(() => {
       const clientId = clients[0];
-      if (!clientId || !latestData) return;
+      const data = latestDataRef.current;
+      if (!clientId || !data) return;
       const profile = clientProfiles[clientId];
-      if (profile?.weightKg && profile?.age && latestData.heartRate > 0) {
-        caloriesRef.current += estimateCaloriesPerSecond(latestData.heartRate, profile.weightKg, profile.age);
+      if (profile?.weightKg && profile?.age && data.heartRate > 0) {
+        caloriesRef.current += estimateCaloriesPerSecond(data.heartRate, profile.weightKg, profile.age);
         setCaloriesDisplay(Math.round(caloriesRef.current));
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [clients, clientProfiles, latestData]);
+  }, [clients, clientProfiles]);
 
   // Search ahead for a panorama when links run out
   const searchAhead = useCallback(() => {
@@ -335,20 +351,20 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
             backTilesListenerRef.current = null;
           }
           swapPanos();
-          setTimeout(() => { movingRef.current = false; }, 100);
+          timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 100));
         });
         // Fallback: swap after 600ms even if tiles haven't loaded
-        setTimeout(() => {
+        timeoutIdsRef.current.push(window.setTimeout(() => {
           if (movingRef.current) {
             swapPanos();
             movingRef.current = false;
           }
-        }, 600);
+        }, 600));
       } else {
         // No back pano available, move directly on active
         panorama.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
         panorama.setPano(data.location.pano);
-        setTimeout(() => { movingRef.current = false; }, 300);
+        timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 300));
       }
     };
 
@@ -412,7 +428,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
       // Instant swap — tiles are already loaded!
       back.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
       swapPanos();
-      setTimeout(() => { movingRef.current = false; }, 100);
+      timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 100));
       return;
     }
 
@@ -430,20 +446,20 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           backTilesListenerRef.current = null;
         }
         swapPanos();
-        setTimeout(() => { movingRef.current = false; }, 100);
+        timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 100));
       });
       // Fallback: swap after 600ms
-      setTimeout(() => {
+      timeoutIdsRef.current.push(window.setTimeout(() => {
         if (movingRef.current) {
           swapPanos();
           movingRef.current = false;
         }
-      }, 600);
+      }, 600));
     } else {
       // Fallback: move on active pano directly
       panorama.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
       panorama.setPano(bestLink.pano);
-      setTimeout(() => { movingRef.current = false; }, 300);
+      timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 300));
     }
   }, [getActivePanorama, getBackPanorama, searchAhead, swapPanos]);
 
@@ -490,18 +506,18 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
             backTilesListenerRef.current = null;
           }
           swapPanos();
-          setTimeout(() => { movingRef.current = false; }, 100);
+          timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 100));
         });
-        setTimeout(() => {
+        timeoutIdsRef.current.push(window.setTimeout(() => {
           if (movingRef.current) {
             swapPanos();
             movingRef.current = false;
           }
-        }, 600);
+        }, 600));
       } else {
         panorama.setPov({ heading: headingRef.current, pitch: panorama.getPov().pitch });
         panorama.setPano(bestLink.pano);
-        setTimeout(() => { movingRef.current = false; }, 300);
+        timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 300));
       }
       return;
     }
@@ -525,17 +541,17 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           backTilesListenerRef.current = null;
         }
         swapPanos();
-        setTimeout(() => { movingRef.current = false; }, 100);
+        timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 100));
       });
-      setTimeout(() => {
+      timeoutIdsRef.current.push(window.setTimeout(() => {
         if (movingRef.current) {
           swapPanos();
           movingRef.current = false;
         }
-      }, 600);
+      }, 600));
     } else {
       panorama.setPano(bestLink.pano);
-      setTimeout(() => { movingRef.current = false; }, 300);
+      timeoutIdsRef.current.push(window.setTimeout(() => { movingRef.current = false; }, 300));
     }
   }, [getActivePanorama, getBackPanorama, searchAhead, swapPanos]);
 
@@ -616,6 +632,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
       {/* Left panel: End button + HUD stats */}
       <div
+        className="fg-col"
         style={{
           ...overlayPanel,
           position: "absolute",
@@ -627,8 +644,8 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           lineHeight: 1.8,
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-        }}
+          "--fg": "0.5rem",
+        } as React.CSSProperties}
       >
         <PlayerHud
           name={profile?.name || clientId || "Waiting for player..."}
@@ -659,6 +676,7 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
 
       {/* Right panel: Direction arrows + bind controls */}
       <div
+        className="fg-col"
         style={{
           ...overlayPanel,
           position: "absolute",
@@ -669,8 +687,8 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "0.5rem",
-        }}
+          "--fg": "0.5rem",
+        } as React.CSSProperties}
       >
         <div
           style={{
@@ -680,11 +698,11 @@ export function StreetViewMode({ clients, clientProfiles, latestData, startLocat
           }}
         >
           <div />
-          <button onClick={() => moveInDirection(0)} style={arrowBtnStyle} title="Forward">&#9650;</button>
+          <button onClick={() => moveInDirection(0)} style={arrowBtnStyle} title="Forward" aria-label="Forward">&#9650;</button>
           <div />
-          <button onClick={() => moveInDirection(-90)} style={arrowBtnStyle} title="Left">&#9664;</button>
+          <button onClick={() => moveInDirection(-90)} style={arrowBtnStyle} title="Left" aria-label="Left">&#9664;</button>
           <div />
-          <button onClick={() => moveInDirection(90)} style={arrowBtnStyle} title="Right">&#9654;</button>
+          <button onClick={() => moveInDirection(90)} style={arrowBtnStyle} title="Right" aria-label="Right">&#9654;</button>
         </div>
       </div>
 

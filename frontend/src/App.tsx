@@ -26,7 +26,7 @@ import "./App.css";
 const APP_VERSION = __APP_VERSION__;
 
 // Map server numeric mode enum back to string
-const MODE_FROM_NUMBER: Record<number, RealmMode> = {
+const MODE_FROM_NUMBER: Partial<Record<number, RealmMode>> = {
   0: "competition",
   1: "streetview",
   2: "youtubetrail",
@@ -34,6 +34,35 @@ const MODE_FROM_NUMBER: Record<number, RealmMode> = {
   4: "dungeon",
   5: "social",
 };
+
+const VALID_MODES = new Set<string>(["competition", "streetview", "youtubetrail", "route", "dungeon", "social"]);
+
+// Issue #11 — type guard functions moved to module scope (outside the component)
+function isStreetViewLocation(v: unknown): v is StreetViewLocation {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return "lat" in r && typeof r.lat === "number" && "lng" in r && typeof r.lng === "number";
+}
+function isCompetitionConfig(v: unknown): v is CompetitionConfig {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return "subMode" in r && typeof r.subMode === "string";
+}
+function isYouTubeVideo(v: unknown): v is YouTubeVideo {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return "videoId" in r && typeof r.videoId === "string";
+}
+function isRouteConfig(v: unknown): v is RouteConfig {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return "from" in r && typeof r.from === "object" && r.from !== null && "to" in r && typeof r.to === "object" && r.to !== null;
+}
+function isDungeonConfig(v: unknown): v is DungeonConfig {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return "difficulty" in r && typeof r.difficulty === "string";
+}
 
 // When VITE_API_URL is set (e.g. in Docker where frontend is served from the
 // same origin as the API), skip the server connect screen entirely.
@@ -77,6 +106,7 @@ function App() {
 
   // Create realm error state (auto-cleared after display)
   const [createError, setCreateError] = useState<string | null>(null);
+  const createErrorTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Join realm UI state
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -123,6 +153,11 @@ function App() {
 
   // Issue #7 — resetRealm wrapped in useCallback so identity is stable across renders
   const resetRealm = useCallback(() => {
+    // Clear the create-error auto-dismiss timer on realm reset
+    if (createErrorTimerRef.current !== undefined) {
+      clearTimeout(createErrorTimerRef.current);
+      createErrorTimerRef.current = undefined;
+    }
     setRealm(null);
     setRole("host");
     setHostSecret(null);
@@ -155,8 +190,18 @@ function App() {
     }
   }, [showAndroidQR]);
 
+  // Clear create-error timer on unmount
+  useEffect(() => {
+    return () => {
+      if (createErrorTimerRef.current !== undefined) {
+        clearTimeout(createErrorTimerRef.current);
+      }
+    };
+  }, []);
+
   // Issue #8 — noOpEnd is a stable no-op for view-only mode
-  const noOpEnd = useCallback(() => {}, []);
+  // Issue #21 — typed to match the widest onEnd signature
+  const noOpEnd = useCallback((_totalDistance: number, _overrides?: Partial<RealmSummary>) => {}, []);
 
   const isGuest = role === "guest";
 
@@ -184,23 +229,6 @@ function App() {
     [isGuest, notifyEliminated]
   );
 
-  // Issue #16 — lightweight runtime type guards before casting realmConfig
-  function isStreetViewLocation(v: unknown): v is StreetViewLocation {
-    return typeof v === "object" && v !== null && "lat" in v && "lng" in v;
-  }
-  function isCompetitionConfig(v: unknown): v is CompetitionConfig {
-    return typeof v === "object" && v !== null && "subMode" in v;
-  }
-  function isYouTubeVideo(v: unknown): v is YouTubeVideo {
-    return typeof v === "object" && v !== null && "videoId" in v;
-  }
-  function isRouteConfig(v: unknown): v is RouteConfig {
-    return typeof v === "object" && v !== null && "waypoints" in v;
-  }
-  function isDungeonConfig(v: unknown): v is DungeonConfig {
-    return typeof v === "object" && v !== null && "difficulty" in v;
-  }
-
   // Terms of Service page
   if (page === "tos") {
     return <TermsOfService onBack={() => setPage("home")} />;
@@ -226,6 +254,8 @@ function App() {
           const mode = typeof realmData.mode === "number"
             ? MODE_FROM_NUMBER[realmData.mode]
             : MODE_FROM_NUMBER[{ Competition: 0, StreetView: 1, YouTubeTrail: 2, Route: 3, Dungeon: 4, Social: 5 }[realmData.mode as string] ?? 0];
+          // Issue #10 — null-safe: skip if mode is unrecognised
+          if (!mode) return;
           setRealm({ id: realmData.id, joinCode: realmData.joinCode, mode });
           setRole("admin");
           setPage("home");
@@ -284,8 +314,12 @@ function App() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create realm.";
       setCreateError(message);
-      // Auto-clear the error after 5 seconds
-      setTimeout(() => setCreateError(null), 5000);
+      // Auto-clear the error after 5 seconds; store ID so it can be cancelled
+      if (createErrorTimerRef.current !== undefined) clearTimeout(createErrorTimerRef.current);
+      createErrorTimerRef.current = setTimeout(() => {
+        setCreateError(null);
+        createErrorTimerRef.current = undefined;
+      }, 5000);
     } finally {
       setCreatingMode(null);
     }
@@ -319,8 +353,9 @@ function App() {
           return;
         }
         const data = await claimRes.json();
-        const mode = typeof data.mode === "number" ? MODE_FROM_NUMBER[data.mode] : (data.mode as RealmMode);
-        if (!mode) { setJoinError("Unknown realm mode."); return; }
+        const rawMode = typeof data.mode === "number" ? MODE_FROM_NUMBER[data.mode] : String(data.mode);
+        if (!rawMode || !VALID_MODES.has(rawMode)) { setJoinError("Unknown realm mode."); return; }
+        const mode = rawMode as RealmMode;
         setRealm({ id: data.id, joinCode: data.joinCode, mode });
         setRole("host");
         return;
@@ -333,11 +368,12 @@ function App() {
         return;
       }
       const data = await res.json();
-      const mode = typeof data.mode === "number" ? MODE_FROM_NUMBER[data.mode] : (data.mode as RealmMode);
-      if (!mode) {
+      const rawMode = typeof data.mode === "number" ? MODE_FROM_NUMBER[data.mode] : String(data.mode);
+      if (!rawMode || !VALID_MODES.has(rawMode)) {
         setJoinError("Unknown realm mode.");
         return;
       }
+      const mode = rawMode as RealmMode;
       if (data.status === "Ended") {
         setJoinError("This realm has already ended.");
         return;
@@ -373,7 +409,7 @@ function App() {
                 join an existing realm
               </button>
             </p>
-            <div className="mode-grid">
+            <div className="mode-grid" aria-busy={creatingMode !== null}>
               <button
                 className="mode-card"
                 onClick={() => createRealm("competition")}
@@ -484,7 +520,7 @@ function App() {
         </footer>
         {showAndroidQR && (
           <div className="qr-overlay" onClick={() => setShowAndroidQR(false)}>
-            <div className="qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="qr-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
               <h3>Download Android App</h3>
               <p>Scan to download the latest APK from GitHub</p>
               <canvas ref={qrCanvasRef} />
@@ -502,7 +538,7 @@ function App() {
         )}
         {comingSoonDevice && (
           <div className="qr-overlay" onClick={() => setComingSoonDevice(null)}>
-            <div className="qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="qr-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
               <h3>{comingSoonDevice}</h3>
               <p>{comingSoonDevice} support is coming soon.</p>
               <button className="qr-close" onClick={() => setComingSoonDevice(null)}>Close</button>
@@ -514,10 +550,15 @@ function App() {
         )}
         {showJoinModal && (
           <div className="qr-overlay" onClick={() => { setShowJoinModal(false); setJoinError(""); }}>
-            <div className="qr-modal join-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="qr-modal join-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
               <h3>Join a Realm</h3>
               <p>Enter a 6-digit join code to watch a realm</p>
+              {/* Issue #9 — visually hidden label for accessibility */}
+              <label htmlFor="join-code-input" style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
+                Join code
+              </label>
               <input
+                id="join-code-input"
                 type="text"
                 value={joinCodeInput}
                 onChange={(e) => {

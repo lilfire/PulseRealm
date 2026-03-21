@@ -271,6 +271,7 @@ export function StaticStreetViewMode({
 
       {/* HUD overlay */}
       <div
+        className="fg-col"
         style={{
           ...overlayPanel,
           position: "absolute",
@@ -282,8 +283,8 @@ export function StaticStreetViewMode({
           lineHeight: 1.8,
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-        }}
+          "--fg": "0.5rem",
+        } as React.CSSProperties}
       >
         <PlayerHud
           name={profile?.name || clientId || "Waiting for player..."}

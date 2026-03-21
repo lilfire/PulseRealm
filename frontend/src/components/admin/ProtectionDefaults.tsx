@@ -1,7 +1,9 @@
+import type { AdminConfig } from "./AdminDashboard";
+
 interface Props {
   maxWearableMessagesPerSecond: number;
   maxConcurrentRealms: number;
-  onChange: (field: string, value: string | number) => void;
+  onChange: <K extends keyof AdminConfig>(field: K, value: AdminConfig[K]) => void;
 }
 
 export function ProtectionDefaults({ maxWearableMessagesPerSecond, maxConcurrentRealms, onChange }: Props) {

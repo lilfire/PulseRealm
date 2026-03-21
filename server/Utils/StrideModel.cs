@@ -42,10 +42,7 @@ public static class StrideModel
     {
         if (calibration is { Length: >= 2 })
         {
-            var points = calibration
-                .OrderBy(p => p.SpeedKmh)
-                .Select(p => (p.SpeedKmh, p.StrideFactor))
-                .ToArray();
+            var points = ToSortedCurve(calibration);
             return Interpolate(points, speedKmh);
         }
 
@@ -63,10 +60,7 @@ public static class StrideModel
     {
         if (calibration is { Length: >= 2 })
         {
-            var points = calibration
-                .OrderBy(p => p.SpeedKmh)
-                .Select(p => (p.SpeedKmh, p.StrideFactor))
-                .ToArray();
+            var points = ToSortedCurve(calibration);
             return Interpolate(points, speedKmh);
         }
 
@@ -91,6 +85,30 @@ public static class StrideModel
             profile?.StrideCalibration);
 
         return heightCm * factor / 100.0;
+    }
+
+    /// <summary>
+    /// Converts calibration points to a (SpeedKmh, Factor) array sorted by speed.
+    /// Avoids the sort allocation when the array is already in ascending order.
+    /// </summary>
+    private static (double SpeedKmh, double Factor)[] ToSortedCurve(StrideCalibrationPoint[] calibration)
+    {
+        // Check whether the array is already sorted to avoid an unnecessary OrderBy allocation
+        var alreadySorted = true;
+        for (var i = 1; i < calibration.Length; i++)
+        {
+            if (calibration[i].SpeedKmh < calibration[i - 1].SpeedKmh)
+            {
+                alreadySorted = false;
+                break;
+            }
+        }
+
+        var source = alreadySorted ? calibration : calibration.OrderBy(p => p.SpeedKmh).ToArray();
+        var result = new (double SpeedKmh, double Factor)[source.Length];
+        for (var i = 0; i < source.Length; i++)
+            result[i] = (source[i].SpeedKmh, source[i].StrideFactor);
+        return result;
     }
 
     /// <summary>

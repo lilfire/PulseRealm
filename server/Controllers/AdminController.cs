@@ -46,6 +46,7 @@ public class AdminController : ControllerBase
     public IActionResult Logout()
     {
         var header = Request.Headers.Authorization.ToString();
+        if (!header.StartsWith("Bearer ", StringComparison.Ordinal)) return BadRequest();
         var token = header["Bearer ".Length..].Trim();
         _auth.Logout(token);
         return Ok();
@@ -95,11 +96,16 @@ public class AdminController : ControllerBase
         if (realm.Status == RealmStatus.Ended)
             return Ok(new { message = "Realm already ended" });
 
-        realm.WithLock(r => r.Status = RealmStatus.Ended);
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Ended;
+            r.EndedAt = DateTime.UtcNow;
+        });
 
         var summary = _statsTracker.BuildSummary(realm);
 
         var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+        RealmHub.CleanupRealmHubState(realmId, knownClientIds);
         _statsTracker.CleanupRealm(realmId, knownClientIds);
 
         await _hubContext.Clients.Group(realmId).SendAsync("RealmEnded", summary);
@@ -118,9 +124,27 @@ public class AdminController : ControllerBase
         if (!isConnected)
             return NotFound(new { error = "Client not found in realm" });
 
+        realm.WithLock(r => r.KickedClientIds.Add(clientId));
         _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
+        RealmHub.CleanupRealmHubState(realmId, new[] { clientId });
 
         await _hubContext.Clients.Group(realmId).SendAsync("ClientKicked", clientId);
+
+        // Find the kicked client's connection so we can send YouWereKicked directly
+        // RealmHub._connectionMap is a ConcurrentDictionary so enumeration is safe here
+        string? kickedConnectionId = null;
+        foreach (var kvp in RealmHub._connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+            {
+                kickedConnectionId = kvp.Key;
+                break;
+            }
+        }
+        if (kickedConnectionId is not null)
+        {
+            await _hubContext.Clients.Client(kickedConnectionId).SendAsync("YouWereKicked");
+        }
 
         return Ok(new { message = "Client kicked" });
     }

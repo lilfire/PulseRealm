@@ -10,9 +10,12 @@ object UserFriendlyErrors {
      * Regex to extract the inner message from SignalR's HubException wrapper.
      * Example: "An unexpected error occurred invoking 'JoinRealm' on the server. HubException: Invalid join code."
      * Extracts: "Invalid join code."
+     *
+     * Deliberately matches only "HubException:" (not the generic "Exception:") to avoid
+     * accidentally extracting internal stack-trace fragments from non-SignalR exceptions.
      */
     private val hubExceptionPattern = Regex(
-        """(?:HubException|Exception):\s*(.+)""", RegexOption.IGNORE_CASE
+        """HubException:\s*(.+)""", RegexOption.IGNORE_CASE
     )
 
     /**

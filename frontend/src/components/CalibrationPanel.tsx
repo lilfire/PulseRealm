@@ -35,7 +35,6 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
   const [step, setStep] = useState<CalibrationStep>("connecting");
   const [heightCm, setHeightCm] = useState(170);
   const [joinCode, setJoinCode] = useState<string | null>(null);
-  const [_clientConnected, setClientConnected] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentGroup, setCurrentGroup] = useState(0);
   const [sampling, setSampling] = useState(false);
@@ -78,7 +77,6 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
       connection.on("CalibrationClientJoined", (sid: string, _clientId: string, clientHeightCm: number) => {
         setSessionId(sid);
         setHeightCm(clientHeightCm);
-        setClientConnected(true);
         setStep("calibrating");
       });
 
@@ -96,7 +94,6 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
       });
 
       connection.on("CalibrationClientLeft", () => {
-        setClientConnected(false);
         setError("Wearable client disconnected.");
         if (countdownRef.current) {
           clearInterval(countdownRef.current);
@@ -124,7 +121,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
 
       setStep("waiting-client");
     } catch (err) {
-      setError(`Connection failed: ${err instanceof Error ? err.message : String(err)}`);
+      console.error("CalibrationPanel connection failed:", err);
+      setError("Could not connect to the server. Please try again.");
       setStep("connecting");
     }
   }, [hubUrl]);
@@ -148,7 +146,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
             countdownRef.current = null;
             // End sample
             conn.invoke("EndCalibrationSample", sid).catch((err: unknown) => {
-              setError(`Sample failed: ${err instanceof Error ? err.message : String(err)}`);
+              console.error("CalibrationPanel end sample failed:", err);
+              setError("Something went wrong. Please try again.");
               setSampling(false);
             });
             return 0;
@@ -157,7 +156,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
         });
       }, 1000);
     } catch (err) {
-      setError(`Failed to start sample: ${err instanceof Error ? err.message : String(err)}`);
+      console.error("CalibrationPanel start sample failed:", err);
+      setError("Something went wrong. Please try again.");
     }
   }, [currentGroup]);
 
@@ -185,7 +185,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
     try {
       await conn.invoke("SaveCalibration", sid);
     } catch (err) {
-      setError(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+      console.error("CalibrationPanel save failed:", err);
+      setError("Could not save calibration data. Please try again.");
     }
   }, []);
 
@@ -237,7 +238,10 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
           </div>
         )}
 
-        {step === "calibrating" && (
+        {step === "calibrating" && (() => {
+          // Issue #18 — extract .find() result once, reuse below
+          const recordedPoint = collectedPoints.find((p) => p.speedKmh === SPEED_GROUPS[currentGroup].targetSpeed);
+          return (
           <div>
             {/* Progress */}
             <div style={{ display: "flex", marginBottom: 16 }}>
@@ -264,7 +268,7 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
                 {SPEED_GROUPS[currentGroup].targetSpeed} km/h
               </div>
 
-              {!sampling && !collectedPoints.find((p) => p.speedKmh === SPEED_GROUPS[currentGroup].targetSpeed) && (
+              {!sampling && !recordedPoint && (
                 <>
                   <p style={{ color: "#9ca3af", fontSize: "0.85rem", marginBottom: 16 }}>
                     Set the treadmill to {SPEED_GROUPS[currentGroup].targetSpeed} km/h, then press Start.
@@ -291,14 +295,14 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
                 </div>
               )}
 
-              {!sampling && collectedPoints.find((p) => p.speedKmh === SPEED_GROUPS[currentGroup].targetSpeed) && (
+              {!sampling && recordedPoint && (
                 <div>
                   <div style={{ color: "#22c55e", fontWeight: 600, fontSize: "1rem", marginBottom: 8 }}>
                     Sample recorded
                   </div>
                   <div style={{ color: "#9ca3af", fontSize: "0.85rem", marginBottom: 16 }}>
-                    Stride factor: {collectedPoints.find((p) => p.speedKmh === SPEED_GROUPS[currentGroup].targetSpeed)?.strideFactor.toFixed(4)}
-                    {" "}({(heightCm * (collectedPoints.find((p) => p.speedKmh === SPEED_GROUPS[currentGroup].targetSpeed)?.strideFactor ?? 0)).toFixed(1)} cm)
+                    Stride factor: {recordedPoint.strideFactor.toFixed(4)}
+                    {" "}({(heightCm * recordedPoint.strideFactor).toFixed(1)} cm)
                   </div>
                   <button onClick={nextGroup} style={primaryBtnStyle}>
                     {currentGroup < SPEED_GROUPS.length - 1 ? "Next Speed" : "View Results"}
@@ -320,7 +324,8 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {step === "results" && (
           <div>
@@ -385,7 +390,10 @@ export function CalibrationPanel({ hubUrl, onClose }: Props) {
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
-  inset: 0,
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
   background: "rgba(0, 0, 0, 0.75)",
   display: "flex",
   alignItems: "center",

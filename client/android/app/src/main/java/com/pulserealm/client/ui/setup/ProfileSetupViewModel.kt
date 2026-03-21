@@ -15,7 +15,10 @@ data class ProfileSetupUiState(
     val weightKg: String = "",
 ) {
     val isComplete: Boolean
-        get() = playerName.isNotBlank() && age.isNotBlank() && heightCm.isNotBlank() && weightKg.isNotBlank()
+        get() = playerName.isNotBlank()
+            && age.isNotBlank() && age.toIntOrNull()?.let { it in 5..120 } == true
+            && heightCm.isNotBlank() && heightCm.toDoubleOrNull()?.let { it.toInt() in 50..250 } == true
+            && weightKg.isNotBlank() && weightKg.toDoubleOrNull()?.let { it.toInt() in 10..300 } == true
 }
 
 @HiltViewModel

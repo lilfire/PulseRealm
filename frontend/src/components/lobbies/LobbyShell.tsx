@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { ClientProfile, RealmMode, RealmRole } from "../../types/session";
 import { maxClientsForMode } from "../../types/session";
 import type { ReactNode } from "react";
@@ -41,13 +41,22 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
   const rs = ROLE_STYLES[role];
   const isMultiClient = MULTI_CLIENT_MODES.includes(mode);
   const [bindTargetId, setBindTargetId] = useState<string | null>(null);
+  // Issue #13 — prevent auto-bind from firing on every clients reference change
+  const hasAutoBindedRef = useRef(false);
 
   // Auto-bind for single-client modes (max 1 player)
   useEffect(() => {
     if (isMultiClient || !onRequestBind) return;
+    // Reset the guard when no clients present
+    if (clients.length === 0) {
+      hasAutoBindedRef.current = false;
+      return;
+    }
     if (clients.length !== 1) return;
+    if (hasAutoBindedRef.current) return;
     if (boundClientId || bindPending || clientBindings?.[clients[0]]) return;
     const clientId = clients[0];
+    hasAutoBindedRef.current = true;
     setBindTargetId(clientId);
     onRequestBind(clientId);
   }, [isMultiClient, clients, boundClientId, bindPending, clientBindings, onRequestBind]);
@@ -242,7 +251,7 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
           <button
             onClick={onStart}
             disabled={!canStart}
-            style={{ fontSize: "1.2rem", padding: "0.6rem 2rem", background: "#00D4FF", color: "#0f172a" }}
+            style={{ fontSize: "1.2rem", padding: "0.6rem 2rem", background: "#33DFFF", color: "#0f172a" }}
           >
             Start Realm
           </button>
@@ -282,12 +291,15 @@ export function LobbyShell({ joinCode, mode, clients, clientProfiles, canStart, 
       {bindCode && bindTargetId && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.75)",
+          background: "rgba(0,0,0,0.88)",
           backdropFilter: "blur(4px)",
           display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 100,
         }} onClick={() => { setBindTargetId(null); onCancelBind?.(bindTargetId); }}>
-          <div style={{
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
             background: "var(--code-bg, #1e1f26)",
             border: "1px solid var(--border, #333)",
             borderRadius: 16,

@@ -194,7 +194,7 @@ describe("YouTubeTrailLobby", () => {
       fireEvent.click(screen.getByText("Video One"));
       const thumbnail = screen.getByAltText("Video thumbnail");
       expect(thumbnail).toBeInTheDocument();
-      expect(thumbnail).toHaveAttribute("src", "https://img.youtube.com/vi/vid1/hqdefault.jpg");
+      expect(thumbnail).toHaveAttribute("src", "https://img.youtube.com/vi/vid1/default.jpg");
     });
 
     it("does not show thumbnail before a video is selected", () => {
@@ -320,7 +320,7 @@ describe("YouTubeTrailLobby — resolveThumbUrl branch (serverUrl + relative pat
     // Select a video and verify thumbnail uses YouTube default URL
     fireEvent.click(screen.getByText("Video One"));
     const thumbnail = screen.getByAltText("Video thumbnail");
-    expect(thumbnail.getAttribute("src")).toBe("https://img.youtube.com/vi/vid1/hqdefault.jpg");
+    expect(thumbnail.getAttribute("src")).toBe("https://img.youtube.com/vi/vid1/default.jpg");
   });
 });
 
@@ -421,16 +421,16 @@ describe("YouTubeTrailLobby — videoDuration display", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Video One"));
     });
-    expect(screen.getByText("1:01:01")).toBeInTheDocument();
+    expect(screen.getAllByText(/1:01:01/).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("shows 'Video length:' text after duration loads", async () => {
+  it("shows 'Duration:' text after duration loads", async () => {
     setupSyncYTMock(3661);
     render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
     await act(async () => {
       fireEvent.click(screen.getByText("Video One"));
     });
-    expect(screen.getByText(/Video length:/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Duration:/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows m:ss format for sub-hour durations", async () => {
@@ -439,7 +439,7 @@ describe("YouTubeTrailLobby — videoDuration display", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Video One"));
     });
-    expect(screen.getByText("2:05")).toBeInTheDocument();
+    expect(screen.getAllByText(/2:05/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("duration badge renders inside thumbnail area when videoDuration is set", async () => {
@@ -448,7 +448,7 @@ describe("YouTubeTrailLobby — videoDuration display", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Video One"));
     });
-    expect(screen.getAllByText("1:30").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/1:30/).length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -468,7 +468,9 @@ describe("YouTubeTrailLobby — hover and selection interaction branches", () =>
     render(<YouTubeTrailLobby {...baseProps} curatedVideos={fixedVideos} />);
     // Select the first video
     fireEvent.click(screen.getByText("Video One"));
-    const card = screen.getByText("Video One").closest("div[style]") as HTMLElement;
+    // After selection, "Video One" appears in both the preview and the card grid
+    const allVideoOnes = screen.getAllByText("Video One");
+    const card = allVideoOnes[allVideoOnes.length - 1].closest("div[style]") as HTMLElement;
     if (card) {
       fireEvent.mouseEnter(card);
       fireEvent.mouseLeave(card);

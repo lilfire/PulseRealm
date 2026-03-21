@@ -63,7 +63,7 @@ export function StaticRouteMode({
   /** Try to load a static map URL. Only update <img> src if the server returns an image.
    *  Retries with exponential backoff (2s, 4s, 8s, 16s) on failure. */
   function tryLoadMap(url: string, isInitial: boolean, attempt?: number) {
-    var currentAttempt = attempt || 0;
+    const currentAttempt = attempt || 0;
     // Cancel any stale retry timer when starting a fresh request
     if (currentAttempt === 0 && retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
@@ -80,7 +80,7 @@ export function StaticRouteMode({
         } else {
           // Retry up to 4 times with exponential backoff
           if (currentAttempt < 4) {
-            var delay = Math.pow(2, currentAttempt + 1) * 1000; // 2s, 4s, 8s, 16s
+            const delay = Math.pow(2, currentAttempt + 1) * 1000; // 2s, 4s, 8s, 16s
             retryTimerRef.current = setTimeout(function () {
               tryLoadMap(url, isInitial, currentAttempt + 1);
             }, delay);
@@ -96,7 +96,7 @@ export function StaticRouteMode({
       .catch(function () {
         pendingFetchRef.current = false;
         if (currentAttempt < 4) {
-          var delay = Math.pow(2, currentAttempt + 1) * 1000;
+          const delay = Math.pow(2, currentAttempt + 1) * 1000;
           retryTimerRef.current = setTimeout(function () {
             tryLoadMap(url, isInitial, currentAttempt + 1);
           }, delay);
@@ -114,9 +114,9 @@ export function StaticRouteMode({
         if (data && data.points && data.points.length >= 2) {
           setDirectionsData(data);
           // Build cumulative distances along the polyline
-          var distances = [0];
-          var total = 0;
-          for (var i = 1; i < data.points.length; i++) {
+          const distances = [0];
+          let total = 0;
+          for (let i = 1; i < data.points.length; i++) {
             total += computeDistanceBetween(data.points[i - 1], data.points[i]);
             distances.push(total);
           }
@@ -131,7 +131,7 @@ export function StaticRouteMode({
   // always use the encoded polyline when available (avoids straight-line race).
   useEffect(function () {
     if (!directionsLoaded) return;
-    var opts: any = {
+    const baseOpts: Parameters<typeof staticMapUrl>[0] = {
       width: IMG_W,
       height: IMG_H,
       markers: [
@@ -141,12 +141,10 @@ export function StaticRouteMode({
       pathColor: "0x4285F4ff",
       playerMarker: { lat: route.from.lat, lng: route.from.lng },
     };
-    if (directionsData) {
-      opts.encodedPath = directionsData.overview_polyline;
-    } else {
-      opts.path = [route.from, route.to];
-    }
-    var url = staticMapUrl(opts);
+    const opts: Parameters<typeof staticMapUrl>[0] = directionsData
+      ? { ...baseOpts, encodedPath: directionsData.overview_polyline }
+      : { ...baseOpts, path: [route.from, route.to] };
+    const url = staticMapUrl(opts);
     tryLoadMap(url, true);
   }, [route, directionsLoaded]);
 
@@ -171,19 +169,19 @@ export function StaticRouteMode({
 
   // Progress along route
   useEffect(function () {
-    var totalRouteLength = directionsData
+    const totalRouteLength = directionsData
       ? directionsData.distance_meters
       : computeDistanceBetween(route.from, route.to);
 
-    var INTERVAL_MS = 500;
-    var timer = setInterval(function () {
+    const INTERVAL_MS = 500;
+    const timer = setInterval(function () {
       if (finished) return;
 
-      var speedKmh = speedRef.current;
+      const speedKmh = speedRef.current;
       if (speedKmh <= 0) return;
 
-      var speedMs = speedKmh / 3.6;
-      var distanceDelta = speedMs * (INTERVAL_MS / 1000);
+      const speedMs = speedKmh / 3.6;
+      const distanceDelta = speedMs * (INTERVAL_MS / 1000);
       totalDistanceRef.current += distanceDelta;
       travelledRef.current += distanceDelta;
       setTotalDistanceDisplay(Math.round(totalDistanceRef.current));
@@ -201,36 +199,36 @@ export function StaticRouteMode({
       setProgressPct(Math.min(100, (travelledRef.current / totalRouteLength) * 100));
 
       // Interpolate position along polyline or straight line
-      var newLat: number;
-      var newLng: number;
+      let newLat: number;
+      let newLng: number;
       if (directionsData && cumulativeDistRef.current.length >= 2) {
-        var points = directionsData.points;
-        var distances = cumulativeDistRef.current;
+        const points = directionsData.points;
+        const distances = cumulativeDistRef.current;
         // Binary search for the segment containing travelledRef.current
-        var lo = 0;
-        var hi = distances.length - 1;
+        let lo = 0;
+        let hi = distances.length - 1;
         while (lo < hi - 1) {
-          var mid = (lo + hi) >> 1;
+          const mid = (lo + hi) >> 1;
           if (distances[mid] <= travelledRef.current) lo = mid;
           else hi = mid;
         }
-        var segStart = distances[lo];
-        var segEnd = distances[hi];
-        var segLen = segEnd - segStart;
-        var t2 = segLen > 0 ? (travelledRef.current - segStart) / segLen : 0;
+        const segStart = distances[lo];
+        const segEnd = distances[hi];
+        const segLen = segEnd - segStart;
+        const t2 = segLen > 0 ? (travelledRef.current - segStart) / segLen : 0;
         newLat = points[lo].lat + (points[hi].lat - points[lo].lat) * t2;
         newLng = points[lo].lng + (points[hi].lng - points[lo].lng) * t2;
       } else {
-        var t = travelledRef.current / totalRouteLength;
+        const t = travelledRef.current / totalRouteLength;
         newLat = route.from.lat + (route.to.lat - route.from.lat) * t;
         newLng = route.from.lng + (route.to.lng - route.from.lng) * t;
       }
 
       // Update map image periodically — pre-validate via fetch so a 403 keeps the old image
-      var now = Date.now();
+      const now = Date.now();
       if (now - lastMapUpdateRef.current >= UPDATE_INTERVAL_MS) {
         lastMapUpdateRef.current = now;
-        var opts: any = {
+        const updateBaseOpts: Parameters<typeof staticMapUrl>[0] = {
           width: IMG_W,
           height: IMG_H,
           markers: [
@@ -240,12 +238,10 @@ export function StaticRouteMode({
           pathColor: "0x4285F4ff",
           playerMarker: { lat: newLat, lng: newLng },
         };
-        if (directionsData) {
-          opts.encodedPath = directionsData.overview_polyline;
-        } else {
-          opts.path = [route.from, route.to];
-        }
-        tryLoadMap(staticMapUrl(opts), false);
+        const updateOpts: Parameters<typeof staticMapUrl>[0] = directionsData
+          ? { ...updateBaseOpts, encodedPath: directionsData.overview_polyline }
+          : { ...updateBaseOpts, path: [route.from, route.to] };
+        tryLoadMap(staticMapUrl(updateOpts), false);
       }
     }, INTERVAL_MS);
     return function () { clearInterval(timer); };
@@ -330,7 +326,7 @@ export function StaticRouteMode({
       >
         <div style={{ fontWeight: 600 }}>{((directionsData ? directionsData.distance_meters : computeDistanceBetween(route.from, route.to)) / 1000).toFixed(1)} km</div>
         <div style={{ color: "#aaa", fontSize: "0.75rem" }}>{directionsData ? "Walking route" : "Straight line"}</div>
-        <div style={{ color: "#00D4FF", fontSize: "0.8rem", marginTop: "0.2rem" }}>{progressPct.toFixed(0)}%</div>
+        <div style={{ color: "#33DFFF", fontSize: "0.8rem", marginTop: "0.2rem" }}>{progressPct.toFixed(0)}%</div>
       </div>
 
       {/* Finish overlay */}
@@ -359,6 +355,7 @@ export function StaticRouteMode({
 
       {/* HUD overlay */}
       <div
+        className="fg-col"
         style={{
           ...overlayPanel,
           position: "absolute",
@@ -370,8 +367,8 @@ export function StaticRouteMode({
           lineHeight: 1.8,
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-        }}
+          "--fg": "0.5rem",
+        } as React.CSSProperties}
       >
         <PlayerHud
           name={profile?.name || clientId || "Waiting for player..."}
