@@ -13,7 +13,7 @@ builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("createRealm", opt =>
     {
-        opt.PermitLimit = 5;
+        opt.PermitLimit = 20;
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueLimit = 0;
     });

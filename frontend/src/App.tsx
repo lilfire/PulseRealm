@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
 import { useRealmHub, type RealmSummary } from "./hooks/useSessionHub";
 import { useServerConnection } from "./hooks/useServerConnection";
@@ -20,6 +20,7 @@ import { AdminLogin } from "./components/admin/AdminLogin";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { TermsOfService } from "./components/TermsOfService";
 import { CalibrationPanel } from "./components/CalibrationPanel";
+import { Toast, createToast, type ToastMessage } from "./components/Toast";
 import type { CompetitionConfig, CompetitionSubMode, PlayerFormat, Realm, RealmMode, RealmRole } from "./types/session";
 import type { DungeonDifficulty } from "./components/lobbies/DungeonLobby";
 import "./App.css";
@@ -105,9 +106,8 @@ function App() {
   const [adminEnabled, setAdminEnabled] = useState(false);
   const [lobbyDefaults, setLobbyDefaults] = useState<LobbyDefaults | null>(null);
 
-  // Create realm error state (auto-cleared after display)
-  const [createError, setCreateError] = useState<string | null>(null);
-  const createErrorTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Toast notifications
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Join realm UI state
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -152,13 +152,16 @@ function App() {
       .catch(() => {});
   }, [apiUrl]);
 
+  const addToast = useCallback((text: string, type: "error" | "info" = "error") => {
+    setToasts((prev) => [...prev, createToast(text, type)]);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   // Issue #7 — resetRealm wrapped in useCallback so identity is stable across renders
   const resetRealm = useCallback(() => {
-    // Clear the create-error auto-dismiss timer on realm reset
-    if (createErrorTimerRef.current !== undefined) {
-      clearTimeout(createErrorTimerRef.current);
-      createErrorTimerRef.current = undefined;
-    }
     setRealm(null);
     setRole("host");
     setHostSecret(null);
@@ -191,14 +194,6 @@ function App() {
     }
   }, [showAndroidQR]);
 
-  // Clear create-error timer on unmount
-  useEffect(() => {
-    return () => {
-      if (createErrorTimerRef.current !== undefined) {
-        clearTimeout(createErrorTimerRef.current);
-      }
-    };
-  }, []);
 
   // Issue #8 — noOpEnd is a stable no-op for view-only mode
   // Issue #21 — typed to match the widest onEnd signature
@@ -285,7 +280,6 @@ function App() {
 
   async function createRealm(mode: RealmMode) {
     setCreatingMode(mode);
-    setCreateError(null);
     try {
       const modeMap: Record<RealmMode, number> = {
         competition: 0,
@@ -302,8 +296,12 @@ function App() {
         body: JSON.stringify({ mode: modeValue }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Server returned ${res.status}`);
+        if (res.status === 429) {
+          addToast("Too many realms created. Please wait a moment and try again.");
+        } else {
+          addToast("Could not create realm. Please try again.");
+        }
+        return;
       }
       const data = await res.json();
       setRealm({
@@ -312,15 +310,8 @@ function App() {
         mode,
       });
       setHostSecret(data.hostSecret ?? null);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create realm.";
-      setCreateError(message);
-      // Auto-clear the error after 5 seconds; store ID so it can be cancelled
-      if (createErrorTimerRef.current !== undefined) clearTimeout(createErrorTimerRef.current);
-      createErrorTimerRef.current = setTimeout(() => {
-        setCreateError(null);
-        createErrorTimerRef.current = undefined;
-      }, 5000);
+    } catch {
+      addToast("Could not reach the server. Check your connection and try again.");
     } finally {
       setCreatingMode(null);
     }
@@ -399,6 +390,7 @@ function App() {
   if (!realm) {
     return (
       <div className="home-screen">
+        <Toast messages={toasts} onDismiss={dismissToast} />
         <div className="home-body">
           <div className="home-content">
             <div className="brand-header">
@@ -479,13 +471,6 @@ function App() {
             <p className="home-tagline">
               PulseRealm is a real-time treadmill workout platform — connect your wearable and get moving.
             </p>
-
-            {/* Create realm error banner (Issue #28) */}
-            {createError && (
-              <p className="error-message" style={{ textAlign: "center", marginTop: "0.75rem" }}>
-                {createError}
-              </p>
-            )}
 
           </div>
           <div className="device-sidebar">

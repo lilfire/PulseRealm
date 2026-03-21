@@ -924,6 +924,22 @@ button:disabled {
     padding: 0.7rem 1.2rem !important;
   }
 
+  .server-footer {
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+  }
+
+  .footer-left,
+  .footer-right {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .footer-right > * + *::before {
+    content: "\00b7";
+  }
+
   .device-sidebar {
     display: none;
   }
@@ -934,11 +950,11 @@ button:disabled {
 
   .brand-header {
     position: static;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
   }
 
   .logo {
-    width: 80px;
+    width: 60px;
   }
 
   .brand-title {
@@ -974,6 +990,10 @@ button:disabled {
     padding: 1.25rem 1rem;
   }
 
+  .logo {
+    width: 48px;
+  }
+
   .brand-title {
     font-size: 1.6rem;
     letter-spacing: 1px;
@@ -990,11 +1010,22 @@ button:disabled {
 
   .lobby-footer {
     flex-wrap: wrap;
+    justify-content: center;
     padding: 0.75rem;
   }
 
+  .lobby-footer > * {
+    margin: 0.25rem;
+  }
+
   .lobby-footer > * + * {
-    margin-left: 0.5rem;
+    margin-left: 0.25rem;
+  }
+
+  .lobby-footer > div:first-child {
+    position: static !important;
+    width: 100%;
+    justify-content: center;
   }
 
   /* Summary screen */
@@ -1018,3 +1049,58 @@ button:disabled {
 .fg-col > * + * { margin-top: var(--fg); }
 .fg-wrap { margin-left: calc(var(--fg) * -1); margin-top: calc(var(--fg) * -1); }
 .fg-wrap > * { margin-left: var(--fg); margin-top: var(--fg); }
+
+/* --- Toast Notifications --- */
+
+.toast-container {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 0.5rem;
+  max-width: 420px;
+  text-align: center;
+  animation: toast-in 0.3s ease forwards;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.toast-error {
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #f87171;
+}
+
+.toast-info {
+  background: rgba(51, 223, 255, 0.15);
+  border: 1px solid rgba(51, 223, 255, 0.4);
+  color: #33DFFF;
+}
+
+.toast-exit {
+  animation: toast-out 0.3s ease forwards;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-12px); }
+}
