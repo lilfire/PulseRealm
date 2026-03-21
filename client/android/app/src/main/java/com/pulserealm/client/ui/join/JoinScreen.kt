@@ -348,7 +348,8 @@ private fun SettingsPage(
                 onValueChange = { viewModel.updateMaxHrOverride(it) },
                 minValue = 100,
                 maxValue = 250,
-                defaultValue = 0,
+                defaultValue = 190,
+                largeStep = 10,
                 unit = " bpm"
             )
         }
