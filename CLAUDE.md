@@ -37,8 +37,22 @@ cd client/android && ./gradlew assembleDebug
 - Realms use 6-digit numeric join codes
 - All realm state is in-memory (no database)
 
+## Verification After Code Changes
+
+After making code changes, **always** run the relevant build/check commands before considering the task done:
+
+- **Frontend**: `cd frontend && npx tsc --noEmit` — must pass with zero errors
+- **Server**: `cd server && dotnet build` — must pass with zero errors
+- **Tests**: Run `npm run test` (frontend) or `dotnet test` (server) if changes touch testable logic
+
+Do not skip this step. TypeScript and C# type errors have repeatedly slipped through code review.
+
 ## Code Conventions
 
+- TypeScript `strict` mode is enabled — all code must pass strict checks:
+  - Never use `string` when a union type exists (e.g. use `CompetitionSubMode` not `string`, `DungeonDifficulty` not `string`)
+  - `useRef` must always have an explicit initial value: `useRef<T | undefined>(undefined)`, not `useRef<T>()`
+  - Interfaces that mirror external types must use the exact same types, not looser equivalents
 - All CSS/styling MUST work on **Chrome 74** — do not use `gap` in flexbox, or other features unavailable in Chrome 74. Use `margin` instead.
 - Frontend is **desktop-first** with wide layouts, but includes responsive breakpoints for tablets and phones
 - UI is **dark mode only** — dark backgrounds, light text, red (#FF5C75) + cyan (#33DFFF) branding

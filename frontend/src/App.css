@@ -41,12 +41,29 @@
   margin-bottom: 1.25rem;
 }
 
+.mode-section {
+  width: 100%;
+  max-width: 820px;
+}
+
+.mode-section + .mode-section {
+  margin-top: 1.5rem;
+}
+
+.mode-section-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text, #9ca3af);
+  margin: 0 0 0.75rem 0.25rem;
+}
+
 .mode-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   width: 100%;
-  max-width: 820px;
 }
 
 .mode-card {

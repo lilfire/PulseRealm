@@ -20,7 +20,8 @@ import { AdminLogin } from "./components/admin/AdminLogin";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { TermsOfService } from "./components/TermsOfService";
 import { CalibrationPanel } from "./components/CalibrationPanel";
-import type { CompetitionConfig, Realm, RealmMode, RealmRole } from "./types/session";
+import type { CompetitionConfig, CompetitionSubMode, PlayerFormat, Realm, RealmMode, RealmRole } from "./types/session";
+import type { DungeonDifficulty } from "./components/lobbies/DungeonLobby";
 import "./App.css";
 
 const APP_VERSION = __APP_VERSION__;
@@ -70,15 +71,15 @@ const PRESET_API_URL = import.meta.env.VITE_API_URL ?? "";
 
 interface LobbyDefaults {
   competition: {
-    subMode: string;
-    playerFormat: string;
+    subMode: CompetitionSubMode;
+    playerFormat: PlayerFormat;
     targetDistanceKm: number;
     intervalMinutes: number;
     targetZone: number;
     durationMinutes: number;
   };
   dungeon: {
-    difficulty: string;
+    difficulty: DungeonDifficulty;
     timeframeMinutes: number;
   };
   streetViewLocations: { lat: number; lng: number; address: string; heading?: number; pitch?: number }[];
@@ -106,7 +107,7 @@ function App() {
 
   // Create realm error state (auto-cleared after display)
   const [createError, setCreateError] = useState<string | null>(null);
-  const createErrorTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const createErrorTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Join realm UI state
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -409,61 +410,70 @@ function App() {
                 join an existing realm
               </button>
             </p>
-            <div className="mode-grid" aria-busy={creatingMode !== null}>
-              <button
-                className="mode-card"
-                onClick={() => createRealm("competition")}
-                disabled={creatingMode !== null}
-              >
-                <span className="mode-icon">&#9876;</span>
-                <span className="mode-name">Competition</span>
-                <span className="mode-desc">Race against others in real-time</span>
-              </button>
-              <button
-                className="mode-card"
-                onClick={() => createRealm("streetview")}
-                disabled={creatingMode !== null}
-              >
-                <span className="mode-icon">&#127758;</span>
-                <span className="mode-name">Street View</span>
-                <span className="mode-desc">Explore the world together</span>
-              </button>
-              <button
-                className="mode-card"
-                onClick={() => createRealm("youtubetrail")}
-                disabled={creatingMode !== null}
-              >
-                <span className="mode-icon">&#9654;</span>
-                <span className="mode-name">YouTube Trail</span>
-                <span className="mode-desc">Walk through videos together</span>
-              </button>
-              <button
-                className="mode-card"
-                onClick={() => createRealm("route")}
-                disabled={creatingMode !== null}
-              >
-                <span className="mode-icon">&#128739;</span>
-                <span className="mode-name">Route</span>
-                <span className="mode-desc">Follow a path in the real world</span>
-              </button>
-              <button
-                className="mode-card"
-                onClick={() => createRealm("dungeon")}
-                disabled={creatingMode !== null}
-              >
-                <span className="mode-icon">&#128081;</span>
-                <span className="mode-name">Dungeon</span>
-                <span className="mode-desc">Conquer dungeons with your team</span>
-              </button>
-              <button
-                className="mode-card"
-                onClick={() => createRealm("social")}
-                disabled={creatingMode !== null}
-              >
-                <span className="mode-icon">&#128172;</span>
-                <span className="mode-name">Social</span>
-                <span className="mode-desc">Hang out and move together</span>
-              </button>
+            <div className="mode-section">
+              <h3 className="mode-section-label">Multiplayer</h3>
+              <div className="mode-grid" aria-busy={creatingMode !== null}>
+                <button
+                  className="mode-card"
+                  onClick={() => createRealm("competition")}
+                  disabled={creatingMode !== null}
+                >
+                  <span className="mode-icon">&#9876;</span>
+                  <span className="mode-name">Competition</span>
+                  <span className="mode-desc">Compete in races, elimination, and more</span>
+                </button>
+                <button
+                  className="mode-card"
+                  onClick={() => createRealm("dungeon")}
+                  disabled={creatingMode !== null}
+                >
+                  <span className="mode-icon">&#128081;</span>
+                  <span className="mode-name">Dungeon</span>
+                  <span className="mode-desc">Fight enemies and dodge traps as a team</span>
+                </button>
+                <button
+                  className="mode-card"
+                  onClick={() => createRealm("social")}
+                  disabled={creatingMode !== null}
+                >
+                  <span className="mode-icon">&#128172;</span>
+                  <span className="mode-name">Social</span>
+                  <span className="mode-desc">Walk together and see each other's live stats</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mode-section">
+              <h3 className="mode-section-label">Solo</h3>
+              <div className="mode-grid" aria-busy={creatingMode !== null}>
+                <button
+                  className="mode-card"
+                  onClick={() => createRealm("streetview")}
+                  disabled={creatingMode !== null}
+                >
+                  <span className="mode-icon">&#127758;</span>
+                  <span className="mode-name">Street View</span>
+                  <span className="mode-desc">Walk through real streets on Google Street View</span>
+                </button>
+                <button
+                  className="mode-card"
+                  onClick={() => createRealm("youtubetrail")}
+                  disabled={creatingMode !== null}
+                >
+                  <span className="mode-icon">&#9654;</span>
+                  <span className="mode-name">YouTube Trail</span>
+                  <span className="mode-desc">Watch videos that play at your walking speed</span>
+                </button>
+                <button
+                  className="mode-card"
+                  onClick={() => createRealm("route")}
+                  disabled={creatingMode !== null}
+                >
+                  <span className="mode-icon">&#128739;</span>
+                  <span className="mode-name">Route</span>
+                  <span className="mode-desc">Walk a route between two locations on the map</span>
+                </button>
+              </div>
             </div>
 
             <p className="home-tagline">
