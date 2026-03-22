@@ -468,11 +468,6 @@
   z-index: 1000;
 }
 
-.qr-overlay.keyboard-open {
-  align-items: flex-start;
-  padding-top: 5vh;
-}
-
 .qr-modal {
   background: var(--bg, #16171d);
   border: 1px solid var(--border, #2e303a);
@@ -483,8 +478,100 @@
   width: 90%;
 }
 
-.keyboard-open .qr-modal {
-  padding: 1.25rem 2rem;
+/* --- Join Bar (compact layout for virtual keyboard) --- */
+
+.join-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  background: var(--bg, #16171d);
+  border-bottom: 1px solid var(--border, #2e303a);
+  padding: 0.5rem 0.75rem;
+}
+
+.join-bar-row {
+  display: flex;
+  align-items: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.join-bar-code {
+  width: 100px;
+  padding: 0.5rem 0.5rem;
+  font-size: 1.1rem;
+  font-family: var(--mono, monospace);
+  text-align: center;
+  letter-spacing: 0.15em;
+  border-radius: 6px;
+  border: 2px solid var(--border, #2e303a);
+  background: var(--code-bg, #1f2028);
+  color: var(--text-h, #f3f4f6);
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.join-bar-code:focus {
+  outline: none;
+  border-color: var(--accent2, #33DFFF);
+}
+
+.join-bar-host {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.5rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #2e303a);
+  background: var(--code-bg, #1f2028);
+  color: var(--text-h, #f3f4f6);
+  margin-right: 0.5rem;
+}
+
+.join-bar-host:focus {
+  outline: none;
+  border-color: var(--accent2, #33DFFF);
+}
+
+.join-bar-go {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  background: var(--accent2, #33DFFF);
+  color: #0f172a;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 0.5rem;
+}
+
+.join-bar-go:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.join-bar-close {
+  background: none;
+  border: none;
+  color: var(--text, #9ca3af);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.join-bar-close:hover {
+  color: var(--text-h, #f3f4f6);
+}
+
+.join-bar-error {
+  color: var(--accent, #FF5C75);
+  font-size: 0.75rem;
+  margin: 0.25rem 0 0;
+  text-align: center;
 }
 
 .qr-modal h3 {

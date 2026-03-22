@@ -556,12 +556,11 @@ function App() {
         {showCalibration && hubUrl && (
           <CalibrationPanel hubUrl={hubUrl} onClose={() => setShowCalibration(false)} />
         )}
-        {showJoinModal && (
-          <div className={`qr-overlay${virtualKeyboardOpen ? " keyboard-open" : ""}`} onClick={() => { setShowJoinModal(false); setJoinError(""); }}>
+        {showJoinModal && !virtualKeyboardOpen && (
+          <div className="qr-overlay" onClick={() => { setShowJoinModal(false); setJoinError(""); }}>
             <div className="qr-modal join-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
               <h3>Join a Realm</h3>
               <p>Enter a 6-digit join code to watch a realm</p>
-              {/* Issue #9 — visually hidden label for accessibility */}
               <label htmlFor="join-code-input" style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
                 Join code
               </label>
@@ -609,6 +608,57 @@ function App() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+        {showJoinModal && virtualKeyboardOpen && (
+          <div className="join-bar" role="dialog" aria-modal="true">
+            <div className="join-bar-row">
+              <label htmlFor="join-code-input-bar" style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
+                Join code
+              </label>
+              <input
+                id="join-code-input-bar"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={joinCodeInput}
+                onChange={(e) => {
+                  setJoinCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setJoinError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && joinRealm()}
+                placeholder="Join code"
+                maxLength={6}
+                className="join-bar-code"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={hostKeyInput}
+                onChange={(e) => {
+                  setHostKeyInput(e.target.value.toUpperCase().slice(0, 8));
+                  setJoinError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && joinRealm()}
+                placeholder="Host key"
+                className="join-bar-host"
+              />
+              <button
+                onClick={joinRealm}
+                disabled={joinCodeInput.length < 6 || joining}
+                className="join-bar-go"
+              >
+                {joining ? "..." : hostKeyInput.trim() ? "Host" : "Join"}
+              </button>
+              <button
+                className="join-bar-close"
+                onClick={() => { setShowJoinModal(false); setJoinCodeInput(""); setHostKeyInput(""); setJoinError(""); }}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            {joinError && <p className="join-bar-error">{joinError}</p>}
           </div>
         )}
       </div>
