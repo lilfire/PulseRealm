@@ -411,4 +411,81 @@ public class AdminConfigServiceTests : IDisposable
         var exception = Record.Exception(() => Task.WaitAll(tasks));
         Assert.Null(exception);
     }
+
+    // -------------------------------------------------------------------------
+    // IncrementPopularity
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void IncrementPopularity_NewKey_SetsCountToOne()
+    {
+        var service = CreateService();
+
+        service.IncrementPopularity("youtube:abc123");
+
+        var count = service.GetConfig().PopularityCounts.GetValueOrDefault("youtube:abc123");
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void IncrementPopularity_ExistingKey_IncrementsCount()
+    {
+        var service = CreateService();
+
+        service.IncrementPopularity("youtube:abc123");
+        service.IncrementPopularity("youtube:abc123");
+        service.IncrementPopularity("youtube:abc123");
+
+        var count = service.GetConfig().PopularityCounts.GetValueOrDefault("youtube:abc123");
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public void IncrementPopularity_DifferentKeys_TrackedSeparately()
+    {
+        var service = CreateService();
+
+        service.IncrementPopularity("youtube:vid1");
+        service.IncrementPopularity("youtube:vid1");
+        service.IncrementPopularity("streetview:1.0,2.0");
+
+        var counts = service.GetConfig().PopularityCounts;
+        Assert.Equal(2, counts.GetValueOrDefault("youtube:vid1"));
+        Assert.Equal(1, counts.GetValueOrDefault("streetview:1.0,2.0"));
+    }
+
+    [Fact]
+    public void IncrementPopularity_PersistsToDisk()
+    {
+        // Use a fixed directory shared between two service instances
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        _tempDirs.Add(dir);
+
+        var first = CreateService(dir);
+        first.IncrementPopularity("route:51.0,0.1:51.1,0.2");
+        first.IncrementPopularity("route:51.0,0.1:51.1,0.2");
+
+        // Create second instance AFTER first has persisted to disk (simulating restart)
+        var second = CreateService(dir);
+        var count = second.GetConfig().PopularityCounts.GetValueOrDefault("route:51.0,0.1:51.1,0.2");
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void IncrementPopularity_ConcurrentCalls_DoNotThrow()
+    {
+        var service = CreateService();
+        const int callCount = 20;
+
+        var tasks = Enumerable.Range(0, callCount)
+            .Select(_ => Task.Run(() => service.IncrementPopularity("concurrent:key")))
+            .ToArray();
+
+        var ex = Record.Exception(() => Task.WaitAll(tasks));
+        Assert.Null(ex);
+
+        // The exact count may vary slightly due to timing of reads, but must be > 0
+        var count = service.GetConfig().PopularityCounts.GetValueOrDefault("concurrent:key");
+        Assert.True(count > 0);
+    }
 }

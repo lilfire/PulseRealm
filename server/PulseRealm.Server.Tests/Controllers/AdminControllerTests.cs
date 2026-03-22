@@ -487,6 +487,49 @@ public class AdminControllerTests
             "ClientKicked", It.IsAny<object?[]>(), default), Times.Once);
     }
 
+    [Fact]
+    public async Task KickClient_ValidClientWithActiveConnection_SendsYouWereKickedToClient()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var realmManager = new RealmManager(configService);
+        var realm = realmManager.CreateRealm(RealmMode.Competition);
+        realmManager.AddClient(realm.Id, "tracked-client");
+
+        // Inject a connection map entry so the controller can find the kicked client's connection
+        var clientConnId = Guid.NewGuid().ToString();
+        PulseRealm.Server.Hubs.RealmHub._connectionMap[clientConnId] = (realm.Id, "tracked-client");
+
+        try
+        {
+            var mockHubContext = new Mock<IHubContext<RealmHub>>();
+            var mockClients = new Mock<IHubClients>();
+            var mockGroupProxy = new Mock<IClientProxy>();
+            var mockClientProxy = new Mock<ISingleClientProxy>();
+            mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+            mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockGroupProxy.Object);
+            mockClients.Setup(c => c.Client(clientConnId)).Returns(mockClientProxy.Object);
+
+            var controller = new AdminController(auth, configService, realmManager,
+                mockHubContext.Object, new RealmStatsTracker(),
+                new ConfigurationBuilder().Build());
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            };
+
+            var result = await controller.KickClient(realm.Id, "tracked-client");
+
+            Assert.IsType<OkObjectResult>(result);
+            mockClientProxy.Verify(p => p.SendCoreAsync(
+                "YouWereKicked", It.IsAny<object?[]>(), default), Times.Once);
+        }
+        finally
+        {
+            PulseRealm.Server.Hubs.RealmHub._connectionMap.TryRemove(clientConnId, out _);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // UploadThumbnail
     // -------------------------------------------------------------------------
@@ -625,5 +668,199 @@ public class AdminControllerTests
         Assert.IsType<OkObjectResult>(result);
 
         try { Directory.Delete(tempDir, true); } catch { }
+    }
+
+    // -------------------------------------------------------------------------
+    // Backup
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Backup_ReturnsFileWithJsonContent()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var result = controller.Backup();
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/json", fileResult.ContentType);
+        Assert.NotEmpty(fileResult.FileContents);
+    }
+
+    [Fact]
+    public void Backup_FileNameContainsTimestamp()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var result = controller.Backup();
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Contains("pulserealm-backup-", fileResult.FileDownloadName);
+        Assert.EndsWith(".json", fileResult.FileDownloadName);
+    }
+
+    [Fact]
+    public void Backup_ContentIsValidJson()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var result = controller.Backup();
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        var json = System.Text.Encoding.UTF8.GetString(fileResult.FileContents);
+        var doc = System.Text.Json.JsonDocument.Parse(json); // must not throw
+        Assert.NotNull(doc);
+    }
+
+    [Fact]
+    public void Backup_ContentReflectsCurrentConfig()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        configService.UpdateConfig(new AdminConfig { CompetitionSubMode = "interval" });
+        var controller = CreateController(auth, configService);
+
+        var result = controller.Backup();
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        var json = System.Text.Encoding.UTF8.GetString(fileResult.FileContents);
+        Assert.Contains("interval", json);
+    }
+
+    // -------------------------------------------------------------------------
+    // Restore
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Restore_NullFile_ReturnsBadRequest()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var result = await controller.Restore(null!);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Restore_EmptyFile_ReturnsBadRequest()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var file = new Mock<IFormFile>();
+        file.Setup(f => f.Length).Returns(0);
+
+        var result = await controller.Restore(file.Object);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Restore_FileTooLarge_ReturnsBadRequest()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var file = new Mock<IFormFile>();
+        file.Setup(f => f.Length).Returns(11 * 1024 * 1024); // 11 MB > 10 MB limit
+
+        var result = await controller.Restore(file.Object);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var json = System.Text.Json.JsonSerializer.Serialize(badRequest.Value);
+        Assert.Contains("10 MB", json);
+    }
+
+    [Fact]
+    public async Task Restore_InvalidJson_ReturnsBadRequest()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var content = System.Text.Encoding.UTF8.GetBytes("this is not json");
+        var file = new Mock<IFormFile>();
+        file.Setup(f => f.Length).Returns(content.Length);
+        file.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(content));
+
+        var result = await controller.Restore(file.Object);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var json = System.Text.Json.JsonSerializer.Serialize(badRequest.Value);
+        Assert.Contains("Invalid backup file", json);
+    }
+
+    [Fact]
+    public async Task Restore_NullDeserialization_ReturnsBadRequest()
+    {
+        // "null" is valid JSON but produces a null AdminConfig
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var content = System.Text.Encoding.UTF8.GetBytes("null");
+        var file = new Mock<IFormFile>();
+        file.Setup(f => f.Length).Returns(content.Length);
+        file.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(content));
+
+        var result = await controller.Restore(file.Object);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Restore_ValidBackupJson_UpdatesConfigAndReturns200()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var backup = new AdminConfig { CompetitionSubMode = "survivor", DungeonDifficulty = "hard" };
+        var json = System.Text.Json.JsonSerializer.Serialize(backup, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        });
+        var content = System.Text.Encoding.UTF8.GetBytes(json);
+        var file = new Mock<IFormFile>();
+        file.Setup(f => f.Length).Returns(content.Length);
+        file.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(content));
+
+        var result = await controller.Restore(file.Object);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returnedConfig = Assert.IsType<AdminConfig>(okResult.Value);
+        Assert.Equal("survivor", returnedConfig.CompetitionSubMode);
+        Assert.Equal("hard", returnedConfig.DungeonDifficulty);
+    }
+
+    [Fact]
+    public async Task Restore_ValidBackupJson_PersistsChangesToConfigService()
+    {
+        var auth = new AdminAuthService(CreateConfig("admin", "secret"));
+        var configService = CreateConfigService();
+        var controller = CreateController(auth, configService);
+
+        var backup = new AdminConfig { CompetitionDurationMinutes = 99 };
+        var json = System.Text.Json.JsonSerializer.Serialize(backup, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        });
+        var content = System.Text.Encoding.UTF8.GetBytes(json);
+        var file = new Mock<IFormFile>();
+        file.Setup(f => f.Length).Returns(content.Length);
+        file.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(content));
+
+        await controller.Restore(file.Object);
+
+        Assert.Equal(99, configService.GetConfig().CompetitionDurationMinutes);
     }
 }

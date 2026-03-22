@@ -105,22 +105,21 @@ describe("StreetViewLobby (maps loaded)", () => {
       expect(screen.getByText("Sydney Opera House, Australia")).toBeInTheDocument();
     });
 
-    it("shows Or pick a random location prompt", () => {
+    it("shows Or pick a location prompt", () => {
       render(<StreetViewLobby {...baseProps} />);
-      expect(screen.getByText("Or pick a random location:")).toBeInTheDocument();
+      expect(screen.getByText("Or pick a location:")).toBeInTheDocument();
     });
 
-    it("shows 5 random locations from a larger curated set", () => {
+    it("renders all locations from a larger curated set", () => {
       const manyLocations: StreetViewLocation[] = Array.from({ length: 20 }, (_, i) => ({
         lat: i,
         lng: i,
         address: `Location ${i}`,
       }));
       render(<StreetViewLobby {...baseProps} clients={[]} clientProfiles={{}} curatedLocations={manyLocations} />);
-      // OptionGrid renders cards in a CSS grid (divs), not list items.
-      // Each location card renders the address text — count them to verify exactly 5 are shown.
+      // OptionGrid renders all location cards
       const locationCards = screen.getAllByText(/^Location \d+$/);
-      expect(locationCards.length).toBe(5);
+      expect(locationCards.length).toBe(20);
     });
   });
 
@@ -512,7 +511,7 @@ describe("StreetViewLobby (maps loading)", () => {
     const { StreetViewLobby: ErrorLobby } = await import("./StreetViewLobby");
     render(<ErrorLobby {...baseProps} />);
     expect(screen.getByPlaceholderText("Search for an address...")).toBeInTheDocument();
-    expect(screen.getByText("Or pick a random location:")).toBeInTheDocument();
+    expect(screen.getByText("Or pick a location:")).toBeInTheDocument();
   });
 
   it("does not show search input when maps are loading", async () => {

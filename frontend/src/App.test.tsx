@@ -184,6 +184,7 @@ const mockNotifyEliminated = vi.fn();
 
 const baseRealmHub = {
   connected: false,
+  connectionStatus: "idle" as const,
   started: false,
   ended: false,
   realmSummary: null,
@@ -191,9 +192,24 @@ const baseRealmHub = {
   clientProfiles: {} as Record<string, ClientProfile>,
   latestData: null,
   realmConfig: null,
+  lobbySettings: null as Record<string, unknown> | null,
+  disconnectedClients: [] as string[],
   startRealm: mockStartRealm,
   endRealm: mockEndRealm,
   notifyEliminated: mockNotifyEliminated,
+  kickClient: vi.fn(),
+  updateLobbySettings: vi.fn(),
+  boundClientId: null as string | null,
+  bindCode: null as string | null,
+  bindPending: false,
+  bindResult: null as "approved" | "declined" | null,
+  clientBindings: {} as Record<string, boolean>,
+  clientInclines: {} as Record<string, number>,
+  clientSpeedOverrides: {} as Record<string, number>,
+  requestBind: vi.fn(),
+  cancelBind: vi.fn(),
+  setIncline: vi.fn(),
+  setSpeedOverride: vi.fn(),
 };
 
 // These will be mutated per test via `mockReturnValue`.
@@ -500,7 +516,7 @@ describe("creating realms via mode cards", () => {
       json: async () => ({ id: "realm-r", joinCode: "444444", mode: "route" }),
     } as unknown as Response);
 
-    fireEvent.click(screen.getByRole("button", { name: /RouteFollow a path/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Route/i }));
 
     await waitFor(() => {
       expect(screen.getByTestId("route-lobby")).toBeInTheDocument();
@@ -569,7 +585,7 @@ describe("creating realms via mode cards", () => {
     fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Network down")).toBeInTheDocument();
+      expect(screen.getByText("Could not reach the server. Check your connection and try again.")).toBeInTheDocument();
     });
   });
 
@@ -586,7 +602,7 @@ describe("creating realms via mode cards", () => {
     fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Server returned 500")).toBeInTheDocument();
+      expect(screen.getByText("Could not create realm. Please try again.")).toBeInTheDocument();
     });
   });
 });
@@ -694,6 +710,8 @@ describe("lobby routing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
     await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
 
+    // resetRealm triggers a config re-fetch via setConfigRefresh
+    mockConfigFetch();
     fireEvent.click(screen.getByRole("button", { name: "Leave" }));
     expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
@@ -818,13 +836,13 @@ describe("summary screen", () => {
     // After summary is closed the realm hub mock needs to no longer report ended
     mockUseRealmHub.mockReturnValue({ ...baseRealmHub });
 
+    // resetRealm triggers a config re-fetch
+    mockConfigFetch();
     fireEvent.click(screen.getByRole("button", { name: "Back to Home" }));
     expect(screen.getByText("Choose a mode to create a realm", { exact: false })).toBeInTheDocument();
   });
 
   it("does not show summary screen when ended is true but realmSummary is null", async () => {
-    mockUseRealmHub.mockReturnValue({ ...baseRealmHub, ended: true, realmSummary: null });
-
     mockConfigFetch();
     await renderApp();
 
@@ -834,6 +852,10 @@ describe("summary screen", () => {
     } as unknown as Response);
 
     fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
+    await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
+
+    // Hub reports ended=true, started=true but no summary — should stay on lobby
+    mockUseRealmHub.mockReturnValue({ ...baseRealmHub, started: true, ended: true, realmSummary: null });
 
     await waitFor(() => {
       // Without realmSummary the summary screen is skipped; lobby is shown instead
@@ -1111,7 +1133,7 @@ describe("createRealm error auto-clear", () => {
     fireEvent.click(screen.getByRole("button", { name: /Competition/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Timed out")).toBeInTheDocument();
+      expect(screen.getByText("Could not reach the server. Check your connection and try again.")).toBeInTheDocument();
     });
   });
 });
@@ -1281,6 +1303,7 @@ describe("fallback connecting screen", () => {
       ...baseRealmHub,
       started: true,
       connected: false,
+      connectionStatus: "connecting" as const,
       realmConfig: null,
     });
     rerender(<App />);
@@ -1337,6 +1360,8 @@ describe("realm ended before starting resets to home", () => {
     await waitFor(() => expect(screen.getByTestId("competition-lobby")).toBeInTheDocument());
 
     // Hub reports ended=true, started=false (realm ended from lobby)
+    // resetRealm will trigger a config re-fetch
+    mockConfigFetch();
     mockUseRealmHub.mockReturnValue({
       ...baseRealmHub,
       ended: true,

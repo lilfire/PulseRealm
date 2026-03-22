@@ -18,7 +18,12 @@ namespace PulseRealm.Server.Tests.Hubs;
 /// state left behind by another test regardless of execution order.
 ///
 /// Hub infrastructure (Clients / Groups / Context) is wired by CreateHub().
+///
+/// Placed in [Collection("CalibrationCleanup")] so that calibration session tests
+/// in RealmCleanupServiceTests do not run in parallel and corrupt the shared static
+/// RealmHub calibration dictionaries.
 /// </summary>
+[Collection("CalibrationCleanup")]
 public class RealmHubTests
 {
     // -------------------------------------------------------------------------
@@ -1583,5 +1588,1107 @@ public class RealmHubTests
         await hub.SendWearableData(realm.Id, data);
 
         Assert.Equal(0, data.SpeedKmh); // First packet after start => speed 0
+    }
+
+    // -------------------------------------------------------------------------
+    // Ping
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Ping_ReturnsTrue()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        Assert.True(hub.Ping());
+    }
+
+    // -------------------------------------------------------------------------
+    // TrackPopularity — via StartRealm with different config shapes
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task StartRealm_YouTubeTrailConfig_TracksPopularity()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.YouTubeTrail);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+        var config = """{"videoId":"abc123","someOtherField":"val"}""";
+
+        // Should not throw — popularity tracking is fire-and-forget
+        var ex = await Record.ExceptionAsync(() => hub.StartRealm(realm.Id, config));
+
+        Assert.Null(ex);
+        Assert.Equal(RealmStatus.Started, realm.Status);
+    }
+
+    [Fact]
+    public async Task StartRealm_StreetViewConfig_TracksPopularity()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.StreetView);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+        var config = """{"lat":48.8566,"lng":2.3522}""";
+
+        var ex = await Record.ExceptionAsync(() => hub.StartRealm(realm.Id, config));
+
+        Assert.Null(ex);
+        Assert.Equal(RealmStatus.Started, realm.Status);
+    }
+
+    [Fact]
+    public async Task StartRealm_RouteConfig_TracksPopularity()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Route);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+        var config = """{"from":{"lat":51.5074,"lng":-0.1278},"to":{"lat":51.5155,"lng":-0.0922}}""";
+
+        var ex = await Record.ExceptionAsync(() => hub.StartRealm(realm.Id, config));
+
+        Assert.Null(ex);
+        Assert.Equal(RealmStatus.Started, realm.Status);
+    }
+
+    [Fact]
+    public async Task StartRealm_MalformedConfig_DoesNotThrow()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.YouTubeTrail);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        // Malformed JSON should be swallowed silently
+        var ex = await Record.ExceptionAsync(() => hub.StartRealm(realm.Id, "not valid json"));
+
+        Assert.Null(ex);
+    }
+
+    // -------------------------------------------------------------------------
+    // RequestBind — successful bind request
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RequestBind_ValidLobbyRealm_SendsBindCodeGeneratedToCaller()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, mockClients, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        // The client must NOT be bound yet and realm must be in Lobby
+        await hub.RequestBind(realm.Id, clientId);
+
+        // Dashboard (Caller) receives the code
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "BindCodeGenerated", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task RequestBind_ValidLobbyRealm_StoresPendingBindCode()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        await hub.RequestBind(realm.Id, clientId);
+
+        var hasPending = realm.WithLock(r => r.PendingBindCodes.ContainsKey(clientId));
+        Assert.True(hasPending);
+    }
+
+    // -------------------------------------------------------------------------
+    // RespondBind — approve and decline
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RespondBind_NotInRealm_ThrowsHubException()
+    {
+        var (hub, manager, _, _, _) = CreateHub();
+        var realm = manager.CreateRealm(RealmMode.Competition);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.RespondBind(realm.Id, approved: true));
+
+        Assert.Contains("Not in a realm", ex.Message);
+    }
+
+    [Fact]
+    public async Task RespondBind_NoPendingBind_ThrowsHubException()
+    {
+        // Client joins, but nobody called RequestBind, so there is no pending code.
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        await hub.JoinRealm(realm.JoinCode, clientId);
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.RespondBind(realm.Id, approved: true));
+
+        Assert.Contains("No pending bind", ex.Message);
+    }
+
+    [Fact]
+    public async Task RespondBind_InvalidRealm_ThrowsHubException()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        await hub.JoinRealm(realm.JoinCode, clientId);
+
+        // Pass a nonexistent realm ID
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.RespondBind("nonexistent", approved: true));
+
+        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RespondBind_Approved_CreatesBoundRelationship()
+    {
+        // Dashboard hub
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, manager, mockClients, mockProxy, mockGroups, tracker) = CreateHubWithTracker(dashConnId);
+
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await dashHub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        // Wearable hub
+        var clientConnId = Guid.NewGuid().ToString();
+        var clientHub = new RealmHub(manager, CreateAdminConfigService(), tracker);
+        var clientMockClients = new Mock<IHubCallerClients>();
+        var clientMockProxy = new Mock<ISingleClientProxy>();
+        var clientMockContext = new Mock<HubCallerContext>();
+        clientMockContext.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clientMockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(clientMockProxy.Object);
+        clientMockClients.Setup(c => c.Caller).Returns(clientMockProxy.Object);
+        clientHub.Context = clientMockContext.Object;
+        clientHub.Clients = clientMockClients.Object;
+        clientHub.Groups = mockGroups.Object;
+
+        var clientId = Guid.NewGuid().ToString();
+        await clientHub.JoinRealm(realm.JoinCode, clientId);
+
+        // Dashboard requests bind
+        mockClients.Setup(c => c.Client(clientConnId)).Returns(clientMockProxy.Object);
+        await dashHub.RequestBind(realm.Id, clientId);
+
+        // Wearable approves
+        clientMockClients.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        await clientHub.RespondBind(realm.Id, approved: true);
+
+        var isBound = realm.WithLock(r => r.ClientBindings.ContainsKey(clientId));
+        Assert.True(isBound);
+    }
+
+    [Fact]
+    public async Task RespondBind_Declined_DoesNotBind()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, manager, mockClients, mockProxy, mockGroups, tracker) = CreateHubWithTracker(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await dashHub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        var clientConnId = Guid.NewGuid().ToString();
+        var clientHub = new RealmHub(manager, CreateAdminConfigService(), tracker);
+        var clientMockClients = new Mock<IHubCallerClients>();
+        var clientMockProxy = new Mock<ISingleClientProxy>();
+        var clientMockContext = new Mock<HubCallerContext>();
+        clientMockContext.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clientMockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(clientMockProxy.Object);
+        clientMockClients.Setup(c => c.Caller).Returns(clientMockProxy.Object);
+        clientHub.Context = clientMockContext.Object;
+        clientHub.Clients = clientMockClients.Object;
+        clientHub.Groups = mockGroups.Object;
+
+        var clientId = Guid.NewGuid().ToString();
+        await clientHub.JoinRealm(realm.JoinCode, clientId);
+
+        mockClients.Setup(c => c.Client(clientConnId)).Returns(clientMockProxy.Object);
+        await dashHub.RequestBind(realm.Id, clientId);
+
+        clientMockClients.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        await clientHub.RespondBind(realm.Id, approved: false);
+
+        var isBound = realm.WithLock(r => r.ClientBindings.ContainsKey(clientId));
+        Assert.False(isBound);
+    }
+
+    // -------------------------------------------------------------------------
+    // CancelBind — cancel an existing pending bind
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task CancelBind_ExistingPendingBind_RemovesIt()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, mockClients, mockProxy, mockGroups) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        // Set up a pending bind code manually
+        realm.WithLock(r => r.PendingBindCodes[clientId] = ("1234", dashConnId));
+
+        await hub.CancelBind(realm.Id, clientId);
+
+        var stillPending = realm.WithLock(r => r.PendingBindCodes.ContainsKey(clientId));
+        Assert.False(stillPending);
+    }
+
+    // -------------------------------------------------------------------------
+    // SetIncline — successful operation
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SetIncline_WhenBound_StoresInclineAndBroadcasts()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        // Bind the dashboard to the client
+        realm.WithLock(r => r.ClientBindings[clientId] = dashConnId);
+
+        await hub.SetIncline(realm.Id, clientId, 8.0);
+
+        var storedIncline = realm.WithLock(r => r.ClientInclines.TryGetValue(clientId, out var v) ? v : -1);
+        Assert.Equal(8.0, storedIncline);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "InclineChanged", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetIncline_ClampsToMaximum()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+        realm.WithLock(r => r.ClientBindings[clientId] = dashConnId);
+
+        await hub.SetIncline(realm.Id, clientId, 100.0); // way over max of 15
+
+        var storedIncline = realm.WithLock(r => r.ClientInclines.TryGetValue(clientId, out var v) ? v : -1);
+        Assert.Equal(15.0, storedIncline);
+    }
+
+    [Fact]
+    public async Task SetIncline_ClampsToMinimum()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+        realm.WithLock(r => r.ClientBindings[clientId] = dashConnId);
+
+        await hub.SetIncline(realm.Id, clientId, -5.0); // negative
+
+        var storedIncline = realm.WithLock(r => r.ClientInclines.TryGetValue(clientId, out var v) ? v : -1);
+        Assert.Equal(0.0, storedIncline);
+    }
+
+    // -------------------------------------------------------------------------
+    // SetSpeedOverride — successful operations
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SetSpeedOverride_WhenBound_StoresOverrideAndBroadcasts()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+        realm.WithLock(r => r.ClientBindings[clientId] = dashConnId);
+
+        await hub.SetSpeedOverride(realm.Id, clientId, 10.0);
+
+        var storedOverride = realm.WithLock(r => r.ClientSpeedOverrides.TryGetValue(clientId, out var v) ? v : -1);
+        Assert.Equal(10.0, storedOverride);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "SpeedOverrideChanged", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetSpeedOverride_ZeroValue_ClearsOverride()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+        realm.WithLock(r =>
+        {
+            r.ClientBindings[clientId] = dashConnId;
+            r.ClientSpeedOverrides[clientId] = 8.5;
+        });
+
+        await hub.SetSpeedOverride(realm.Id, clientId, 0);
+
+        var hasOverride = realm.WithLock(r => r.ClientSpeedOverrides.ContainsKey(clientId));
+        Assert.False(hasOverride);
+    }
+
+    [Fact]
+    public async Task SetSpeedOverride_ClampsToMaximum()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(dashConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+        realm.WithLock(r => r.ClientBindings[clientId] = dashConnId);
+
+        await hub.SetSpeedOverride(realm.Id, clientId, 100.0); // way over 30 km/h max
+
+        var storedOverride = realm.WithLock(r => r.ClientSpeedOverrides.TryGetValue(clientId, out var v) ? v : -1);
+        Assert.Equal(30.0, storedOverride);
+    }
+
+    // -------------------------------------------------------------------------
+    // KickClient — no existing connection (client ID only, no live conn)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task KickClient_ClientWithNoActiveConnection_StillKicksAndPreventsReconnect()
+    {
+        var hostConnId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(hostConnId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+
+        // Add client directly (no live hub connection mapping)
+        var clientId = Guid.NewGuid().ToString();
+        manager.AddClient(realm.Id, clientId);
+
+        await hub.KickClient(realm.Id, clientId);
+
+        Assert.DoesNotContain(clientId, realm.ConnectedClientIds);
+        Assert.Contains(clientId, realm.KickedClientIds);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "ClientKicked", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealmAsDashboard — nonexistent realm returns default state
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealmAsDashboard_NonexistentRealm_AddsToGroupAndSendsDefaultState()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, _, _, mockProxy, mockGroups) = CreateHub(connId);
+
+        await hub.JoinRealmAsDashboard("realm-that-does-not-exist");
+
+        mockGroups.Verify(g => g.AddToGroupAsync(connId, "realm-that-does-not-exist", default), Times.Once);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "JoinedRealm", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // LeaveRealm — client not in any realm
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task LeaveRealm_ClientNotInRealm_ReturnsFalse()
+    {
+        var (hub, _, _, _, _) = CreateHub(Guid.NewGuid().ToString());
+
+        // Hub is fresh, no connection map entry
+        var result = await hub.LeaveRealm();
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task LeaveRealm_LobbyRealm_ReturnsFalse()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, _, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Test", Age = 25, HeightCm = 170, WeightKg = 70 });
+
+        // Realm stays in Lobby — LeaveRealm should return false (not a "started realm" leave)
+        var result = await hub.LeaveRealm();
+
+        Assert.False(result);
+    }
+
+    // -------------------------------------------------------------------------
+    // OnDisconnectedAsync — calibration session cleanup
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task OnDisconnectedAsync_CalibrationClientDisconnects_NotifiesDashboard()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var clientConnId = Guid.NewGuid().ToString();
+
+        // Dashboard creates session
+        var (dashHub, _, dashMockClients, dashMockProxy, _, _) = CreateHubWithTracker(dashConnId);
+        var joinCode = dashHub.CreateCalibrationSession();
+
+        // Wearable client joins the calibration session
+        var (clientHub, _, clientMockClients, clientMockProxy, _, tracker) = CreateHubWithTracker(clientConnId);
+
+        // Re-create with same connection ID for client hub
+        var realmManager = new RealmManager(CreateAdminConfigService());
+        var clientHubActual = new RealmHub(realmManager, CreateAdminConfigService(), tracker);
+        var clientCtx = new Mock<HubCallerContext>();
+        clientCtx.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clientHubActual.Context = clientCtx.Object;
+        clientHubActual.Clients = clientMockClients.Object;
+        clientHubActual.Groups = new Mock<IGroupManager>().Object;
+
+        // Setup dashboard mock to receive notifications
+        clientMockClients.Setup(c => c.Client(dashConnId)).Returns(dashMockProxy.Object);
+        dashMockClients.Setup(c => c.Client(clientConnId)).Returns(clientMockProxy.Object);
+
+        await clientHubActual.JoinCalibrationSession(joinCode, Guid.NewGuid().ToString(), 175.0);
+
+        // Now client disconnects
+        await clientHubActual.OnDisconnectedAsync(null);
+
+        dashMockProxy.Verify(p => p.SendCoreAsync(
+            "CalibrationClientLeft", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_CalibrationDashboardDisconnects_NotifiesClient()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var clientConnId = Guid.NewGuid().ToString();
+
+        // Dashboard creates session
+        var (dashHub, _, dashMockClients, dashMockProxy, dashMockGroups, tracker) = CreateHubWithTracker(dashConnId);
+        var joinCode = dashHub.CreateCalibrationSession();
+
+        // Wearable joins
+        var clientHub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var clientCtx = new Mock<HubCallerContext>();
+        var clientMockClients = new Mock<IHubCallerClients>();
+        var clientMockProxy = new Mock<ISingleClientProxy>();
+        clientCtx.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clientMockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(clientMockProxy.Object);
+        clientMockClients.Setup(c => c.Caller).Returns(clientMockProxy.Object);
+        clientHub.Context = clientCtx.Object;
+        clientHub.Clients = clientMockClients.Object;
+        clientHub.Groups = dashMockGroups.Object;
+
+        clientMockClients.Setup(c => c.Client(dashConnId)).Returns(dashMockProxy.Object);
+        dashMockClients.Setup(c => c.Client(clientConnId)).Returns(clientMockProxy.Object);
+
+        await clientHub.JoinCalibrationSession(joinCode, "wearable-id", 170.0);
+
+        // Dashboard disconnects
+        await dashHub.OnDisconnectedAsync(null);
+
+        clientMockProxy.Verify(p => p.SendCoreAsync(
+            "CalibrationCancelled", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // TryAutoEndRealm — last client leaves started realm
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task LeaveRealm_LastClientInStartedRealm_AutoEndsRealm()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        var clientId = Guid.NewGuid().ToString();
+
+        await hub.JoinRealm(realm.JoinCode, clientId,
+            new ClientProfile { Name = "Solo", Age = 30, HeightCm = 175, WeightKg = 75 });
+
+        realm.WithLock(r => r.Status = RealmStatus.Started);
+
+        // Client leaves — last one, so realm should auto-end
+        await hub.LeaveRealm();
+
+        Assert.Equal(RealmStatus.Ended, realm.Status);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmEnded", It.IsAny<object?[]>(), default), Times.AtLeastOnce);
+    }
+
+    // -------------------------------------------------------------------------
+    // CreateCalibrationSession
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CreateCalibrationSession_ReturnsValidSixDigitCode()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var code = hub.CreateCalibrationSession();
+
+        Assert.NotNull(code);
+        Assert.Equal(6, code.Length);
+        Assert.True(int.TryParse(code, out var parsed));
+        Assert.InRange(parsed, 100000, 999999);
+    }
+
+    [Fact]
+    public void CreateCalibrationSession_RegistersSessionAndJoinCode()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var code = hub.CreateCalibrationSession();
+
+        Assert.True(RealmHub._calibrationJoinCodes.ContainsKey(code));
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+        Assert.True(RealmHub._calibrationSessions.ContainsKey(sessionId));
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinCalibrationSession
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinCalibrationSession_InvalidCode_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.JoinCalibrationSession("000000", "client1", 170.0));
+
+        Assert.Contains("Invalid calibration code", ex.Message);
+    }
+
+    [Fact]
+    public async Task JoinCalibrationSession_InvalidHeight_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, _, _) = CreateHub(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+
+        var (clientHub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => clientHub.JoinCalibrationSession(code, "client1", 30.0)); // too short
+
+        Assert.Contains("Height", ex.Message);
+    }
+
+    [Fact]
+    public async Task JoinCalibrationSession_ValidCode_NotifiesDashboard()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, mockProxy, _, tracker) = CreateHubWithTracker(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+
+        var clientConnId = Guid.NewGuid().ToString();
+        var clientHub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var clientCtx = new Mock<HubCallerContext>();
+        var clientMockClients = new Mock<IHubCallerClients>();
+        var clientMockProxy = new Mock<ISingleClientProxy>();
+        clientCtx.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clientMockClients.Setup(c => c.Caller).Returns(clientMockProxy.Object);
+        clientMockClients.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        clientHub.Context = clientCtx.Object;
+        clientHub.Clients = clientMockClients.Object;
+        clientHub.Groups = new Mock<IGroupManager>().Object;
+
+        await clientHub.JoinCalibrationSession(code, "wear1", 175.0);
+
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "CalibrationClientJoined", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinCalibrationSession_SecondClientJoins_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, mockProxy, _, tracker) = CreateHubWithTracker(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+
+        // First client joins
+        var client1Hub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var ctx1 = new Mock<HubCallerContext>();
+        var clients1 = new Mock<IHubCallerClients>();
+        var proxy1 = new Mock<ISingleClientProxy>();
+        ctx1.Setup(c => c.ConnectionId).Returns(Guid.NewGuid().ToString());
+        clients1.Setup(c => c.Caller).Returns(proxy1.Object);
+        clients1.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        client1Hub.Context = ctx1.Object;
+        client1Hub.Clients = clients1.Object;
+        client1Hub.Groups = new Mock<IGroupManager>().Object;
+        await client1Hub.JoinCalibrationSession(code, "wear1", 170.0);
+
+        // Second client tries to join the same session
+        var client2Hub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var ctx2 = new Mock<HubCallerContext>();
+        var clients2 = new Mock<IHubCallerClients>();
+        var proxy2 = new Mock<ISingleClientProxy>();
+        ctx2.Setup(c => c.ConnectionId).Returns(Guid.NewGuid().ToString());
+        clients2.Setup(c => c.Caller).Returns(proxy2.Object);
+        clients2.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        client2Hub.Context = ctx2.Object;
+        client2Hub.Clients = clients2.Object;
+        client2Hub.Groups = new Mock<IGroupManager>().Object;
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => client2Hub.JoinCalibrationSession(code, "wear2", 170.0));
+
+        Assert.Contains("already connected", ex.Message);
+    }
+
+    // -------------------------------------------------------------------------
+    // JoinRealm — calibration join code routing
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task JoinRealm_WithCalibrationCode_RoutesToCalibrationSession()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, manager, _, mockProxy, _, tracker) = CreateHubWithTracker(dashConnId);
+        var calCode = dashHub.CreateCalibrationSession();
+
+        // Use JoinRealm with the calibration code — it should route to JoinCalibrationSession
+        var clientConnId = Guid.NewGuid().ToString();
+        var clientHub = new RealmHub(manager, CreateAdminConfigService(), tracker);
+        var ctx = new Mock<HubCallerContext>();
+        var clients = new Mock<IHubCallerClients>();
+        var proxy = new Mock<ISingleClientProxy>();
+        ctx.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clients.Setup(c => c.Caller).Returns(proxy.Object);
+        clients.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        clientHub.Context = ctx.Object;
+        clientHub.Clients = clients.Object;
+        clientHub.Groups = new Mock<IGroupManager>().Object;
+
+        // Should route to calibration, not throw "invalid join code"
+        var profile = new ClientProfile { Name = "Tester", Age = 25, HeightCm = 175, WeightKg = 70 };
+        var ex = await Record.ExceptionAsync(
+            () => clientHub.JoinRealm(calCode, "wearable-id", profile));
+
+        Assert.Null(ex);
+    }
+
+    // -------------------------------------------------------------------------
+    // SendCalibrationData
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SendCalibrationData_InvalidSession_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SendCalibrationData("nonexistent", 100));
+
+        Assert.Contains("session not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SendCalibrationData_NotTheConnectedClient_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, mockProxy, _, tracker) = CreateHubWithTracker(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+
+        // Join with a specific client connection
+        var realClientConnId = Guid.NewGuid().ToString();
+        var clientHub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var ctx1 = new Mock<HubCallerContext>();
+        var clients1 = new Mock<IHubCallerClients>();
+        var proxy1 = new Mock<ISingleClientProxy>();
+        ctx1.Setup(c => c.ConnectionId).Returns(realClientConnId);
+        clients1.Setup(c => c.Caller).Returns(proxy1.Object);
+        clients1.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+        clientHub.Context = ctx1.Object;
+        clientHub.Clients = clients1.Object;
+        clientHub.Groups = new Mock<IGroupManager>().Object;
+        await clientHub.JoinCalibrationSession(code, "wear1", 170.0);
+
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        // Try sending data from a different hub (different connection ID)
+        var impersonatorHub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var ctx2 = new Mock<HubCallerContext>();
+        ctx2.Setup(c => c.ConnectionId).Returns(Guid.NewGuid().ToString()); // different conn
+        var clients2 = new Mock<IHubCallerClients>();
+        clients2.Setup(c => c.Caller).Returns(new Mock<ISingleClientProxy>().Object);
+        impersonatorHub.Context = ctx2.Object;
+        impersonatorHub.Clients = clients2.Object;
+        impersonatorHub.Groups = new Mock<IGroupManager>().Object;
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => impersonatorHub.SendCalibrationData(sessionId, 50));
+
+        Assert.Contains("Not the connected client", ex.Message);
+    }
+
+    [Fact]
+    public async Task SendCalibrationData_ValidClient_ForwardsStepsToDashboard()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, dashProxy, _, tracker) = CreateHubWithTracker(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var clientConnId = Guid.NewGuid().ToString();
+        var clientHub = new RealmHub(new RealmManager(CreateAdminConfigService()), CreateAdminConfigService(), tracker);
+        var ctx = new Mock<HubCallerContext>();
+        var clients = new Mock<IHubCallerClients>();
+        var proxy = new Mock<ISingleClientProxy>();
+        ctx.Setup(c => c.ConnectionId).Returns(clientConnId);
+        clients.Setup(c => c.Caller).Returns(proxy.Object);
+        clients.Setup(c => c.Client(dashConnId)).Returns(dashProxy.Object);
+        clientHub.Context = ctx.Object;
+        clientHub.Clients = clients.Object;
+        clientHub.Groups = new Mock<IGroupManager>().Object;
+        await clientHub.JoinCalibrationSession(code, "wear1", 170.0);
+
+        await clientHub.SendCalibrationData(sessionId, 250);
+
+        dashProxy.Verify(p => p.SendCoreAsync(
+            "CalibrationDataReceived", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // StartCalibrationSample
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void StartCalibrationSample_InvalidSession_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = Assert.Throws<HubException>(
+            () => hub.StartCalibrationSample("nonexistent", 5.0));
+
+        Assert.Contains("session not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void StartCalibrationSample_NotTheDashboard_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, _, _) = CreateHub(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        // Create another hub with a DIFFERENT connection ID trying to start a sample
+        var (otherHub, _, _, _, _) = CreateHub(Guid.NewGuid().ToString());
+
+        var ex = Assert.Throws<HubException>(
+            () => otherHub.StartCalibrationSample(sessionId, 5.0));
+
+        Assert.Contains("Not the dashboard", ex.Message);
+    }
+
+    [Fact]
+    public void StartCalibrationSample_InvalidSpeed_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var ex = Assert.Throws<HubException>(
+            () => hub.StartCalibrationSample(sessionId, -1.0));
+
+        Assert.Contains("speed", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void StartCalibrationSample_ValidSpeedAsDashboard_SetsSampleState()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        hub.StartCalibrationSample(sessionId, 8.0);
+
+        var session = RealmHub._calibrationSessions[sessionId];
+        Assert.Equal(8.0, session.CurrentTargetSpeedKmh);
+        Assert.NotNull(session.SampleStartTime);
+    }
+
+    // -------------------------------------------------------------------------
+    // EndCalibrationSample
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task EndCalibrationSample_InvalidSession_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.EndCalibrationSample("nonexistent"));
+
+        Assert.Contains("session not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EndCalibrationSample_NotTheDashboard_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, _, _) = CreateHub(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var (otherHub, _, _, _, _) = CreateHub(Guid.NewGuid().ToString());
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => otherHub.EndCalibrationSample(sessionId));
+
+        Assert.Contains("Not the dashboard", ex.Message);
+    }
+
+    [Fact]
+    public async Task EndCalibrationSample_NoActiveSample_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        // Don't call StartCalibrationSample first
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.EndCalibrationSample(sessionId));
+
+        Assert.Contains("No active sample", ex.Message);
+    }
+
+    [Fact]
+    public async Task EndCalibrationSample_SampleTooShort_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        // Set up a sample state that was started VERY recently (< 5 seconds ago)
+        var session = RealmHub._calibrationSessions[sessionId];
+        lock (session.Lock)
+        {
+            session.CurrentTargetSpeedKmh = 8.0;
+            session.SampleStartSteps = 0;
+            session.SampleStartTime = DateTime.UtcNow; // just now
+            session.LatestSteps = 100; // some steps received
+        }
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.EndCalibrationSample(sessionId));
+
+        Assert.Contains("too short", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EndCalibrationSample_NoStepsRecorded_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var session = RealmHub._calibrationSessions[sessionId];
+        lock (session.Lock)
+        {
+            session.CurrentTargetSpeedKmh = 8.0;
+            session.SampleStartSteps = 100;
+            session.SampleStartTime = DateTime.UtcNow.AddSeconds(-10); // 10 seconds ago
+            session.LatestSteps = 100; // same steps = delta zero
+        }
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.EndCalibrationSample(sessionId));
+
+        Assert.Contains("No steps", ex.Message);
+    }
+
+    [Fact]
+    public async Task EndCalibrationSample_ValidSample_AddsCalibrationPoint()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, mockClients, mockProxy, _) = CreateHub(dashConnId);
+
+        // EndCalibrationSample calls Clients.Client(dashboardConnectionId).SendAsync
+        mockClients.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var session = RealmHub._calibrationSessions[sessionId];
+        lock (session.Lock)
+        {
+            session.HeightCm = 175.0;
+            session.CurrentTargetSpeedKmh = 8.0;
+            session.SampleStartSteps = 0;
+            session.SampleStartTime = DateTime.UtcNow.AddSeconds(-10); // 10 seconds back
+            session.LatestSteps = 50; // 50 steps in 10 seconds
+        }
+
+        await hub.EndCalibrationSample(sessionId);
+
+        var collectedCount = session.CollectedPoints.Count;
+        Assert.Equal(1, collectedCount);
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "CalibrationSampleResult", It.IsAny<object?[]>(), default), Times.Once);
+    }
+
+    // -------------------------------------------------------------------------
+    // SaveCalibration
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SaveCalibration_InvalidSession_ThrowsHubException()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SaveCalibration("nonexistent"));
+
+        Assert.Contains("session not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SaveCalibration_NotTheDashboard_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, _, _) = CreateHub(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var (otherHub, _, _, _, _) = CreateHub(Guid.NewGuid().ToString());
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => otherHub.SaveCalibration(sessionId));
+
+        Assert.Contains("Not the dashboard", ex.Message);
+    }
+
+    [Fact]
+    public async Task SaveCalibration_FewerThanTwoPoints_ThrowsHubException()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        // Add only one point
+        var session = RealmHub._calibrationSessions[sessionId];
+        lock (session.Lock)
+        {
+            session.CollectedPoints.Add(new PulseRealm.Server.Models.StrideCalibrationPoint { SpeedKmh = 5.0, StrideFactor = 0.45 });
+        }
+
+        var ex = await Assert.ThrowsAsync<HubException>(
+            () => hub.SaveCalibration(sessionId));
+
+        Assert.Contains("2 calibration samples", ex.Message);
+    }
+
+    [Fact]
+    public async Task SaveCalibration_TwoPoints_SendsCalibrationCompleteAndSaved()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, mockClients, mockProxy, _) = CreateHub(dashConnId);
+
+        // SaveCalibration calls Clients.Client(dashboardConnectionId).SendAsync
+        mockClients.Setup(c => c.Client(dashConnId)).Returns(mockProxy.Object);
+
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        var session = RealmHub._calibrationSessions[sessionId];
+        lock (session.Lock)
+        {
+            session.CollectedPoints.Add(new PulseRealm.Server.Models.StrideCalibrationPoint { SpeedKmh = 5.0, StrideFactor = 0.45 });
+            session.CollectedPoints.Add(new PulseRealm.Server.Models.StrideCalibrationPoint { SpeedKmh = 10.0, StrideFactor = 0.55 });
+            // No wearable connected — clientConnectionId is null
+        }
+
+        await hub.SaveCalibration(sessionId);
+
+        // Should notify dashboard
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "CalibrationSaved", It.IsAny<object?[]>(), default), Times.Once);
+
+        // Session should be cleaned up
+        Assert.False(RealmHub._calibrationSessions.ContainsKey(sessionId));
+    }
+
+    // -------------------------------------------------------------------------
+    // CancelCalibration
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CancelCalibration_InvalidSession_DoesNotThrow()
+    {
+        var (hub, _, _, _, _) = CreateHub();
+
+        var ex = Record.Exception(() => hub.CancelCalibration("nonexistent"));
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void CancelCalibration_NotParticipant_DoesNothing()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (dashHub, _, _, _, _) = CreateHub(dashConnId);
+        var code = dashHub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        // A random hub with no role in the session tries to cancel
+        var (randomHub, _, _, _, _) = CreateHub(Guid.NewGuid().ToString());
+        randomHub.CancelCalibration(sessionId);
+
+        // Session should still exist
+        Assert.True(RealmHub._calibrationSessions.ContainsKey(sessionId));
+    }
+
+    [Fact]
+    public void CancelCalibration_AsDashboard_RemovesSession()
+    {
+        var dashConnId = Guid.NewGuid().ToString();
+        var (hub, _, _, _, _) = CreateHub(dashConnId);
+        var code = hub.CreateCalibrationSession();
+        var sessionId = RealmHub._calibrationJoinCodes[code];
+
+        hub.CancelCalibration(sessionId);
+
+        Assert.False(RealmHub._calibrationSessions.ContainsKey(sessionId));
+        Assert.False(RealmHub._calibrationJoinCodes.ContainsKey(code));
+    }
+
+    // -------------------------------------------------------------------------
+    // EndRealm — already ended guard
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task EndRealm_AlreadyEnded_DoesNotSendDuplicateEvent()
+    {
+        var connId = Guid.NewGuid().ToString();
+        var (hub, manager, _, mockProxy, _) = CreateHub(connId);
+        var realm = manager.CreateRealm(RealmMode.Competition);
+        await hub.AuthenticateAsHost(realm.Id, realm.HostSecret);
+        realm.WithLock(r => r.Status = RealmStatus.Ended);
+
+        await hub.EndRealm(realm.Id);
+
+        // Already ended => should NOT fire RealmEnded again
+        mockProxy.Verify(p => p.SendCoreAsync(
+            "RealmEnded", It.IsAny<object?[]>(), default), Times.Never);
     }
 }

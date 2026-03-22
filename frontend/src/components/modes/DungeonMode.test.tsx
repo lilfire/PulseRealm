@@ -933,9 +933,9 @@ describe("DungeonMode — rest room (deterministic)", () => {
     cum = fillCorridor(rerender, props, cum);
 
     // Send steady steps at 1 step per 500ms to build ~120 spm cadence (in easy 100–160 window).
-    // Send 60 data points = 60 steps over 30s.
-    // trapSafeTarget=42, so after 42 in-window steps the trap clears.
-    for (let i = 0; i < 60; i++) {
+    // trapSafeTarget = Math.round(120 * 0.5) = 60 steps needed in-window.
+    // First few data points build cadence warmup, so send extra to ensure clearance.
+    for (let i = 0; i < 100; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
       act(() => { vi.advanceTimersByTime(500); });
@@ -1011,14 +1011,16 @@ describe("DungeonMode — rest room (deterministic)", () => {
     let cum = reachRestRoom(rerender, props);
 
     // Keep sending HR=100 (< 114) with steps so player is not idle.
-    // Need to hold for 20s. Send one data point every 500ms for 45 ticks (22.5s).
-    for (let i = 0; i < 45; i++) {
+    // restHoldSeconds=30s. Send data until we see the corridor message.
+    for (let i = 0; i < 80; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 100, cum)} />);
       act(() => { vi.advanceTimersByTime(500); });
+      // Stop once rest room clears (corridor message appears)
+      if (screen.queryByText("Walk to reach the next room...")) break;
     }
 
-    // After 22.5s of HR below threshold, restReady=true → room clears → next corridor
+    // After sufficient time of HR below threshold, restReady=true → room clears → next corridor
     expect(screen.getByText("Walk to reach the next room...")).toBeInTheDocument();
   });
 });
@@ -1148,16 +1150,16 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
     // Corridor 1 → trap
     cum = fillCorridor(rerender, props, cum);
     // Clear trap: easy cadence window is 100–160 spm, so send 1 step/500ms = 120 spm.
-    // trapSafeTarget = round(120 * 0.5) = 60. Need ~15 warmup + 60 safe = 80 data points.
-    for (let i = 0; i < 80; i++) {
+    // trapSafeTarget = round(120 * 0.5) = 60. Need warmup + 60 safe steps.
+    for (let i = 0; i < 100; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 80, cum)} />);
       act(() => { vi.advanceTimersByTime(500); });
     }
     // Corridor 2 → rest room
     cum = fillCorridor(rerender, props, cum);
-    // Hold HR below 114 for 20s (easy: restHoldSeconds=20s). Send data every 500ms.
-    for (let i = 0; i < 45; i++) {
+    // Hold HR below 114 for restHoldSeconds=30s. Send data every 500ms → need 65 points.
+    for (let i = 0; i < 70; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 100, cum)} />);
       act(() => { vi.advanceTimersByTime(500); });
@@ -1236,7 +1238,7 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
   });
 
   it("transitions boss to Precision phase after endurance hold completes", () => {
-    // easy: bossEnduranceHrFraction=0.6, bossEnduranceSeconds=30s
+    // easy: bossEnduranceHrFraction=0.6, bossEnduranceSeconds=45s
     // Default maxHr=190 (no age), threshold = 190*0.6 = 114 bpm
     const props = {
       clients: singleClient,
@@ -1250,8 +1252,8 @@ describe("DungeonMode — boss room phase 0 (deterministic)", () => {
 
     let cum = reachBossRoom(rerender, props);
 
-    // Hold HR above threshold for 30s (60 ticks at 500ms)
-    for (let i = 0; i < 65; i++) {
+    // Hold HR above threshold for 45s (need ~95 ticks at 500ms)
+    for (let i = 0; i < 100; i++) {
       cum += 1;
       rerender(<DungeonMode {...props} latestData={makeData("client-1", 130, cum)} />);
       act(() => { vi.advanceTimersByTime(500); });

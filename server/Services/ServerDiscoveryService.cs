@@ -18,8 +18,8 @@ public class ServerDiscoveryService : BackgroundService
     private const int BroadcastPort = 5063;
     private const int BroadcastIntervalMs = 3000;
 
-    private readonly ILogger<ServerDiscoveryService> _logger;
-    private readonly IConfiguration _configuration;
+    protected readonly ILogger<ServerDiscoveryService> _logger;
+    protected readonly IConfiguration _configuration;
 
     public ServerDiscoveryService(ILogger<ServerDiscoveryService> logger, IConfiguration configuration)
     {
@@ -50,7 +50,7 @@ public class ServerDiscoveryService : BackgroundService
     /// <summary>
     /// Periodically broadcasts the server's presence on all network interfaces.
     /// </summary>
-    private async Task BroadcastLoop(int broadcastPort, CancellationToken stoppingToken)
+    protected virtual async Task BroadcastLoop(int broadcastPort, CancellationToken stoppingToken)
     {
         using var udpClient = new UdpClient();
         udpClient.EnableBroadcast = true;
@@ -88,7 +88,7 @@ public class ServerDiscoveryService : BackgroundService
     /// Clients send {"discover":"PulseRealm"} to the broadcast port, and the server
     /// responds with its info so they don't have to wait for the next broadcast cycle.
     /// </summary>
-    private async Task ListenForRequests(int broadcastPort, CancellationToken stoppingToken)
+    protected virtual async Task ListenForRequests(int broadcastPort, CancellationToken stoppingToken)
     {
         try
         {

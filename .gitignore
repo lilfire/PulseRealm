@@ -46,7 +46,7 @@ local.properties
 # Build output
 *.log
 coverage/
-TestResults/
+TestResults*/
 
 # Cache
 .eslintcache

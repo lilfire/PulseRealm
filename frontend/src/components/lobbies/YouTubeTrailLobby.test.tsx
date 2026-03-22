@@ -48,7 +48,7 @@ describe("YouTubeTrailLobby", () => {
       expect(screen.getByText("Video Two")).toBeInTheDocument();
     });
 
-    it("shows 5 curated video suggestions when more than 5 are provided via custom curated videos", () => {
+    it("renders all curated video suggestions when more than 5 are provided via custom curated videos", () => {
       const manyVideos: YouTubeVideo[] = Array.from({ length: 10 }, (_, i) => ({
         videoId: `v${i}`,
         url: `https://www.youtube.com/watch?v=v${i}`,
@@ -56,9 +56,9 @@ describe("YouTubeTrailLobby", () => {
         baseSpeedKmh: 5,
       }));
       render(<YouTubeTrailLobby {...baseProps} clients={[]} clientProfiles={{}} curatedVideos={manyVideos} />);
-      // OptionGrid renders exactly 5 video cards (randomVideos picks 5); each shows "Target speed: X km/h"
+      // OptionGrid renders all video cards; each shows "Target speed: X km/h"
       const speedLabels = screen.getAllByText(/Target speed:/);
-      expect(speedLabels.length).toBe(5);
+      expect(speedLabels.length).toBe(10);
     });
 
     it("uses custom curated videos when provided", () => {

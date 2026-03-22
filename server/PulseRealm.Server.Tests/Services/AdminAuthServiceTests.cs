@@ -285,4 +285,73 @@ public class AdminAuthServiceTests
             Assert.True(service.ValidateToken(token));
         }
     }
+
+    // -------------------------------------------------------------------------
+    // CleanupExpiredTokens
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CleanupExpiredTokens_NoTokens_DoesNotThrow()
+    {
+        var service = CreateConfigured();
+
+        var ex = Record.Exception(() => service.CleanupExpiredTokens());
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void CleanupExpiredTokens_WithFreshToken_KeepsToken()
+    {
+        var service = CreateConfigured();
+        var token = service.Login("admin", "secret")!;
+
+        // Fresh token is not expired — cleanup should leave it in place
+        service.CleanupExpiredTokens();
+
+        Assert.True(service.ValidateToken(token));
+    }
+
+    [Fact]
+    public void CleanupExpiredTokens_MultipleValidTokens_KeepsAllOfThem()
+    {
+        var service = CreateConfigured();
+        var token1 = service.Login("admin", "secret")!;
+        var token2 = service.Login("admin", "secret")!;
+        var token3 = service.Login("admin", "secret")!;
+
+        service.CleanupExpiredTokens();
+
+        Assert.True(service.ValidateToken(token1));
+        Assert.True(service.ValidateToken(token2));
+        Assert.True(service.ValidateToken(token3));
+    }
+
+    [Fact]
+    public void CleanupExpiredTokens_AfterLogout_LoggedOutTokenAlreadyGone()
+    {
+        var service = CreateConfigured();
+        var token = service.Login("admin", "secret")!;
+        service.Logout(token);
+
+        // Cleanup on already-clean state must not throw
+        var ex = Record.Exception(() => service.CleanupExpiredTokens());
+
+        Assert.Null(ex);
+        Assert.False(service.ValidateToken(token));
+    }
+
+    [Fact]
+    public void CleanupExpiredTokens_CalledRepeatedly_IsIdempotent()
+    {
+        var service = CreateConfigured();
+        var token = service.Login("admin", "secret")!;
+
+        service.CleanupExpiredTokens();
+        service.CleanupExpiredTokens();
+        service.CleanupExpiredTokens();
+
+        // Token is still valid — cleanup of non-expired tokens is a no-op
+        Assert.True(service.ValidateToken(token));
+    }
 }

@@ -118,6 +118,9 @@ describe("formatDistance (via rendered SoloSection)", () => {
 describe("formatZoneTime (via zone breakdown rendering)", () => {
   it("renders minutes + zero-padded seconds when >= 60 s", () => {
     const summary = makeSummary({
+      totalSteps: 1000,
+      totalDistanceMeters: 800,
+      averageHeartRate: 130,
       timeInZone: { "3": 75 }, // 1m 15s
     });
     render(
@@ -128,6 +131,9 @@ describe("formatZoneTime (via zone breakdown rendering)", () => {
 
   it("zero-pads seconds in minute+seconds format", () => {
     const summary = makeSummary({
+      totalSteps: 1000,
+      totalDistanceMeters: 800,
+      averageHeartRate: 130,
       timeInZone: { "4": 61 }, // 1m 01s
     });
     render(
@@ -138,6 +144,9 @@ describe("formatZoneTime (via zone breakdown rendering)", () => {
 
   it("renders seconds only when < 60 s", () => {
     const summary = makeSummary({
+      totalSteps: 1000,
+      totalDistanceMeters: 800,
+      averageHeartRate: 130,
       timeInZone: { "2": 45 },
     });
     render(
@@ -512,6 +521,8 @@ describe("solo section", () => {
 
   it("shows '—' for zero heart rate values in solo section", () => {
     const summary = makeSummary({
+      totalSteps: 100,
+      totalDistanceMeters: 80,
       averageHeartRate: 0,
       maxHeartRate: 0,
       avgCadenceSpm: 0,
@@ -545,6 +556,9 @@ describe("solo section", () => {
 
   it("renders zone breakdown when timeInZone data exists", () => {
     const summary = makeSummary({
+      totalSteps: 5000,
+      totalDistanceMeters: 4000,
+      averageHeartRate: 140,
       timeInZone: { "2": 300, "3": 600, "4": 120 },
     });
 
