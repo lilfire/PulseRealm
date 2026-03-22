@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF3D5A"/>
+      <stop offset="50%" stop-color="#C850C0"/>
+      <stop offset="100%" stop-color="#00D4FF"/>
+    </linearGradient>
+  </defs>
+  <!-- Simplified PR monogram -->
+  <rect width="48" height="48" rx="10" fill="#16171d"/>
+  <path d="M8 38V10q0-4 4-4h8q8 0 8 8t-8 8h-4v16z" fill="url(#fg)" opacity="0.9"/>
+  <path d="M20 38V10q0-4 4-4h8q8 0 8 8 0 5.5-5 7l6 17h-6l-5-15h-4v15z" fill="url(#fg)" opacity="0.9"/>
+  <!-- Pulse line -->
+  <polyline points="4,24 14,24 17,18 21,30 25,20 28,26 31,24 44,24"
+           stroke="#00D4FF" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

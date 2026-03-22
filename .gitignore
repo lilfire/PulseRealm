@@ -1,0 +1,52 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.DotSettings.user
+*.sln.docstates
+*.trx
+
+# Node.js
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Vite
+frontend/dist/
+.vite/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+.claude/settings.local.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Gradle
+.gradle/
+build/
+local.properties
+
+# Android
+*.keystore
+*.jks
+
+# Build output
+*.log
+coverage/
+TestResults/
+
+# Cache
+.eslintcache

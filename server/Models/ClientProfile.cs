@@ -1,0 +1,14 @@
+namespace PulseRealm.Server.Models;
+
+public class ClientProfile
+{
+    public string ClientId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int Age { get; set; }
+    public double HeightCm { get; set; }
+    public double WeightKg { get; set; }
+    public double StrideFactor { get; set; }
+    public double[]? ZoneBounds { get; set; }
+    public int MaxHr { get; set; }
+    public StrideCalibrationPoint[]? StrideCalibration { get; set; }
+}
