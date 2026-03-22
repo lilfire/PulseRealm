@@ -115,6 +115,19 @@ function App() {
   const [hostKeyInput, setHostKeyInput] = useState("");
   const [joinError, setJoinError] = useState("");
   const [joining, setJoining] = useState(false);
+  const [virtualKeyboardOpen, setVirtualKeyboardOpen] = useState(false);
+
+  // Detect on-screen keyboard via Visual Viewport API
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const threshold = 150;
+    const onResize = () => {
+      setVirtualKeyboardOpen(window.innerHeight - vv.height > threshold);
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   // Android download QR modal
   const [showAndroidQR, setShowAndroidQR] = useState(false);
@@ -544,7 +557,7 @@ function App() {
           <CalibrationPanel hubUrl={hubUrl} onClose={() => setShowCalibration(false)} />
         )}
         {showJoinModal && (
-          <div className="qr-overlay" onClick={() => { setShowJoinModal(false); setJoinError(""); }}>
+          <div className={`qr-overlay${virtualKeyboardOpen ? " keyboard-open" : ""}`} onClick={() => { setShowJoinModal(false); setJoinError(""); }}>
             <div className="qr-modal join-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
               <h3>Join a Realm</h3>
               <p>Enter a 6-digit join code to watch a realm</p>

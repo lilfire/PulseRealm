@@ -463,20 +463,28 @@
   left: 0;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: 10vh;
   z-index: 1000;
+}
+
+.qr-overlay.keyboard-open {
+  align-items: flex-start;
+  padding-top: 5vh;
 }
 
 .qr-modal {
   background: var(--bg, #16171d);
   border: 1px solid var(--border, #2e303a);
   border-radius: 12px;
-  padding: 1.25rem 2rem;
+  padding: 2rem;
   text-align: center;
   max-width: 320px;
   width: 90%;
+}
+
+.keyboard-open .qr-modal {
+  padding: 1.25rem 2rem;
 }
 
 .qr-modal h3 {
