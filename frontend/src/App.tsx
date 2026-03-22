@@ -555,6 +555,8 @@ function App() {
               <input
                 id="join-code-input"
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={joinCodeInput}
                 onChange={(e) => {
                   setJoinCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
