@@ -16,7 +16,7 @@ PulseRealm consists of three main parts that work together in real-time:
 - **Server** (`server/`) — ASP.NET Core 8 Web API with SignalR hub for real-time communication
 - **Frontend** (`frontend/`) — React 19 + TypeScript 5.9 + Vite 8 web dashboard for realm management and live rendering
 - **Client** (`client/`) — Native wearable data collectors (Android/Wear OS, desktop test client)
-- **Shared** (`shared/`) — TypeScript type definitions and protocol contracts shared across parts
+- **Shared** (`shared/`) — TypeScript type definitions (currently outdated — server and frontend define types independently)
 
 ## How It Works
 
@@ -29,14 +29,14 @@ PulseRealm consists of three main parts that work together in real-time:
 
 ## Realm Modes
 
-| Mode | Players | Description |
-|------|---------|-------------|
-| `competition` | Up to 8 | Race on treadmills with a live leaderboard. Sub-modes: race, elimination (last-man-standing), heart zone, king of the hill. Supports team and individual formats. |
-| `streetview` | 1 | Walk through Google Street View — the panorama advances based on treadmill pace. |
-| `youtubetrail` | 1 | Progress through a YouTube video synced to walking speed. |
-| `route` | 1 | Follow real-world hiking routes on a map with GPS-based progress tracking. |
-| `dungeon` | Up to 4 | Cooperative dungeon crawler powered by treadmill movement. |
-| `social` | Up to 4 | Co-presence workout with group and individual activity summaries. |
+| Mode           | Players | Description                                                                                                                                                       |
+| -------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `competition`  | Up to 8 | Race on treadmills with a live leaderboard. Sub-modes: race, elimination (last-man-standing), heart zone, king of the hill. Supports team and individual formats. |
+| `streetview`   | 1       | Walk through Google Street View — the panorama advances based on treadmill pace.                                                                                  |
+| `youtubetrail` | 1       | Progress through a YouTube video synced to walking speed.                                                                                                         |
+| `route`        | 1       | Follow real-world hiking routes on a map with GPS-based progress tracking.                                                                                        |
+| `dungeon`      | Up to 4 | Cooperative dungeon crawler powered by treadmill movement.                                                                                                        |
+| `social`       | Up to 4 | Co-presence workout with group and individual activity summaries.                                                                                                 |
 
 ## Running Locally
 
@@ -73,7 +73,7 @@ This builds and runs the full stack (server + frontend) on port 8080 with UDP di
 
 ### Wearable Clients
 
-- [`client/android/`](client/android/) — Kotlin / Jetpack Compose for Wear OS (functional, v0.2)
+- [`client/android/`](client/android/) — Kotlin / Jetpack Compose for Wear OS
 - [`client/apple/`](client/apple/) — Swift / watchOS (planned)
 - [`client/garmin/`](client/garmin/) — Monkey C / Connect IQ (planned)
 - [`client/desktop-test/`](client/desktop-test/) — Avalonia .NET desktop client for simulating wearable data during development
@@ -82,12 +82,12 @@ All clients communicate using the same [wire protocol](client/protocol.md).
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable              | Description                                                         |
+| --------------------- | ------------------------------------------------------------------- |
 | `GOOGLE_MAPS_API_KEY` | Google Maps API key for Street View and Route modes (set in `.env`) |
-| `ADMIN_PASSWORD` | Admin dashboard password (set in `.env`) |
-| `ASPNETCORE_URLS` | Server listen URL (default: `http://localhost:5062`) |
-| `SERVER_NAME` | Server display name for discovery (default: `PulseRealm`) |
+| `ADMIN_PASSWORD`      | Admin dashboard password (set in `.env`)                            |
+| `ASPNETCORE_URLS`     | Server listen URL (default: `http://localhost:5062`)                |
+| `SERVER_NAME`         | Server display name for discovery (default: `PulseRealm`)           |
 
 ## Testing
 
@@ -112,7 +112,7 @@ Uses Vitest with @testing-library/react. Coverage thresholds: 80% statements, 74
 
 ## CI/CD
 
-- **Android APK** — GitHub Actions builds a debug APK on push to `main`/`dev` when `client/android/**` changes. Creates a GitHub Release with the APK artifact.
+- **Android APK** — GitHub Actions manual workflow (`workflow_dispatch`) to build a debug APK. Creates a GitHub Release with the APK artifact.
 - **Docker Image** — Manual workflow to build and push to GitHub Container Registry (GHCR) with a version tag.
 
 ## Project Structure
