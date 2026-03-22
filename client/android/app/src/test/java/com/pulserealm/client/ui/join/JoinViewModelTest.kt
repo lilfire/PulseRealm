@@ -1,11 +1,10 @@
 package com.pulserealm.client.ui.join
 
 import android.content.SharedPreferences
+import androidx.lifecycle.SavedStateHandle
 import com.pulserealm.client.data.model.RealmInfo
 import com.pulserealm.client.data.network.ConnectionState
-import com.pulserealm.client.data.network.DiscoveredServer
 import com.pulserealm.client.data.network.RealmApi
-import com.pulserealm.client.data.network.ServerDiscoveryClient
 import com.pulserealm.client.data.network.SignalRClient
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -24,7 +23,6 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import java.net.InetAddress
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class JoinViewModelTest {
@@ -33,11 +31,15 @@ class JoinViewModelTest {
     private lateinit var signalRClient: SignalRClient
     private lateinit var prefs: SharedPreferences
     private lateinit var editor: SharedPreferences.Editor
-    private lateinit var discoveryClient: ServerDiscoveryClient
     private lateinit var viewModel: JoinViewModel
 
     private val connectionStateFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private val errorFlow = MutableStateFlow<String?>(null)
+
+    private fun createViewModel(serverUrl: String? = null): JoinViewModel {
+        val handle = if (serverUrl != null) SavedStateHandle(mapOf("serverUrl" to serverUrl)) else SavedStateHandle()
+        return JoinViewModel(signalRClient, prefs, handle).also { it.ioDispatcher = testDispatcher }
+    }
 
     @Before
     fun setup() {
@@ -57,15 +59,12 @@ class JoinViewModelTest {
         every { prefs.getString("age", "") } returns "25"
         every { prefs.getString("height_cm", "") } returns "175"
         every { prefs.getString("weight_kg", "") } returns "70"
-        every { prefs.getString("connection_mode", "local") } returns "local"
         every { prefs.getString("cached_server_url", null) } returns null
-        every { prefs.getString("remote_server_url", "") } returns ""
+        every { prefs.getString("stride_calibration", null) } returns null
 
-        discoveryClient = mockk(relaxed = true)
-        every { discoveryClient.discoveredServers } returns MutableStateFlow(emptyList())
-        every { discoveryClient.isScanning } returns MutableStateFlow(false)
+        every { signalRClient.calibrationSessionId } returns MutableStateFlow(null)
 
-        viewModel = JoinViewModel(signalRClient, prefs, discoveryClient)
+        viewModel = createViewModel()
     }
 
     @After
@@ -104,7 +103,7 @@ class JoinViewModelTest {
     fun `generates client ID when none saved`() {
         every { prefs.getString("client_id", null) } returns null
 
-        val vm = JoinViewModel(signalRClient, prefs, discoveryClient)
+        val vm = createViewModel()
         assertTrue(vm.uiState.value.clientId.startsWith("wear-"))
         assertEquals(13, vm.uiState.value.clientId.length) // "wear-" + 8 chars
         verify { editor.putString("client_id", any()) }
@@ -126,7 +125,7 @@ class JoinViewModelTest {
 
     @Test
     fun `updateJoinCode clears error message`() {
-        // Trigger an error via join with empty code
+        // Trigger an error via join with empty code (playerName is set, joinCode is empty)
         viewModel.join()
         assertNotNull(viewModel.uiState.value.errorMessage)
 
@@ -193,113 +192,6 @@ class JoinViewModelTest {
         assertEquals(maxHrBefore, viewModel.uiState.value.maxHrOverride)
     }
 
-    // --- Connection mode ---
-
-    @Test
-    fun `setConnectionMode to REMOTE shows manual entry`() {
-        viewModel.setConnectionMode(ConnectionMode.REMOTE)
-
-        assertEquals(ConnectionMode.REMOTE, viewModel.uiState.value.connectionMode)
-        assertTrue(viewModel.uiState.value.showManualEntry)
-        verify { editor.putString("connection_mode", "remote") }
-    }
-
-    @Test
-    fun `setConnectionMode to LOCAL hides manual entry and starts scan`() {
-        viewModel.setConnectionMode(ConnectionMode.LOCAL)
-
-        assertEquals(ConnectionMode.LOCAL, viewModel.uiState.value.connectionMode)
-        assertFalse(viewModel.uiState.value.showManualEntry)
-        verify { editor.putString("connection_mode", "local") }
-    }
-
-    @Test
-    fun `toggleManualEntry toggles showManualEntry`() {
-        assertFalse(viewModel.uiState.value.showManualEntry)
-        viewModel.toggleManualEntry()
-        assertTrue(viewModel.uiState.value.showManualEntry)
-        viewModel.toggleManualEntry()
-        assertFalse(viewModel.uiState.value.showManualEntry)
-    }
-
-    @Test
-    fun `toggleProfileSettings toggles showProfileSettings`() {
-        assertFalse(viewModel.uiState.value.showProfileSettings)
-        viewModel.toggleProfileSettings()
-        assertTrue(viewModel.uiState.value.showProfileSettings)
-        viewModel.toggleProfileSettings()
-        assertFalse(viewModel.uiState.value.showProfileSettings)
-    }
-
-    // --- Server management ---
-
-    @Test
-    fun `changeServer shows server config`() {
-        viewModel.changeServer()
-        assertTrue(viewModel.uiState.value.showServerConfig)
-        assertNull(viewModel.uiState.value.errorMessage)
-    }
-
-    @Test
-    fun `selectDiscoveredServer sets URL and hides config`() {
-        val server = DiscoveredServer(
-            name = "Test",
-            hostname = "host",
-            urls = "http://+:5062",
-            version = "1.0",
-            address = InetAddress.getByName("192.168.1.100")
-        )
-        every { discoveryClient.buildServerUrl(server) } returns "http://192.168.1.100:5062"
-
-        viewModel.selectDiscoveredServer(server)
-
-        assertEquals("http://192.168.1.100:5062", viewModel.uiState.value.serverUrl)
-        assertFalse(viewModel.uiState.value.showServerConfig)
-    }
-
-    // --- URL handling ---
-
-    @Test
-    fun `updateRemoteUrl normalizes with http scheme`() {
-        viewModel.updateRemoteUrl("192.168.1.100:5062")
-        assertEquals("http://192.168.1.100:5062", viewModel.uiState.value.remoteUrl)
-        assertEquals("http://192.168.1.100:5062", viewModel.uiState.value.serverUrl)
-    }
-
-    @Test
-    fun `updateRemoteUrl preserves existing scheme`() {
-        viewModel.updateRemoteUrl("https://example.com")
-        assertEquals("https://example.com", viewModel.uiState.value.remoteUrl)
-    }
-
-    @Test
-    fun `updateRemoteUrl preserves http scheme`() {
-        viewModel.updateRemoteUrl("http://192.168.1.100:5062")
-        assertEquals("http://192.168.1.100:5062", viewModel.uiState.value.remoteUrl)
-    }
-
-    @Test
-    fun `updateRemoteUrl saves to prefs`() {
-        viewModel.updateRemoteUrl("example.com")
-        verify { editor.putString("remote_server_url", "http://example.com") }
-    }
-
-    // --- Server config ---
-
-    @Test
-    fun `confirmServer with blank URL shows error`() {
-        viewModel.updateServerUrl("")
-        viewModel.confirmServer()
-        assertEquals("Enter a server address", viewModel.uiState.value.errorMessage)
-    }
-
-    @Test
-    fun `scanForServers increments scan attempt`() {
-        val initialAttempt = viewModel.scanAttempt.value
-        viewModel.scanForServers()
-        assertEquals(initialAttempt + 1, viewModel.scanAttempt.value)
-    }
-
     // --- Join validation ---
 
     @Test
@@ -310,11 +202,19 @@ class JoinViewModelTest {
     }
 
     @Test
-    fun `join with empty server URL shows error`() {
+    fun `join with empty player name shows error`() {
+        viewModel.updatePlayerName("")
         viewModel.updateJoinCode("123456")
         viewModel.join()
-        assertEquals("Set a server address first", viewModel.uiState.value.errorMessage)
-        assertTrue(viewModel.uiState.value.showServerConfig)
+        assertEquals("Set up your profile first", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `join with empty server URL shows error`() {
+        // ViewModel initialized with empty SavedStateHandle so serverUrl is ""
+        viewModel.updateJoinCode("123456")
+        viewModel.join()
+        assertEquals("No server connected", viewModel.uiState.value.errorMessage)
     }
 
     @Test
@@ -327,17 +227,17 @@ class JoinViewModelTest {
 
     @Test
     fun `join happy path connects and sets joined state`() = runTest {
-        // Setup: server URL and join code
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        // Provide a server URL via SavedStateHandle
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
-        // Mock SignalR connect success
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
-        // Mock the REST API call
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm("123456") } returns RealmInfo(
             id = "realm-abc",
@@ -345,59 +245,59 @@ class JoinViewModelTest {
             mode = "competition",
             status = "Lobby"
         )
-        viewModel.realmApiFactory = { mockApi }
+        vm.realmApiFactory = { mockApi }
 
-        // Execute join
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        // Verify
-        assertTrue(viewModel.uiState.value.isJoined)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertNotNull(viewModel.uiState.value.realmInfo)
-        assertEquals("realm-abc", viewModel.uiState.value.realmInfo?.id)
-        assertEquals("competition", viewModel.uiState.value.realmInfo?.mode)
-        assertNull(viewModel.uiState.value.errorMessage)
+        assertTrue(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertNotNull(vm.uiState.value.realmInfo)
+        assertEquals("realm-abc", vm.uiState.value.realmInfo?.id)
+        assertEquals("competition", vm.uiState.value.realmInfo?.mode)
+        assertNull(vm.uiState.value.errorMessage)
     }
 
     @Test
     fun `join sets loading state while in progress`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
-            // While connecting, isLoading should be true
-            assertTrue(viewModel.uiState.value.isLoading)
+            assertTrue(vm.uiState.value.isLoading)
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
         val mockApi = mockk<RealmApi>()
-        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
-        viewModel.realmApiFactory = { mockApi }
+        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts")
+        vm.realmApiFactory = { mockApi }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        // After completion, loading should be false
-        assertFalse(viewModel.uiState.value.isLoading)
+        assertFalse(vm.uiState.value.isLoading)
     }
 
     @Test
     fun `join calls connect with correct server URL`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
         val mockApi = mockk<RealmApi>()
-        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
-        viewModel.realmApiFactory = { mockApi }
+        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts")
+        vm.realmApiFactory = { mockApi }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
         coVerify { signalRClient.connect("http://192.168.1.100:5062") }
@@ -405,19 +305,21 @@ class JoinViewModelTest {
 
     @Test
     fun `join calls joinRealm with correct parameters`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("654321")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("654321")
 
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
         val mockApi = mockk<RealmApi>()
-        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "654321", "social", "ts", emptyList())
-        viewModel.realmApiFactory = { mockApi }
+        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "654321", "social", "ts")
+        vm.realmApiFactory = { mockApi }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
         coVerify {
@@ -427,26 +329,32 @@ class JoinViewModelTest {
                 "TestPlayer",
                 25,
                 175.0,
-                70.0
+                70.0,
+                any(),
+                any(),
+                any(),
+                any()
             )
         }
     }
 
     @Test
     fun `join saves server URL on success`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
         val mockApi = mockk<RealmApi>()
-        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
-        viewModel.realmApiFactory = { mockApi }
+        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts")
+        vm.realmApiFactory = { mockApi }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
         verify { editor.putString("cached_server_url", "http://192.168.1.100:5062") }
@@ -456,126 +364,126 @@ class JoinViewModelTest {
 
     @Test
     fun `join fails when connection fails`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
-            // Connection stays DISCONNECTED
             connectionStateFlow.value = ConnectionState.DISCONNECTED
             errorFlow.value = "Connection refused"
         }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        assertFalse(viewModel.uiState.value.isJoined)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("Connection refused", viewModel.uiState.value.errorMessage)
+        assertFalse(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Connection refused", vm.uiState.value.errorMessage)
     }
 
     @Test
     fun `join fails when connection throws exception`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } throws RuntimeException("Network error")
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        assertFalse(viewModel.uiState.value.isJoined)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("Could not join the realm", viewModel.uiState.value.errorMessage)
-        verify { signalRClient.disconnect() }
+        assertFalse(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Could not join the realm", vm.uiState.value.errorMessage)
+        coVerify { signalRClient.disconnect() }
     }
 
     @Test
-    fun `join fails when hub returns error after joinRealm`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+    fun `join fails when joinRealm throws`() = runTest {
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } answers {
-            errorFlow.value = "Invalid join code"
-        }
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws Exception("Could not join the realm")
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        assertFalse(viewModel.uiState.value.isJoined)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("Invalid join code", viewModel.uiState.value.errorMessage)
-        verify { signalRClient.disconnect() }
+        assertFalse(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Could not join the realm", vm.uiState.value.errorMessage)
+        coVerify { signalRClient.disconnect() }
     }
 
     @Test
     fun `join fails when REST API call throws`() = runTest {
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
         val mockApi = mockk<RealmApi>()
         coEvery { mockApi.getRealm(any()) } throws RuntimeException("HTTP 404")
-        viewModel.realmApiFactory = { mockApi }
+        vm.realmApiFactory = { mockApi }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        assertFalse(viewModel.uiState.value.isJoined)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertEquals("Realm not found — check the join code", viewModel.uiState.value.errorMessage)
-        verify { signalRClient.disconnect() }
+        assertFalse(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Realm not found — check the join code", vm.uiState.value.errorMessage)
+        coVerify { signalRClient.disconnect() }
     }
 
     @Test
     fun `join clears previous error before starting`() = runTest {
-        // Trigger an error first
+        // Trigger an error first (empty join code)
         viewModel.updateJoinCode("")
         viewModel.join()
         assertNotNull(viewModel.uiState.value.errorMessage)
 
-        // Now set up valid state and join
-        viewModel.updateServerUrl("http://192.168.1.100:5062")
-        viewModel.updateJoinCode("123456")
+        // Now set up a ViewModel with a valid server URL and join
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
 
         coEvery { signalRClient.connect(any()) } answers {
             connectionStateFlow.value = ConnectionState.CONNECTED
         }
-        coEvery { signalRClient.joinRealm(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
 
         val mockApi = mockk<RealmApi>()
-        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts", emptyList())
-        viewModel.realmApiFactory = { mockApi }
+        coEvery { mockApi.getRealm(any()) } returns RealmInfo("r1", "123456", "social", "ts")
+        vm.realmApiFactory = { mockApi }
 
-        viewModel.join()
+        vm.join()
         advanceUntilIdle()
 
-        assertNull(viewModel.uiState.value.errorMessage)
-        assertTrue(viewModel.uiState.value.isJoined)
+        assertNull(vm.uiState.value.errorMessage)
+        assertTrue(vm.uiState.value.isJoined)
     }
 
     // --- Disconnect ---
 
     @Test
-    fun `disconnect resets join state`() {
+    fun `disconnect resets join state`() = runTest(testDispatcher) {
         viewModel.disconnect()
+        advanceUntilIdle()
+
         assertFalse(viewModel.uiState.value.isJoined)
         assertNull(viewModel.uiState.value.realmInfo)
-        verify { signalRClient.disconnect() }
+        coVerify { signalRClient.disconnect() }
     }
 
     // --- Initial state ---
-
-    @Test
-    fun `initial connection mode defaults to LOCAL`() {
-        assertEquals(ConnectionMode.LOCAL, viewModel.uiState.value.connectionMode)
-    }
 
     @Test
     fun `initial state is not loading`() {
@@ -590,32 +498,6 @@ class JoinViewModelTest {
     @Test
     fun `initial realmInfo is null`() {
         assertNull(viewModel.uiState.value.realmInfo)
-    }
-
-    @Test
-    fun `remote mode saved URL is loaded`() {
-        every { prefs.getString("connection_mode", "local") } returns "remote"
-        every { prefs.getString("remote_server_url", "") } returns "https://remote.example.com"
-
-        val vm = JoinViewModel(signalRClient, prefs, discoveryClient)
-        assertEquals(ConnectionMode.REMOTE, vm.uiState.value.connectionMode)
-        assertEquals("https://remote.example.com", vm.uiState.value.remoteUrl)
-    }
-}
-
-class ConnectionModeTest {
-
-    @Test
-    fun `ConnectionMode has LOCAL and REMOTE`() {
-        assertEquals(2, ConnectionMode.values().size)
-        assertNotNull(ConnectionMode.LOCAL)
-        assertNotNull(ConnectionMode.REMOTE)
-    }
-
-    @Test
-    fun `valueOf returns correct enum`() {
-        assertEquals(ConnectionMode.LOCAL, ConnectionMode.valueOf("LOCAL"))
-        assertEquals(ConnectionMode.REMOTE, ConnectionMode.valueOf("REMOTE"))
     }
 }
 
@@ -634,12 +516,6 @@ class JoinUiStateTest {
         assertNull(state.realmInfo)
         assertFalse(state.isJoined)
         assertEquals("", state.clientId)
-        assertTrue(state.showServerConfig)
-        assertFalse(state.showProfileSettings)
-        assertFalse(state.showManualEntry)
-        assertEquals(ConnectionMode.LOCAL, state.connectionMode)
-        assertEquals("", state.remoteUrl)
-        assertFalse(state.isVerifyingServer)
     }
 
     @Test

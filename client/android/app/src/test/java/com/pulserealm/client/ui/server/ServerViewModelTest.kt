@@ -7,8 +7,6 @@ import com.pulserealm.client.data.network.ServerDiscoveryClient
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkConstructor
-import io.mockk.unmockkConstructor
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,11 +20,15 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.InetAddress
-import java.net.URL
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerViewModelTest {
 
@@ -59,12 +61,27 @@ class ServerViewModelTest {
     }
 
     private fun createViewModel(
-        skipAutoConnect: Boolean = false
+        skipAutoConnect: Boolean = false,
+        mockConn: HttpURLConnection? = null
     ): ServerViewModel {
         val savedStateHandle = SavedStateHandle(
             if (skipAutoConnect) mapOf("skipAutoConnect" to true) else emptyMap()
         )
-        return ServerViewModel(prefs, discoveryClient, savedStateHandle)
+        return ServerViewModel(prefs, discoveryClient, savedStateHandle).also { vm ->
+            vm.ioDispatcher = testDispatcher
+            if (mockConn != null) {
+                vm.openConnection = { mockConn }
+            }
+        }
+    }
+
+    private fun mockHttpConnection(responseCode: Int, body: String? = null): HttpURLConnection {
+        val conn = mockk<HttpURLConnection>(relaxed = true)
+        every { conn.responseCode } returns responseCode
+        if (body != null) {
+            every { conn.inputStream } answers { ByteArrayInputStream(body.toByteArray()) }
+        }
+        return conn
     }
 
     // ── ServerUiState data class ────────────────────────────────────────
@@ -110,7 +127,6 @@ class ServerViewModelTest {
         every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
         advanceUntilIdle()
-        // scanForServers should have been called, incrementing scanAttempt
         assertTrue(vm.scanAttempt.value > 0)
     }
 
@@ -292,11 +308,8 @@ class ServerViewModelTest {
     @Test
     fun `setConnectionMode LOCAL hides manual entry and clears error`() {
         val vm = createViewModel()
-        // First switch to REMOTE
         vm.setConnectionMode(ConnectionMode.REMOTE)
         assertTrue(vm.uiState.value.showManualEntry)
-
-        // Now switch back to LOCAL
         vm.setConnectionMode(ConnectionMode.LOCAL)
         assertFalse(vm.uiState.value.showManualEntry)
         assertNull(vm.uiState.value.errorMessage)
@@ -338,7 +351,6 @@ class ServerViewModelTest {
     fun `setConnectionMode REMOTE uses saved remoteUrl as serverUrl`() {
         every { prefs.getString("connection_mode", "remote") } returns "local"
         val vm = createViewModel()
-        // Set a remote URL first
         vm.updateRemoteUrl("myserver:5062")
         vm.setConnectionMode(ConnectionMode.REMOTE)
         assertEquals(vm.uiState.value.remoteUrl, vm.uiState.value.serverUrl)
@@ -413,7 +425,6 @@ class ServerViewModelTest {
     @Test
     fun `toggleManualEntry toggles from true to false`() {
         val vm = createViewModel()
-        // Default REMOTE mode starts with showManualEntry = true
         assertTrue(vm.uiState.value.showManualEntry)
         vm.toggleManualEntry()
         assertFalse(vm.uiState.value.showManualEntry)
@@ -465,172 +476,111 @@ class ServerViewModelTest {
         assertFalse(vm.isScanning.value)
     }
 
-    // ── verifyCachedServer via init (HTTP mocking) ──────────────────────
+    // ── verifyCachedServer via init (using openConnection factory) ──────
 
     @Test
     fun `verifyCachedServer sets isConnected on valid PulseRealm response`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            val mockConn = mockk<HttpURLConnection>(relaxed = true)
-            every { anyConstructed<URL>().openConnection() } returns mockConn
-            every { mockConn.responseCode } returns 200
-            every { mockConn.inputStream } returns ByteArrayInputStream("PulseRealm Server v1.0".toByteArray())
+        val mockConn = mockHttpConnection(200, "PulseRealm Server v1.0")
+        every { prefs.getString("connection_mode", "remote") } returns "local"
+        every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
+        val vm = createViewModel(mockConn = mockConn)
+        advanceUntilIdle()
 
-            every { prefs.getString("connection_mode", "remote") } returns "local"
-            every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            assertTrue(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isVerifyingServer)
-            assertNull(vm.uiState.value.errorMessage)
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertTrue(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isVerifyingServer)
+        assertNull(vm.uiState.value.errorMessage)
     }
 
     @Test
     fun `verifyCachedServer falls back to scan on non-200 response`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            val mockConn = mockk<HttpURLConnection>(relaxed = true)
-            every { anyConstructed<URL>().openConnection() } returns mockConn
-            every { mockConn.responseCode } returns 404
+        val mockConn = mockHttpConnection(404)
+        every { prefs.getString("connection_mode", "remote") } returns "local"
+        every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
+        val vm = createViewModel(mockConn = mockConn)
+        advanceUntilIdle()
 
-            every { prefs.getString("connection_mode", "remote") } returns "local"
-            every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            assertFalse(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isVerifyingServer)
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isVerifyingServer)
     }
 
     @Test
     fun `verifyCachedServer falls back to scan on non-PulseRealm body`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            val mockConn = mockk<HttpURLConnection>(relaxed = true)
-            every { anyConstructed<URL>().openConnection() } returns mockConn
-            every { mockConn.responseCode } returns 200
-            every { mockConn.inputStream } returns ByteArrayInputStream("Some other server".toByteArray())
+        val mockConn = mockHttpConnection(200, "Some other server")
+        every { prefs.getString("connection_mode", "remote") } returns "local"
+        every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
+        val vm = createViewModel(mockConn = mockConn)
+        advanceUntilIdle()
 
-            every { prefs.getString("connection_mode", "remote") } returns "local"
-            every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            assertFalse(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isVerifyingServer)
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isVerifyingServer)
     }
 
     @Test
     fun `verifyCachedServer falls back to scan on exception`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            every { anyConstructed<URL>().openConnection() } throws java.net.ConnectException("Connection refused")
-
-            every { prefs.getString("connection_mode", "remote") } returns "local"
-            every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
-            val vm = createViewModel()
-            advanceUntilIdle()
-
-            assertFalse(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isVerifyingServer)
-        } finally {
-            unmockkConstructor(URL::class)
+        every { prefs.getString("connection_mode", "remote") } returns "local"
+        every { prefs.getString("cached_server_url", null) } returns "http://192.168.1.10:5062"
+        val savedStateHandle = SavedStateHandle()
+        val vm = ServerViewModel(prefs, discoveryClient, savedStateHandle).also {
+            it.ioDispatcher = testDispatcher
+            it.openConnection = { throw java.net.ConnectException("Connection refused") }
         }
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isVerifyingServer)
     }
 
     // ── confirmServer HTTP tests ────────────────────────────────────────
 
     @Test
     fun `confirmServer sets isConnected on valid PulseRealm response`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            val mockConn = mockk<HttpURLConnection>(relaxed = true)
-            every { anyConstructed<URL>().openConnection() } returns mockConn
-            every { mockConn.responseCode } returns 200
-            every { mockConn.inputStream } returns ByteArrayInputStream("PulseRealm Server v1.0".toByteArray())
+        val mockConn = mockHttpConnection(200, "PulseRealm Server v1.0")
+        val vm = createViewModel(mockConn = mockConn)
+        vm.updateServerUrl("192.168.1.10:5062")
+        vm.confirmServer()
+        advanceUntilIdle()
 
-            val vm = createViewModel()
-            vm.updateServerUrl("192.168.1.10:5062")
-            vm.confirmServer()
-            advanceUntilIdle()
-
-            assertTrue(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isLoading)
-            assertNull(vm.uiState.value.errorMessage)
-            verify { editor.putString("cached_server_url", "http://192.168.1.10:5062") }
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertTrue(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isLoading)
+        assertNull(vm.uiState.value.errorMessage)
+        verify { editor.putString("cached_server_url", "http://192.168.1.10:5062") }
     }
 
     @Test
     fun `confirmServer shows error on non-PulseRealm response`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            val mockConn = mockk<HttpURLConnection>(relaxed = true)
-            every { anyConstructed<URL>().openConnection() } returns mockConn
-            every { mockConn.responseCode } returns 200
-            every { mockConn.inputStream } returns ByteArrayInputStream("Nginx default page".toByteArray())
+        val mockConn = mockHttpConnection(200, "Nginx default page")
+        val vm = createViewModel(mockConn = mockConn)
+        vm.updateServerUrl("192.168.1.10:5062")
+        vm.confirmServer()
+        advanceUntilIdle()
 
-            val vm = createViewModel()
-            vm.updateServerUrl("192.168.1.10:5062")
-            vm.confirmServer()
-            advanceUntilIdle()
-
-            assertFalse(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isLoading)
-            assertEquals("Not a PulseRealm server", vm.uiState.value.errorMessage)
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Not a PulseRealm server", vm.uiState.value.errorMessage)
     }
 
     @Test
     fun `confirmServer shows error on network exception`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            every { anyConstructed<URL>().openConnection() } throws java.net.ConnectException("refused")
+        val vm = createViewModel()
+        vm.openConnection = { throw java.net.ConnectException("refused") }
+        vm.updateServerUrl("192.168.1.10:5062")
+        vm.confirmServer()
+        advanceUntilIdle()
 
-            val vm = createViewModel()
-            vm.updateServerUrl("192.168.1.10:5062")
-            vm.confirmServer()
-            advanceUntilIdle()
-
-            assertFalse(vm.uiState.value.isConnected)
-            assertFalse(vm.uiState.value.isLoading)
-            assertEquals("Could not reach server", vm.uiState.value.errorMessage)
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertFalse(vm.uiState.value.isConnected)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Could not reach server", vm.uiState.value.errorMessage)
     }
 
     @Test
     fun `confirmServer shows error on non-200 response`() = runTest(testDispatcher) {
-        mockkConstructor(URL::class)
-        try {
-            val mockConn = mockk<HttpURLConnection>(relaxed = true)
-            every { anyConstructed<URL>().openConnection() } returns mockConn
-            every { mockConn.responseCode } returns 500
+        val mockConn = mockHttpConnection(500)
+        val vm = createViewModel(mockConn = mockConn)
+        vm.updateServerUrl("192.168.1.10:5062")
+        vm.confirmServer()
+        advanceUntilIdle()
 
-            val vm = createViewModel()
-            vm.updateServerUrl("192.168.1.10:5062")
-            vm.confirmServer()
-            advanceUntilIdle()
-
-            assertFalse(vm.uiState.value.isConnected)
-            assertEquals("Not a PulseRealm server", vm.uiState.value.errorMessage)
-        } finally {
-            unmockkConstructor(URL::class)
-        }
+        assertFalse(vm.uiState.value.isConnected)
+        assertEquals("Not a PulseRealm server", vm.uiState.value.errorMessage)
     }
 }

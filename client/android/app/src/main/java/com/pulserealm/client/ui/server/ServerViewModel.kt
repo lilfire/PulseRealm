@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
@@ -37,6 +38,12 @@ class ServerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val skipAutoConnect: Boolean = savedStateHandle.get<Boolean>("skipAutoConnect") ?: false
+
+    // Overridable for testing
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
+    internal var openConnection: (String) -> HttpURLConnection = { url ->
+        URL(url).openConnection() as HttpURLConnection
+    }
 
     companion object {
         private const val PREF_SERVER_URL = "cached_server_url"
@@ -98,33 +105,38 @@ class ServerViewModel @Inject constructor(
     }
 
     private fun verifyCachedServer(url: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val conn = URL("${url.trimEnd('/')}/api/discovery").openConnection() as HttpURLConnection
-                conn.connectTimeout = 3000
-                conn.readTimeout = 3000
-                conn.requestMethod = "GET"
+        viewModelScope.launch {
+            val verified = withContext(ioDispatcher) {
+                try {
+                    val conn = openConnection("${url.trimEnd('/')}/api/discovery")
+                    conn.connectTimeout = 3000
+                    conn.readTimeout = 3000
+                    conn.requestMethod = "GET"
 
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    if (body.contains("PulseRealm")) {
-                        _uiState.value = _uiState.value.copy(
-                            serverUrl = url,
-                            isVerifyingServer = false,
-                            isConnected = true,
-                            errorMessage = null
-                        )
-                        return@launch
+                    if (conn.responseCode == 200) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        conn.disconnect()
+                        body.contains("PulseRealm")
+                    } else {
+                        conn.disconnect()
+                        false
                     }
+                } catch (_: Exception) {
+                    false
                 }
-                conn.disconnect()
-            } catch (_: Exception) {
-                // Probe failed
             }
 
-            _uiState.value = _uiState.value.copy(isVerifyingServer = false)
-            scanForServers()
+            if (verified) {
+                _uiState.value = _uiState.value.copy(
+                    serverUrl = url,
+                    isVerifyingServer = false,
+                    isConnected = true,
+                    errorMessage = null
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(isVerifyingServer = false)
+                scanForServers()
+            }
         }
     }
 
@@ -152,32 +164,38 @@ class ServerViewModel @Inject constructor(
             isLoading = true,
             errorMessage = null
         )
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
-                val conn = URL("${url.trimEnd('/')}/api/discovery").openConnection() as HttpURLConnection
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                conn.requestMethod = "GET"
+                val result = withContext(ioDispatcher) {
+                    val conn = openConnection("${url.trimEnd('/')}/api/discovery")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.requestMethod = "GET"
 
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    if (body.contains("PulseRealm")) {
-                        saveServerUrl(url)
-                        _uiState.value = _uiState.value.copy(
-                            serverUrl = url,
-                            isLoading = false,
-                            isConnected = true,
-                            errorMessage = null
-                        )
-                        return@launch
+                    if (conn.responseCode == 200) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        conn.disconnect()
+                        body.contains("PulseRealm")
+                    } else {
+                        conn.disconnect()
+                        false
                     }
                 }
-                conn.disconnect()
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = "Not a PulseRealm server"
-                )
+
+                if (result) {
+                    saveServerUrl(url)
+                    _uiState.value = _uiState.value.copy(
+                        serverUrl = url,
+                        isLoading = false,
+                        isConnected = true,
+                        errorMessage = null
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "Not a PulseRealm server"
+                    )
+                }
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,

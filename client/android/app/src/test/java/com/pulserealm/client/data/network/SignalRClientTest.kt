@@ -1,6 +1,7 @@
 package com.pulserealm.client.data.network
 
 import com.microsoft.signalr.HubConnection
+import com.microsoft.signalr.HttpHubConnectionBuilder
 import com.microsoft.signalr.HubConnectionBuilder
 import com.microsoft.signalr.HubConnectionState
 import com.pulserealm.client.data.model.WearableData
@@ -346,7 +347,7 @@ class SignalRClientHubTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var client: SignalRClient
     private lateinit var mockHub: HubConnection
-    private lateinit var mockBuilder: HubConnectionBuilder
+    private lateinit var mockBuilder: HttpHubConnectionBuilder
 
     @Before
     fun setup() {
@@ -364,7 +365,7 @@ class SignalRClientHubTest {
 
         mockkStatic(HubConnectionBuilder::class)
         every { HubConnectionBuilder.create(any<String>()) } returns mockBuilder
-        every { mockBuilder.shouldSkipNegotiate(any()) } returns mockBuilder
+        every { mockBuilder.shouldSkipNegotiate(any<Boolean>()) } returns mockBuilder
         every { mockBuilder.build() } returns mockHub
     }
 

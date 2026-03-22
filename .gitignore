@@ -36,6 +36,7 @@ Thumbs.db
 
 # Gradle
 .gradle/
+build/
 local.properties
 
 # Android

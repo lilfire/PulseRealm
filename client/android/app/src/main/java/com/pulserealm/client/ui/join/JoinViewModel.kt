@@ -49,6 +49,9 @@ class JoinViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    // Overridable for testing — production uses Dispatchers.IO
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
+
     companion object {
         private const val PREF_PLAYER_NAME = "player_name"
         private const val PREF_AGE = "age"
@@ -236,7 +239,7 @@ class JoinViewModel @Inject constructor(
 
         _uiState.value = state.copy(isLoading = true, errorMessage = null)
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             try {
                 // 1. Connect to SignalR hub
                 signalRClient.connect(state.serverUrl)
@@ -311,7 +314,7 @@ class JoinViewModel @Inject constructor(
     }
 
     fun disconnect() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             signalRClient.disconnect()
         }
         _uiState.value = _uiState.value.copy(
