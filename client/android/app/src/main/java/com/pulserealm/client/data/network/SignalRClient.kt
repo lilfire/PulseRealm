@@ -94,7 +94,8 @@ data class RealmSummaryData(
  * needed (e.g. during app shutdown) to cancel the SupervisorJob and release resources.
  */
 class SignalRClient(
-    private val reconnectScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val reconnectScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    private val healthCheckEnabled: Boolean = true
 ) {
 
     @Volatile private var hubConnection: HubConnection? = null
@@ -467,6 +468,7 @@ class SignalRClient(
      * Uses invoke("Ping") which requires a server response — if unreachable, it throws.
      */
     private fun startHealthCheck() {
+        if (!healthCheckEnabled) return
         healthCheckJob?.cancel()
         healthCheckJob = reconnectScope.launch {
             var consecutiveFailures = 0

@@ -2,8 +2,6 @@ package com.pulserealm.client.data.network
 
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkConstructor
-import io.mockk.unmockkConstructor
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -18,19 +16,28 @@ import org.junit.Test
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerDiscoveryClientTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private lateinit var mockSocket: DatagramSocket
     private lateinit var client: ServerDiscoveryClient
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        client = ServerDiscoveryClient(ioDispatcher = testDispatcher)
+        mockSocket = mockk(relaxed = true)
+        every { mockSocket.receive(any()) } throws SocketTimeoutException("timeout")
+        client = ServerDiscoveryClient(
+            ioDispatcher = testDispatcher,
+            socketFactory = { mockSocket },
+            listenTimeoutMs = 0
+        )
     }
 
     @After
@@ -129,7 +136,7 @@ class ServerDiscoveryClientTest {
     }
 
     @Test
-    fun `scan sets isScanning to true then false`() = runTest {
+    fun `scan sets isScanning to true then false`() = runTest(testDispatcher) {
         // Scan completes quickly in test env (no servers to find)
         client.scan()
 
@@ -138,7 +145,7 @@ class ServerDiscoveryClientTest {
     }
 
     @Test
-    fun `scan clears previous servers`() = runTest {
+    fun `scan clears previous servers`() = runTest(testDispatcher) {
         client.scan()
         assertTrue(client.discoveredServers.value.isEmpty())
 
@@ -149,7 +156,7 @@ class ServerDiscoveryClientTest {
     }
 
     @Test
-    fun `scan resets isScanning on completion`() = runTest {
+    fun `scan resets isScanning on completion`() = runTest(testDispatcher) {
         client.scan()
         assertFalse(client.isScanning.value)
     }
@@ -221,16 +228,24 @@ class DiscoveredServerTest {
 /**
  * Tests for ServerDiscoveryClient.scan() with mocked DatagramSocket.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerDiscoveryScanTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private lateinit var mockSocket: DatagramSocket
     private lateinit var client: ServerDiscoveryClient
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        client = ServerDiscoveryClient(ioDispatcher = testDispatcher)
+        mockSocket = mockk(relaxed = true)
+        client = ServerDiscoveryClient(
+            ioDispatcher = testDispatcher,
+            socketFactory = { mockSocket },
+            listenTimeoutMs = 100
+        )
     }
 
     @After
@@ -240,288 +255,186 @@ class ServerDiscoveryScanTest {
 
     @Test
     fun `scan discovers server from valid PulseRealm broadcast`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            val responseJson = """{"service":"PulseRealm","name":"MyServer","hostname":"desktop","urls":"http://+:5062","version":"1.0"}"""
-            val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
-            val responseAddr = InetAddress.getByName("192.168.1.42")
-            var receiveCount = 0
+        val responseJson = """{"service":"PulseRealm","name":"MyServer","hostname":"desktop","urls":"http://+:5062","version":"1.0"}"""
+        val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
+        val responseAddr = InetAddress.getByName("192.168.1.42")
+        var receiveCount = 0
 
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } answers {
-                receiveCount++
-                if (receiveCount == 1) {
-                    val packet = firstArg<DatagramPacket>()
-                    responseBytes.copyInto(packet.data)
-                    packet.length = responseBytes.size
+        every { mockSocket.receive(any()) } answers {
+            receiveCount++
+            if (receiveCount == 1) {
+                val packet = firstArg<DatagramPacket>()
+                responseBytes.copyInto(packet.data)
+                packet.length = responseBytes.size
 
-                    val addressField = DatagramPacket::class.java.getDeclaredField("address")
-                    addressField.isAccessible = true
-                    addressField.set(packet, responseAddr)
-                } else {
-                    // After first response, keep throwing timeout until deadline passes
-                    throw SocketTimeoutException("timeout")
-                }
+                packet.address = responseAddr
+            } else {
+                throw SocketTimeoutException("timeout")
             }
-
-            client.scan()
-
-            val servers = client.discoveredServers.value
-            assertEquals(1, servers.size)
-            assertEquals("MyServer", servers[0].name)
-            assertEquals("desktop", servers[0].hostname)
-            assertEquals("http://+:5062", servers[0].urls)
-            assertEquals("1.0", servers[0].version)
-            assertEquals(responseAddr, servers[0].address)
-            assertFalse(client.isScanning.value)
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
         }
+
+        client.scan()
+
+        val servers = client.discoveredServers.value
+        assertEquals(1, servers.size)
+        assertEquals("MyServer", servers[0].name)
+        assertEquals("desktop", servers[0].hostname)
+        assertEquals("http://+:5062", servers[0].urls)
+        assertEquals("1.0", servers[0].version)
+        assertEquals(responseAddr, servers[0].address)
+        assertFalse(client.isScanning.value)
     }
 
     @Test
     fun `scan ignores non-PulseRealm packets`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            val responseJson = """{"service":"OtherApp","name":"Server"}"""
-            val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
-            var receiveCount = 0
+        val responseJson = """{"service":"OtherApp","name":"Server"}"""
+        val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
+        var receiveCount = 0
 
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } answers {
-                receiveCount++
-                if (receiveCount == 1) {
-                    val packet = firstArg<DatagramPacket>()
-                    responseBytes.copyInto(packet.data)
-                    packet.length = responseBytes.size
+        every { mockSocket.receive(any()) } answers {
+            receiveCount++
+            if (receiveCount == 1) {
+                val packet = firstArg<DatagramPacket>()
+                responseBytes.copyInto(packet.data)
+                packet.length = responseBytes.size
 
-                    val addressField = DatagramPacket::class.java.getDeclaredField("address")
-                    addressField.isAccessible = true
-                    addressField.set(packet, InetAddress.getByName("192.168.1.99"))
-                } else {
-                    throw SocketTimeoutException("timeout")
-                }
+                packet.address = InetAddress.getByName("192.168.1.99")
+            } else {
+                throw SocketTimeoutException("timeout")
             }
-
-            client.scan()
-
-            assertTrue(client.discoveredServers.value.isEmpty())
-            assertFalse(client.isScanning.value)
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
         }
+
+        client.scan()
+
+        assertTrue(client.discoveredServers.value.isEmpty())
+        assertFalse(client.isScanning.value)
     }
 
     @Test
     fun `scan handles BindException gracefully`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } throws java.net.BindException("Address in use")
+        every { mockSocket.reuseAddress = any() } throws java.net.BindException("Address in use")
 
-            client.scan()
+        client.scan()
 
-            assertTrue(client.discoveredServers.value.isEmpty())
-            assertFalse(client.isScanning.value)
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
-        }
+        assertTrue(client.discoveredServers.value.isEmpty())
+        assertFalse(client.isScanning.value)
     }
 
     @Test
     fun `scan handles generic exception gracefully`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } throws RuntimeException("unexpected")
+        every { mockSocket.reuseAddress = any() } throws RuntimeException("unexpected")
 
-            client.scan()
+        client.scan()
 
-            assertTrue(client.discoveredServers.value.isEmpty())
-            assertFalse(client.isScanning.value)
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
-        }
+        assertTrue(client.discoveredServers.value.isEmpty())
+        assertFalse(client.isScanning.value)
     }
 
     @Test
     fun `scan deduplicates servers by IP address`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            val responseJson = """{"service":"PulseRealm","name":"MyServer","hostname":"desktop","urls":"http://+:5062","version":"1.0"}"""
-            val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
-            val responseAddr = InetAddress.getByName("192.168.1.42")
-            var receiveCount = 0
+        val responseJson = """{"service":"PulseRealm","name":"MyServer","hostname":"desktop","urls":"http://+:5062","version":"1.0"}"""
+        val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
+        val responseAddr = InetAddress.getByName("192.168.1.42")
+        var receiveCount = 0
 
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } answers {
-                receiveCount++
-                if (receiveCount <= 3) {
-                    // Same server responds 3 times
-                    val packet = firstArg<DatagramPacket>()
-                    responseBytes.copyInto(packet.data)
-                    packet.length = responseBytes.size
+        every { mockSocket.receive(any()) } answers {
+            receiveCount++
+            if (receiveCount <= 3) {
+                val packet = firstArg<DatagramPacket>()
+                responseBytes.copyInto(packet.data)
+                packet.length = responseBytes.size
 
-                    val addressField = DatagramPacket::class.java.getDeclaredField("address")
-                    addressField.isAccessible = true
-                    addressField.set(packet, responseAddr)
-                } else {
-                    throw SocketTimeoutException("timeout")
-                }
+                packet.address = responseAddr
+            } else {
+                throw SocketTimeoutException("timeout")
             }
-
-            client.scan()
-
-            // Should be deduplicated to 1 server
-            assertEquals(1, client.discoveredServers.value.size)
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
         }
+
+        client.scan()
+
+        assertEquals(1, client.discoveredServers.value.size)
     }
 
     @Test
     fun `scan discovers multiple different servers`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            val response1 = """{"service":"PulseRealm","name":"Server1","hostname":"host1","urls":"http://+:5062","version":"1.0"}"""
-            val response2 = """{"service":"PulseRealm","name":"Server2","hostname":"host2","urls":"http://+:8080","version":"2.0"}"""
-            val bytes1 = response1.toByteArray(Charsets.UTF_8)
-            val bytes2 = response2.toByteArray(Charsets.UTF_8)
-            var receiveCount = 0
+        val response1 = """{"service":"PulseRealm","name":"Server1","hostname":"host1","urls":"http://+:5062","version":"1.0"}"""
+        val response2 = """{"service":"PulseRealm","name":"Server2","hostname":"host2","urls":"http://+:8080","version":"2.0"}"""
+        val bytes1 = response1.toByteArray(Charsets.UTF_8)
+        val bytes2 = response2.toByteArray(Charsets.UTF_8)
+        var receiveCount = 0
 
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } answers {
-                receiveCount++
-                val packet = firstArg<DatagramPacket>()
-                val addressField = DatagramPacket::class.java.getDeclaredField("address")
-                addressField.isAccessible = true
+        every { mockSocket.receive(any()) } answers {
+            receiveCount++
+            val packet = firstArg<DatagramPacket>()
 
-                when (receiveCount) {
-                    1 -> {
-                        bytes1.copyInto(packet.data)
-                        packet.length = bytes1.size
-                        addressField.set(packet, InetAddress.getByName("192.168.1.10"))
-                    }
-                    2 -> {
-                        bytes2.copyInto(packet.data)
-                        packet.length = bytes2.size
-                        addressField.set(packet, InetAddress.getByName("192.168.1.20"))
-                    }
-                    else -> throw SocketTimeoutException("timeout")
+            when (receiveCount) {
+                1 -> {
+                    bytes1.copyInto(packet.data)
+                    packet.length = bytes1.size
+                    packet.address = InetAddress.getByName("192.168.1.10")
                 }
+                2 -> {
+                    bytes2.copyInto(packet.data)
+                    packet.length = bytes2.size
+                    packet.address = InetAddress.getByName("192.168.1.20")
+                }
+                else -> throw SocketTimeoutException("timeout")
             }
-
-            client.scan()
-
-            assertEquals(2, client.discoveredServers.value.size)
-            val names = client.discoveredServers.value.map { it.name }.toSet()
-            assertTrue(names.contains("Server1"))
-            assertTrue(names.contains("Server2"))
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
         }
+
+        client.scan()
+
+        assertEquals(2, client.discoveredServers.value.size)
+        val names = client.discoveredServers.value.map { it.name }.toSet()
+        assertTrue(names.contains("Server1"))
+        assertTrue(names.contains("Server2"))
     }
 
     @Test
     fun `scan sends discovery request on socket`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } throws SocketTimeoutException("timeout")
+        every { mockSocket.receive(any()) } throws SocketTimeoutException("timeout")
 
-            client.scan()
+        client.scan()
 
-            // Verify at least one send was made (discovery request)
-            verify(atLeast = 1) { anyConstructed<DatagramSocket>().send(any()) }
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
-        }
+        verify(atLeast = 1) { mockSocket.send(any()) }
     }
 
     @Test
     fun `scan sets isScanning during scan and resets after`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } throws SocketTimeoutException("timeout")
+        every { mockSocket.receive(any()) } throws SocketTimeoutException("timeout")
 
-            client.scan()
-            assertFalse(client.isScanning.value)
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
-        }
+        client.scan()
+        assertFalse(client.isScanning.value)
     }
 
     @Test
     fun `scan clears previous servers before starting`() = runTest(testDispatcher) {
-        mockkConstructor(DatagramSocket::class)
-        try {
-            val responseJson = """{"service":"PulseRealm","name":"Server1","hostname":"host","urls":"http://+:5062","version":"1.0"}"""
-            val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
-            var receiveCount = 0
+        val responseJson = """{"service":"PulseRealm","name":"Server1","hostname":"host","urls":"http://+:5062","version":"1.0"}"""
+        val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
+        var receiveCount = 0
 
-            every { anyConstructed<DatagramSocket>().reuseAddress = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().bind(any<InetSocketAddress>()) } returns Unit
-            every { anyConstructed<DatagramSocket>().broadcast = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().soTimeout = any() } returns Unit
-            every { anyConstructed<DatagramSocket>().send(any()) } returns Unit
-            every { anyConstructed<DatagramSocket>().close() } returns Unit
-            every { anyConstructed<DatagramSocket>().receive(any()) } answers {
-                receiveCount++
-                if (receiveCount == 1) {
-                    val packet = firstArg<DatagramPacket>()
-                    responseBytes.copyInto(packet.data)
-                    packet.length = responseBytes.size
+        every { mockSocket.receive(any()) } answers {
+            receiveCount++
+            if (receiveCount == 1) {
+                val packet = firstArg<DatagramPacket>()
+                responseBytes.copyInto(packet.data)
+                packet.length = responseBytes.size
 
-                    val addressField = DatagramPacket::class.java.getDeclaredField("address")
-                    addressField.isAccessible = true
-                    addressField.set(packet, InetAddress.getByName("192.168.1.42"))
-                } else {
-                    throw SocketTimeoutException("timeout")
-                }
+                packet.address = InetAddress.getByName("192.168.1.42")
+            } else {
+                throw SocketTimeoutException("timeout")
             }
-
-            // First scan finds a server
-            client.scan()
-            assertEquals(1, client.discoveredServers.value.size)
-
-            // Reset count so second scan finds nothing
-            receiveCount = 10
-
-            // Second scan should clear the first result
-            client.scan()
-            assertTrue(client.discoveredServers.value.isEmpty())
-        } finally {
-            unmockkConstructor(DatagramSocket::class)
         }
+
+        // First scan finds a server
+        client.scan()
+        assertEquals(1, client.discoveredServers.value.size)
+
+        // Reset count so second scan finds nothing
+        receiveCount = 10
+
+        // Second scan should clear the first result
+        client.scan()
+        assertTrue(client.discoveredServers.value.isEmpty())
     }
 }

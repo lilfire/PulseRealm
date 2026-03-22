@@ -43,7 +43,8 @@ class SignalRClientTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         client = SignalRClient(
-            reconnectScope = CoroutineScope(testDispatcher + SupervisorJob())
+            reconnectScope = testScope.backgroundScope,
+            healthCheckEnabled = false
         )
     }
 
@@ -344,6 +345,7 @@ class SignalRClientTest {
 class SignalRClientHubTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
     private lateinit var client: SignalRClient
     private lateinit var mockHub: HubConnection
     private lateinit var mockBuilder: HttpHubConnectionBuilder
@@ -352,7 +354,8 @@ class SignalRClientHubTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         client = SignalRClient(
-            reconnectScope = CoroutineScope(testDispatcher + SupervisorJob())
+            reconnectScope = testScope.backgroundScope,
+            healthCheckEnabled = false
         )
 
         mockHub = mockk(relaxed = true)

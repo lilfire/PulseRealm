@@ -27,7 +27,9 @@ data class DiscoveredServer(
  * 2. Listens for both direct responses and periodic server broadcast announcements
  */
 class ServerDiscoveryClient(
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    internal val socketFactory: () -> DatagramSocket = { DatagramSocket(null) },
+    private val listenTimeoutMs: Int = LISTEN_TIMEOUT_MS
 ) {
 
     companion object {
@@ -54,7 +56,7 @@ class ServerDiscoveryClient(
         try {
             // Use ephemeral port to avoid conflicts with concurrent scans or the server.
             // DatagramSocket.use{} ensures the socket is closed even if an exception is thrown.
-            DatagramSocket(null).use { socket ->
+            socketFactory().use { socket ->
                 socket.reuseAddress = true
                 socket.bind(InetSocketAddress(0))
                 socket.broadcast = true
@@ -65,7 +67,7 @@ class ServerDiscoveryClient(
                 sendDiscoveryRequest(socket)
 
                 val buffer = ByteArray(1024)
-                val deadline = System.currentTimeMillis() + LISTEN_TIMEOUT_MS
+                val deadline = System.currentTimeMillis() + listenTimeoutMs
 
                 while (System.currentTimeMillis() < deadline) {
                     try {

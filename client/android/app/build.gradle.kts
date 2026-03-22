@@ -108,6 +108,7 @@ dependencies {
     testImplementation("app.cash.turbine:turbine:1.0.0")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.robolectric:robolectric:4.11.1")
+    testImplementation("org.json:json:20231013")
 }
 
 android.applicationVariants.all {
