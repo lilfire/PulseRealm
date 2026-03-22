@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
+    id("jacoco")
 }
 
 android {
@@ -50,6 +51,10 @@ android {
             isIncludeAndroidResources = true
             all {
                 it.maxHeapSize = "1536m"
+                it.extensions.configure<JacocoTaskExtension> {
+                    isIncludeNoLocationClasses = true
+                    excludes = listOf("jdk.internal.*")
+                }
             }
         }
     }
@@ -116,4 +121,45 @@ android.applicationVariants.all {
         .forEach { output ->
             output.outputFileName = "pulserealm-${versionName ?: versionCode}.apk"
         }
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        html.required.set(true)
+        xml.required.set(false)
+        csv.required.set(false)
+    }
+
+    val mainSrc = "${project.projectDir}/src/main/java"
+    val debugTree = fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
+        exclude(
+            "**/R.class",
+            "**/R\$*.class",
+            "**/BuildConfig.*",
+            "**/Manifest*.*",
+            "**/*_Hilt*.*",
+            "**/Hilt_*.*",
+            "**/*_Factory.*",
+            "**/*_MembersInjector.*",
+            "**/*Module_*.*",
+            "**/*Component*.*",
+            "**/*Directions*.*",
+            "**/*Args*.*",
+            // Composable UI screens and Android services (require instrumentation tests)
+            "**/*Screen*.*",
+            "**/*Activity*.*",
+            "**/PulseRealmApp.*",
+            "**/di/*.*",
+            "**/ui/theme/Theme*.*",
+            "**/service/DataStreamingService*.*",
+        )
+    }
+
+    sourceDirectories.setFrom(files(mainSrc))
+    classDirectories.setFrom(files(debugTree))
+    executionData.setFrom(fileTree(layout.buildDirectory) {
+        include("jacoco/testDebugUnitTest.exec")
+    })
 }

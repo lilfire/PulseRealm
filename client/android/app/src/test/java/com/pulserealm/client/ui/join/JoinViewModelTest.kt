@@ -51,6 +51,7 @@ class JoinViewModelTest {
 
         editor = mockk(relaxed = true)
         every { editor.putString(any(), any()) } returns editor
+        every { editor.putInt(any(), any()) } returns editor
 
         prefs = mockk(relaxed = true)
         every { prefs.edit() } returns editor
@@ -61,6 +62,13 @@ class JoinViewModelTest {
         every { prefs.getString("weight_kg", "") } returns "70"
         every { prefs.getString("cached_server_url", null) } returns null
         every { prefs.getString("stride_calibration", null) } returns null
+        // Default zone/hr/stride prefs — mirrors production defaults
+        every { prefs.getInt("zone_1_2", 57) } returns 57
+        every { prefs.getInt("zone_2_3", 63) } returns 63
+        every { prefs.getInt("zone_3_4", 76) } returns 76
+        every { prefs.getInt("zone_4_5", 89) } returns 89
+        every { prefs.getInt("max_hr", 0) } returns 0
+        every { prefs.getFloat("stride_factor", 0f) } returns 0f
 
         every { signalRClient.calibrationSessionId } returns MutableStateFlow(null)
 
@@ -72,7 +80,9 @@ class JoinViewModelTest {
         Dispatchers.resetMain()
     }
 
-    // --- Init / Prefs loading ---
+    // -------------------------------------------------------------------------
+    // Init / Prefs loading
+    // -------------------------------------------------------------------------
 
     @Test
     fun `initial state loads client ID from prefs`() {
@@ -109,7 +119,122 @@ class JoinViewModelTest {
         verify { editor.putString("client_id", any()) }
     }
 
-    // --- Join code ---
+    @Test
+    fun `initial state loads default zone values from prefs`() {
+        assertEquals("57", viewModel.uiState.value.zone12)
+        assertEquals("63", viewModel.uiState.value.zone23)
+        assertEquals("76", viewModel.uiState.value.zone34)
+        assertEquals("89", viewModel.uiState.value.zone45)
+    }
+
+    @Test
+    fun `initial state loads custom zone values from prefs`() {
+        every { prefs.getInt("zone_1_2", 57) } returns 60
+        every { prefs.getInt("zone_2_3", 63) } returns 70
+        every { prefs.getInt("zone_3_4", 76) } returns 80
+        every { prefs.getInt("zone_4_5", 89) } returns 90
+
+        val vm = createViewModel()
+
+        assertEquals("60", vm.uiState.value.zone12)
+        assertEquals("70", vm.uiState.value.zone23)
+        assertEquals("80", vm.uiState.value.zone34)
+        assertEquals("90", vm.uiState.value.zone45)
+    }
+
+    @Test
+    fun `initial state loads maxHrOverride as string when prefs value is positive`() {
+        every { prefs.getInt("max_hr", 0) } returns 185
+
+        val vm = createViewModel()
+
+        assertEquals("185", vm.uiState.value.maxHrOverride)
+    }
+
+    @Test
+    fun `initial state has empty maxHrOverride when prefs value is zero`() {
+        every { prefs.getInt("max_hr", 0) } returns 0
+
+        val vm = createViewModel()
+
+        assertEquals("", vm.uiState.value.maxHrOverride)
+    }
+
+    @Test
+    fun `initial state loads non-zero strideFactor from prefs`() {
+        every { prefs.getFloat("stride_factor", 0f) } returns 0.55f
+
+        val vm = createViewModel()
+
+        assertEquals(0.55, vm.uiState.value.strideFactor, 0.0001)
+    }
+
+    @Test
+    fun `initial state has zero strideFactor when prefs value is zero`() {
+        every { prefs.getFloat("stride_factor", 0f) } returns 0f
+
+        val vm = createViewModel()
+
+        assertEquals(0.0, vm.uiState.value.strideFactor, 0.0)
+    }
+
+    @Test
+    fun `initial state parses strideCalibration from prefs JSON`() {
+        every { prefs.getString("stride_calibration", null) } returns
+            """[{"speedKmh":8.0,"strideFactor":0.42},{"speedKmh":12.0,"strideFactor":0.55}]"""
+
+        val vm = createViewModel()
+
+        val calibration = vm.uiState.value.strideCalibration
+        assertNotNull(calibration)
+        assertEquals(2, calibration!!.size)
+        assertEquals(8.0, calibration[0].speedKmh, 0.0001)
+        assertEquals(0.42, calibration[0].strideFactor, 0.0001)
+        assertEquals(12.0, calibration[1].speedKmh, 0.0001)
+        assertEquals(0.55, calibration[1].strideFactor, 0.0001)
+    }
+
+    @Test
+    fun `initial state has null strideCalibration when prefs has no JSON`() {
+        every { prefs.getString("stride_calibration", null) } returns null
+
+        val vm = createViewModel()
+
+        assertNull(vm.uiState.value.strideCalibration)
+    }
+
+    @Test
+    fun `initial state has null strideCalibration when prefs JSON is malformed`() {
+        every { prefs.getString("stride_calibration", null) } returns "not-valid-json"
+
+        val vm = createViewModel()
+
+        assertNull(vm.uiState.value.strideCalibration)
+    }
+
+    // -------------------------------------------------------------------------
+    // connectionState flow delegation
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `connectionState delegates to signalRClient`() {
+        assertSame(connectionStateFlow, viewModel.connectionState)
+    }
+
+    @Test
+    fun `connectionState reflects signalRClient state changes`() {
+        assertEquals(ConnectionState.DISCONNECTED, viewModel.connectionState.value)
+
+        connectionStateFlow.value = ConnectionState.CONNECTED
+        assertEquals(ConnectionState.CONNECTED, viewModel.connectionState.value)
+
+        connectionStateFlow.value = ConnectionState.RECONNECTING
+        assertEquals(ConnectionState.RECONNECTING, viewModel.connectionState.value)
+    }
+
+    // -------------------------------------------------------------------------
+    // Join code
+    // -------------------------------------------------------------------------
 
     @Test
     fun `updateJoinCode filters to digits only`() {
@@ -125,16 +250,16 @@ class JoinViewModelTest {
 
     @Test
     fun `updateJoinCode clears error message`() {
-        // Trigger an error via join with empty code (playerName is set, joinCode is empty)
         viewModel.join()
         assertNotNull(viewModel.uiState.value.errorMessage)
 
-        // Updating join code should clear the error
         viewModel.updateJoinCode("123")
         assertNull(viewModel.uiState.value.errorMessage)
     }
 
-    // --- Profile settings ---
+    // -------------------------------------------------------------------------
+    // Profile settings
+    // -------------------------------------------------------------------------
 
     @Test
     fun `updatePlayerName saves to prefs`() {
@@ -157,7 +282,9 @@ class JoinViewModelTest {
         verify { editor.putString("weight_kg", "70.2") }
     }
 
-    // --- Age and Max HR recalculation ---
+    // -------------------------------------------------------------------------
+    // Age and Max HR recalculation
+    // -------------------------------------------------------------------------
 
     @Test
     fun `updateAge sets showRecalculateMaxHr for valid age`() {
@@ -166,8 +293,50 @@ class JoinViewModelTest {
     }
 
     @Test
-    fun `updateAge does not set showRecalculateMaxHr for invalid age`() {
+    fun `updateAge does not set showRecalculateMaxHr for single digit under range`() {
         viewModel.updateAge("3")
+        assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `updateAge filters non-digit characters`() {
+        viewModel.updateAge("2a5b")
+        assertEquals("25", viewModel.uiState.value.age)
+    }
+
+    @Test
+    fun `updateAge saves filtered value to prefs`() {
+        viewModel.updateAge("4x0")
+        verify { editor.putString("age", "40") }
+    }
+
+    @Test
+    fun `updateAge does not show recalculate dialog for boundary value 4`() {
+        viewModel.updateAge("4")
+        assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `updateAge does not show recalculate dialog for boundary value 121`() {
+        viewModel.updateAge("121")
+        assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `updateAge shows recalculate dialog for boundary value 5`() {
+        viewModel.updateAge("5")
+        assertTrue(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `updateAge shows recalculate dialog for boundary value 120`() {
+        viewModel.updateAge("120")
+        assertTrue(viewModel.uiState.value.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `updateAge does not show recalculate dialog when input is empty`() {
+        viewModel.updateAge("")
         assertFalse(viewModel.uiState.value.showRecalculateMaxHr)
     }
 
@@ -183,6 +352,20 @@ class JoinViewModelTest {
     }
 
     @Test
+    fun `confirmRecalculateMaxHr returns early when age is not parseable`() {
+        // Set age to a non-numeric value by bypassing the digit filter via state directly.
+        // We trigger updateAge with empty string so age is "" and toIntOrNull() returns null.
+        viewModel.updateAge("")
+        val maxHrBefore = viewModel.uiState.value.maxHrOverride
+
+        viewModel.confirmRecalculateMaxHr()
+
+        // State must be unchanged — no prefs write, no maxHrOverride update
+        assertEquals(maxHrBefore, viewModel.uiState.value.maxHrOverride)
+        verify(exactly = 0) { editor.putInt("max_hr", any()) }
+    }
+
+    @Test
     fun `dismissRecalculateMaxHr hides dialog without changing maxHr`() {
         viewModel.updateAge("30")
         val maxHrBefore = viewModel.uiState.value.maxHrOverride
@@ -192,7 +375,119 @@ class JoinViewModelTest {
         assertEquals(maxHrBefore, viewModel.uiState.value.maxHrOverride)
     }
 
-    // --- Join validation ---
+    // -------------------------------------------------------------------------
+    // Zone update methods
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `updateZone12 filters to digits only`() {
+        viewModel.updateZone12("6a5")
+        assertEquals("65", viewModel.uiState.value.zone12)
+    }
+
+    @Test
+    fun `updateZone12 saves parsed int to prefs`() {
+        viewModel.updateZone12("65")
+        verify { editor.putInt("zone_1_2", 65) }
+    }
+
+    @Test
+    fun `updateZone12 does not save to prefs when input is non-numeric`() {
+        viewModel.updateZone12("abc")
+        assertEquals("", viewModel.uiState.value.zone12)
+        verify(exactly = 0) { editor.putInt("zone_1_2", any()) }
+    }
+
+    @Test
+    fun `updateZone23 filters to digits only`() {
+        viewModel.updateZone23("7x2")
+        assertEquals("72", viewModel.uiState.value.zone23)
+    }
+
+    @Test
+    fun `updateZone23 saves parsed int to prefs`() {
+        viewModel.updateZone23("72")
+        verify { editor.putInt("zone_2_3", 72) }
+    }
+
+    @Test
+    fun `updateZone23 does not save to prefs when input is empty after filtering`() {
+        viewModel.updateZone23("xyz")
+        assertEquals("", viewModel.uiState.value.zone23)
+        verify(exactly = 0) { editor.putInt("zone_2_3", any()) }
+    }
+
+    @Test
+    fun `updateZone34 filters to digits only`() {
+        viewModel.updateZone34("8b5")
+        assertEquals("85", viewModel.uiState.value.zone34)
+    }
+
+    @Test
+    fun `updateZone34 saves parsed int to prefs`() {
+        viewModel.updateZone34("85")
+        verify { editor.putInt("zone_3_4", 85) }
+    }
+
+    @Test
+    fun `updateZone34 does not save to prefs when input is empty after filtering`() {
+        viewModel.updateZone34("!!!")
+        assertEquals("", viewModel.uiState.value.zone34)
+        verify(exactly = 0) { editor.putInt("zone_3_4", any()) }
+    }
+
+    @Test
+    fun `updateZone45 filters to digits only`() {
+        viewModel.updateZone45("9c2")
+        assertEquals("92", viewModel.uiState.value.zone45)
+    }
+
+    @Test
+    fun `updateZone45 saves parsed int to prefs`() {
+        viewModel.updateZone45("92")
+        verify { editor.putInt("zone_4_5", 92) }
+    }
+
+    @Test
+    fun `updateZone45 does not save to prefs when input is empty after filtering`() {
+        viewModel.updateZone45("---")
+        assertEquals("", viewModel.uiState.value.zone45)
+        verify(exactly = 0) { editor.putInt("zone_4_5", any()) }
+    }
+
+    // -------------------------------------------------------------------------
+    // updateMaxHrOverride
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `updateMaxHrOverride filters to digits only`() {
+        viewModel.updateMaxHrOverride("18a0")
+        assertEquals("180", viewModel.uiState.value.maxHrOverride)
+    }
+
+    @Test
+    fun `updateMaxHrOverride saves parsed int to prefs`() {
+        viewModel.updateMaxHrOverride("180")
+        verify { editor.putInt("max_hr", 180) }
+    }
+
+    @Test
+    fun `updateMaxHrOverride saves zero to prefs when input is empty`() {
+        viewModel.updateMaxHrOverride("")
+        assertEquals("", viewModel.uiState.value.maxHrOverride)
+        verify { editor.putInt("max_hr", 0) }
+    }
+
+    @Test
+    fun `updateMaxHrOverride saves zero to prefs when input contains no digits`() {
+        viewModel.updateMaxHrOverride("abc")
+        assertEquals("", viewModel.uiState.value.maxHrOverride)
+        verify { editor.putInt("max_hr", 0) }
+    }
+
+    // -------------------------------------------------------------------------
+    // Join validation
+    // -------------------------------------------------------------------------
 
     @Test
     fun `join with empty join code shows error`() {
@@ -211,7 +506,6 @@ class JoinViewModelTest {
 
     @Test
     fun `join with empty server URL shows error`() {
-        // ViewModel initialized with empty SavedStateHandle so serverUrl is ""
         viewModel.updateJoinCode("123456")
         viewModel.join()
         assertEquals("No server connected", viewModel.uiState.value.errorMessage)
@@ -223,11 +517,12 @@ class JoinViewModelTest {
         assertFalse(viewModel.uiState.value.isLoading)
     }
 
-    // --- Join happy path ---
+    // -------------------------------------------------------------------------
+    // Join happy path
+    // -------------------------------------------------------------------------
 
     @Test
     fun `join happy path connects and sets joined state`() = runTest {
-        // Provide a server URL via SavedStateHandle
         val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
         vm.updateJoinCode("123456")
 
@@ -360,10 +655,78 @@ class JoinViewModelTest {
         verify { editor.putString("cached_server_url", "http://192.168.1.100:5062") }
     }
 
-    // --- Join failure paths ---
+    // -------------------------------------------------------------------------
+    // Calibration join path
+    // -------------------------------------------------------------------------
 
     @Test
-    fun `join fails when connection fails`() = runTest {
+    fun `join with calibration session ID creates calibration RealmInfo and skips REST call`() = runTest {
+        val calibrationIdFlow = MutableStateFlow<String?>(null)
+        every { signalRClient.calibrationSessionId } returns calibrationIdFlow
+
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("999000")
+
+        coEvery { signalRClient.connect(any()) } answers {
+            connectionStateFlow.value = ConnectionState.CONNECTED
+        }
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            // Simulate server delivering JoinedCalibrationSession before delay(200) elapses
+            calibrationIdFlow.value = "cal-session-xyz"
+            Unit
+        }
+
+        // Ensure the factory is never called
+        val mockApi = mockk<RealmApi>(relaxed = true)
+        vm.realmApiFactory = { mockApi }
+
+        vm.join()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertNotNull(vm.uiState.value.realmInfo)
+        assertEquals("cal-session-xyz", vm.uiState.value.realmInfo?.id)
+        assertEquals("999000", vm.uiState.value.realmInfo?.joinCode)
+        assertEquals("calibration", vm.uiState.value.realmInfo?.mode)
+        assertNull(vm.uiState.value.errorMessage)
+        coVerify(exactly = 0) { mockApi.getRealm(any()) }
+    }
+
+    @Test
+    fun `join calibration path saves server URL`() = runTest {
+        val calibrationIdFlow = MutableStateFlow<String?>(null)
+        every { signalRClient.calibrationSessionId } returns calibrationIdFlow
+
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("999000")
+
+        coEvery { signalRClient.connect(any()) } answers {
+            connectionStateFlow.value = ConnectionState.CONNECTED
+        }
+        coEvery {
+            signalRClient.joinRealm(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            calibrationIdFlow.value = "cal-session-xyz"
+            Unit
+        }
+
+        vm.realmApiFactory = { mockk(relaxed = true) }
+
+        vm.join()
+        advanceUntilIdle()
+
+        verify { editor.putString("cached_server_url", "http://192.168.1.100:5062") }
+    }
+
+    // -------------------------------------------------------------------------
+    // Join failure paths
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `join fails when connection fails with error message`() = runTest {
         val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
         vm.updateJoinCode("123456")
 
@@ -378,6 +741,25 @@ class JoinViewModelTest {
         assertFalse(vm.uiState.value.isJoined)
         assertFalse(vm.uiState.value.isLoading)
         assertEquals("Connection refused", vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `join fails when connection fails but error flow is null defaults to fallback message`() = runTest {
+        val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
+        vm.updateJoinCode("123456")
+
+        coEvery { signalRClient.connect(any()) } answers {
+            // Connection does not reach CONNECTED state and no error is set
+            connectionStateFlow.value = ConnectionState.DISCONNECTED
+            errorFlow.value = null
+        }
+
+        vm.join()
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isJoined)
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals("Could not connect to the server", vm.uiState.value.errorMessage)
     }
 
     @Test
@@ -444,12 +826,10 @@ class JoinViewModelTest {
 
     @Test
     fun `join clears previous error before starting`() = runTest {
-        // Trigger an error first (empty join code)
         viewModel.updateJoinCode("")
         viewModel.join()
         assertNotNull(viewModel.uiState.value.errorMessage)
 
-        // Now set up a ViewModel with a valid server URL and join
         val vm = createViewModel("http%3A%2F%2F192.168.1.100%3A5062")
         vm.updateJoinCode("123456")
 
@@ -471,7 +851,9 @@ class JoinViewModelTest {
         assertTrue(vm.uiState.value.isJoined)
     }
 
-    // --- Disconnect ---
+    // -------------------------------------------------------------------------
+    // Disconnect
+    // -------------------------------------------------------------------------
 
     @Test
     fun `disconnect resets join state`() = runTest(testDispatcher) {
@@ -483,7 +865,9 @@ class JoinViewModelTest {
         coVerify { signalRClient.disconnect() }
     }
 
-    // --- Initial state ---
+    // -------------------------------------------------------------------------
+    // Initial state convenience checks
+    // -------------------------------------------------------------------------
 
     @Test
     fun `initial state is not loading`() {
@@ -501,6 +885,10 @@ class JoinViewModelTest {
     }
 }
 
+// =============================================================================
+// JoinUiState unit tests — no Android or coroutine runtime required
+// =============================================================================
+
 class JoinUiStateTest {
 
     @Test
@@ -516,6 +904,39 @@ class JoinUiStateTest {
         assertNull(state.realmInfo)
         assertFalse(state.isJoined)
         assertEquals("", state.clientId)
+    }
+
+    @Test
+    fun `default zone values are 57 63 76 89`() {
+        val state = JoinUiState()
+        assertEquals("57", state.zone12)
+        assertEquals("63", state.zone23)
+        assertEquals("76", state.zone34)
+        assertEquals("89", state.zone45)
+    }
+
+    @Test
+    fun `default maxHrOverride is empty string`() {
+        val state = JoinUiState()
+        assertEquals("", state.maxHrOverride)
+    }
+
+    @Test
+    fun `default showRecalculateMaxHr is false`() {
+        val state = JoinUiState()
+        assertFalse(state.showRecalculateMaxHr)
+    }
+
+    @Test
+    fun `default strideCalibration is null`() {
+        val state = JoinUiState()
+        assertNull(state.strideCalibration)
+    }
+
+    @Test
+    fun `default strideFactor is 0 point 0`() {
+        val state = JoinUiState()
+        assertEquals(0.0, state.strideFactor, 0.0)
     }
 
     @Test
@@ -543,5 +964,42 @@ class JoinUiStateTest {
         assertEquals("Test", modified.playerName)
         assertTrue(modified.isJoined)
         assertTrue(modified.isLoading)
+    }
+
+    @Test
+    fun `copy preserves zone values when not modified`() {
+        val state = JoinUiState(zone12 = "60", zone23 = "70", zone34 = "80", zone45 = "90")
+        val modified = state.copy(playerName = "Updated")
+
+        assertEquals("60", modified.zone12)
+        assertEquals("70", modified.zone23)
+        assertEquals("80", modified.zone34)
+        assertEquals("90", modified.zone45)
+    }
+
+    @Test
+    fun `copy preserves strideCalibration and strideFactor when not modified`() {
+        val calibration = listOf(
+            com.pulserealm.client.data.network.StrideCalibrationPoint(speedKmh = 8.0, strideFactor = 0.42)
+        )
+        val state = JoinUiState(strideCalibration = calibration, strideFactor = 0.42)
+        val modified = state.copy(playerName = "X")
+
+        assertSame(calibration, modified.strideCalibration)
+        assertEquals(0.42, modified.strideFactor, 0.0001)
+    }
+
+    @Test
+    fun `equality holds for identical instances`() {
+        val a = JoinUiState(serverUrl = "http://host", joinCode = "111222", playerName = "Alice")
+        val b = JoinUiState(serverUrl = "http://host", joinCode = "111222", playerName = "Alice")
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `equality fails for different field values`() {
+        val a = JoinUiState(playerName = "Alice")
+        val b = JoinUiState(playerName = "Bob")
+        assertNotEquals(a, b)
     }
 }

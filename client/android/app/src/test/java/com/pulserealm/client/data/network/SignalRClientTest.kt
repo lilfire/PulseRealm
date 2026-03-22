@@ -992,3 +992,750 @@ class RealmSummaryDataTest {
         assertEquals(10, copy.participantCount)
     }
 }
+
+/**
+ * Tests for the health check loop in SignalRClient (healthCheckEnabled = true).
+ * Uses TestScope + StandardTestDispatcher so advanceTimeBy() controls the 10-second
+ * delay inside startHealthCheck().
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class SignalRClientHealthCheckTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
+    private lateinit var client: SignalRClient
+    private lateinit var mockHub: HubConnection
+    private lateinit var mockBuilder: com.microsoft.signalr.HttpHubConnectionBuilder
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        // healthCheckEnabled = true so startHealthCheck() actually runs
+        client = SignalRClient(
+            reconnectScope = testScope.backgroundScope,
+            healthCheckEnabled = true
+        )
+
+        mockHub = mockk(relaxed = true)
+        mockBuilder = mockk(relaxed = true)
+
+        every { mockHub.start() } returns Completable.complete()
+        every { mockHub.stop() } returns Completable.complete()
+        every { mockHub.connectionState } returns HubConnectionState.CONNECTED
+        // Default Ping succeeds
+        every { mockHub.invoke(Boolean::class.java, "Ping") } returns Single.just(true)
+
+        mockkStatic(HubConnectionBuilder::class)
+        every { HubConnectionBuilder.create(any<String>()) } returns mockBuilder
+        every { mockBuilder.shouldSkipNegotiate(any<Boolean>()) } returns mockBuilder
+        every { mockBuilder.build() } returns mockHub
+    }
+
+    @After
+    fun tearDown() {
+        client.dispose()
+        unmockkStatic(HubConnectionBuilder::class)
+        Dispatchers.resetMain()
+    }
+
+    // Helper: directly inject hub state and start health check via reflection, bypassing
+    // withContext(Dispatchers.IO) in connect() which would introduce real-thread race conditions
+    // against the StandardTestDispatcher's virtual clock.
+    private fun setupHealthCheckDirectly(joinCode: String? = null) {
+        val hubField = SignalRClient::class.java.getDeclaredField("hubConnection")
+        hubField.isAccessible = true
+        hubField.set(client, mockHub)
+
+        val connStateField = SignalRClient::class.java.getDeclaredField("_connectionState")
+        connStateField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val connFlow = connStateField.get(client) as kotlinx.coroutines.flow.MutableStateFlow<ConnectionState>
+        connFlow.value = ConnectionState.CONNECTED
+
+        val intentionalField = SignalRClient::class.java.getDeclaredField("intentionalDisconnect")
+        intentionalField.isAccessible = true
+        (intentionalField.get(client) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        if (joinCode != null) {
+            val joinCodeField = SignalRClient::class.java.getDeclaredField("currentJoinCode")
+            joinCodeField.isAccessible = true
+            joinCodeField.set(client, joinCode)
+
+            val serverUrlField = SignalRClient::class.java.getDeclaredField("currentServerUrl")
+            serverUrlField.isAccessible = true
+            serverUrlField.set(client, "http://server:5062")
+
+            val clientIdField = SignalRClient::class.java.getDeclaredField("currentClientId")
+            clientIdField.isAccessible = true
+            clientIdField.set(client, "client-1")
+        }
+
+        val startHealthCheck = SignalRClient::class.java.getDeclaredMethod("startHealthCheck")
+        startHealthCheck.isAccessible = true
+        startHealthCheck.invoke(client)
+    }
+
+    @Test
+    fun `health check ping is called after 10 seconds`() = testScope.runTest {
+        setupHealthCheckDirectly()
+
+        // runCurrent() starts the health check coroutine so it reaches delay(10_000) and
+        // registers with the virtual clock. advanceTimeBy then fires that delay.
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(11_000L)
+        testScope.testScheduler.runCurrent()
+
+        verify(atLeast = 1) { mockHub.invoke(Boolean::class.java, "Ping") }
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `health check single ping failure does not trigger reconnect`() = testScope.runTest {
+        every { mockHub.invoke(Boolean::class.java, "Ping") } returns Single.error(RuntimeException("timeout"))
+
+        setupHealthCheckDirectly()
+
+        // One iteration: start coroutine, 10 s delay, Ping failure (consecutiveFailures = 1)
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(11_000L)
+        testScope.testScheduler.runCurrent()
+
+        // Still CONNECTED — need 2 consecutive failures to trigger reconnect
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `health check two consecutive failures transitions to RECONNECTING`() = testScope.runTest {
+        every { mockHub.invoke(Boolean::class.java, "Ping") } returns Single.error(RuntimeException("timeout"))
+
+        // Pass joinCode so triggerReconnectIfNeeded() actually sets RECONNECTING
+        setupHealthCheckDirectly(joinCode = "123456")
+
+        // Bootstrap the health check coroutine, then advance through two 10-second intervals
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(10_000L)
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(10_000L)
+        testScope.testScheduler.runCurrent()
+
+        assertEquals(ConnectionState.RECONNECTING, client.connectionState.value)
+    }
+
+    @Test
+    fun `health check resets failure count after a successful ping`() = testScope.runTest {
+        // Fail on first call, succeed on second, fail on third — never 2 consecutive
+        var callCount = 0
+        every { mockHub.invoke(Boolean::class.java, "Ping") } answers {
+            callCount++
+            if (callCount == 1 || callCount == 3) Single.error(RuntimeException("timeout"))
+            else Single.just(true)
+        }
+
+        setupHealthCheckDirectly(joinCode = "123456")
+
+        // Bootstrap, then three 10-second intervals
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(10_000L)
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(10_000L)
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(10_000L)
+        testScope.testScheduler.runCurrent()
+
+        // Never had 2 consecutive failures, so still CONNECTED
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `health check does not call ping after intentional disconnect`() = testScope.runTest {
+        setupHealthCheckDirectly()
+
+        // Set intentionalDisconnect = true before the health check fires
+        val intentionalField = SignalRClient::class.java.getDeclaredField("intentionalDisconnect")
+        intentionalField.isAccessible = true
+        (intentionalField.get(client) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(11_000L)
+        testScope.testScheduler.runCurrent()
+
+        // Ping should never have been called because the loop exits on intentionalDisconnect
+        verify(exactly = 0) { mockHub.invoke(Boolean::class.java, "Ping") }
+    }
+
+    @Test
+    fun `health check exits gracefully when hubConnection is null`() = testScope.runTest {
+        setupHealthCheckDirectly()
+
+        // Null out hubConnection via reflection to simulate external nullification
+        val field = SignalRClient::class.java.getDeclaredField("hubConnection")
+        field.isAccessible = true
+        field.set(client, null)
+
+        // Should not crash — the loop breaks when hubConnection is null
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(11_000L)
+        testScope.testScheduler.runCurrent()
+        // No assertion needed — absence of exception is the contract
+    }
+
+    @Test
+    fun `health check triggers RECONNECTING when hub reports DISCONNECTED state`() = testScope.runTest {
+        // Hub reports DISCONNECTED so the loop calls triggerReconnectIfNeeded()
+        every { mockHub.connectionState } returns HubConnectionState.DISCONNECTED
+
+        // joinCode must be set so the guard in triggerReconnectIfNeeded() passes
+        setupHealthCheckDirectly(joinCode = "123456")
+
+        // Bootstrap the health check coroutine, then fire the 10-second delay
+        testScope.testScheduler.runCurrent()
+        testScope.testScheduler.advanceTimeBy(11_000L)
+        testScope.testScheduler.runCurrent()
+
+        assertEquals(ConnectionState.RECONNECTING, client.connectionState.value)
+    }
+}
+
+/**
+ * Tests for the reconnect logic in SignalRClient — covers attemptReconnect(),
+ * manualReconnect(), and onNetworkAvailable() triggering reconnects.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class SignalRClientReconnectTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
+    private lateinit var client: SignalRClient
+    private lateinit var mockHub: HubConnection
+    private lateinit var mockBuilder: com.microsoft.signalr.HttpHubConnectionBuilder
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        client = SignalRClient(
+            reconnectScope = testScope.backgroundScope,
+            healthCheckEnabled = false
+        )
+
+        mockHub = mockk(relaxed = true)
+        mockBuilder = mockk(relaxed = true)
+
+        every { mockHub.start() } returns Completable.complete()
+        every { mockHub.stop() } returns Completable.complete()
+        every { mockHub.connectionState } returns HubConnectionState.CONNECTED
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        mockkStatic(HubConnectionBuilder::class)
+        every { HubConnectionBuilder.create(any<String>()) } returns mockBuilder
+        every { mockBuilder.shouldSkipNegotiate(any<Boolean>()) } returns mockBuilder
+        every { mockBuilder.build() } returns mockHub
+    }
+
+    @After
+    fun tearDown() {
+        client.dispose()
+        unmockkStatic(HubConnectionBuilder::class)
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `attemptReconnect succeeds on first try via onClosed`() = testScope.runTest {
+        val closedSlot = slot<com.microsoft.signalr.OnClosedCallback>()
+        every { mockHub.onClosed(capture(closedSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        // Simulate unexpected close — triggers attemptReconnect with immediateFirstAttempt=false
+        closedSlot.captured.invoke(RuntimeException("dropped"))
+
+        // Allow the reconnect coroutine to run: first attempt has a 2000ms delay
+        testScope.testScheduler.advanceTimeBy(2_100L)
+        testScope.testScheduler.runCurrent()
+
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `attemptReconnect exhausts max attempts and sets DISCONNECTED with error`() = testScope.runTest {
+        // All reconnect connection attempts fail
+        every { mockHub.start() } returnsMany listOf(
+            Completable.complete(), // initial connect succeeds
+            Completable.error(RuntimeException("refused")), // all reconnects fail
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused")),
+            Completable.error(RuntimeException("refused"))
+        )
+
+        val closedSlot = slot<com.microsoft.signalr.OnClosedCallback>()
+        every { mockHub.onClosed(capture(closedSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        // Trigger reconnect
+        closedSlot.captured.invoke(RuntimeException("dropped"))
+
+        // Advance through all 10 attempts: delays are 2s, 4s, 8s, 16s, 30s, 30s, 30s, 30s, 30s, 30s
+        // Total max = 2+4+8+16+30+30+30+30+30+30 = 210 seconds; add extra buffer
+        testScope.testScheduler.advanceTimeBy(220_000L)
+        testScope.testScheduler.runCurrent()
+
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+        assertEquals("Lost connection to server", client.error.value)
+    }
+
+    @Test
+    fun `attemptReconnect re-joins realm on successful reconnect`() = testScope.runTest {
+        val closedSlot = slot<com.microsoft.signalr.OnClosedCallback>()
+        every { mockHub.onClosed(capture(closedSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1", name = "Alice", age = 30, heightCm = 165.0, weightKg = 60.0)
+
+        // Reset invocation counts so we can verify the re-join call specifically
+        io.mockk.clearMocks(mockHub, answers = false, recordedCalls = true, verificationMarks = true)
+
+        closedSlot.captured.invoke(RuntimeException("dropped"))
+
+        testScope.testScheduler.advanceTimeBy(2_100L)
+        testScope.testScheduler.runCurrent()
+
+        verify(atLeast = 1) { mockHub.invoke(eq("JoinRealm"), eq("123456"), eq("client-1"), any()) }
+    }
+
+    @Test
+    fun `manualReconnect when already CONNECTED is a no-op`() = testScope.runTest {
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+
+        io.mockk.clearMocks(mockHub, answers = false, recordedCalls = true, verificationMarks = true)
+
+        client.manualReconnect()
+
+        // No new connection attempts should have been made
+        testScope.testScheduler.runCurrent()
+        verify(exactly = 0) { mockHub.start() }
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `manualReconnect when no joinCode is a no-op`() = testScope.runTest {
+        // Fresh client: no joinCode set, no connect
+        client.manualReconnect()
+
+        testScope.testScheduler.runCurrent()
+
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+        // start() should never have been called
+        verify(exactly = 0) { mockHub.start() }
+    }
+
+    @Test
+    fun `manualReconnect when no serverUrl is a no-op`() = testScope.runTest {
+        // Set joinCode via reflection but leave serverUrl null
+        val joinCodeField = SignalRClient::class.java.getDeclaredField("currentJoinCode")
+        joinCodeField.isAccessible = true
+        joinCodeField.set(client, "123456")
+
+        // serverUrl is still null, so manualReconnect should return early
+        client.manualReconnect()
+
+        testScope.testScheduler.runCurrent()
+
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+        verify(exactly = 0) { mockHub.start() }
+    }
+
+    @Test
+    fun `onNetworkAvailable triggers RECONNECTING when hub is disconnected but joinCode exists`() = testScope.runTest {
+        val closedSlot = slot<com.microsoft.signalr.OnClosedCallback>()
+        every { mockHub.onClosed(capture(closedSlot)) } returns mockk()
+
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        // Make the hub report DISCONNECTED but do NOT disconnect intentionally
+        every { mockHub.connectionState } returns HubConnectionState.DISCONNECTED
+
+        // Reset intentionalDisconnect to false (it may have been left true from earlier ops)
+        val intentionalField = SignalRClient::class.java.getDeclaredField("intentionalDisconnect")
+        intentionalField.isAccessible = true
+        (intentionalField.get(client) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        client.onNetworkAvailable()
+
+        assertEquals(ConnectionState.RECONNECTING, client.connectionState.value)
+    }
+
+    @Test
+    fun `onNetworkAvailable skips when hub is still CONNECTED`() = testScope.runTest {
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        // Hub still reports CONNECTED
+        every { mockHub.connectionState } returns HubConnectionState.CONNECTED
+
+        val intentionalField = SignalRClient::class.java.getDeclaredField("intentionalDisconnect")
+        intentionalField.isAccessible = true
+        (intentionalField.get(client) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        client.onNetworkAvailable()
+
+        // Should stay CONNECTED — the guard `conn.connectionState == CONNECTED` returns early
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+}
+
+/**
+ * Tests for the reconnect-triggering paths inside sendWearableData().
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class SignalRClientSendWearableDataReconnectTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
+    private lateinit var client: SignalRClient
+    private lateinit var mockHub: HubConnection
+    private lateinit var mockBuilder: com.microsoft.signalr.HttpHubConnectionBuilder
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        client = SignalRClient(
+            reconnectScope = testScope.backgroundScope,
+            healthCheckEnabled = false
+        )
+
+        mockHub = mockk(relaxed = true)
+        mockBuilder = mockk(relaxed = true)
+
+        every { mockHub.start() } returns Completable.complete()
+        every { mockHub.stop() } returns Completable.complete()
+        every { mockHub.connectionState } returns HubConnectionState.CONNECTED
+        every { mockHub.invoke(eq("JoinRealm"), any(), any(), any()) } returns Completable.complete()
+
+        mockkStatic(HubConnectionBuilder::class)
+        every { HubConnectionBuilder.create(any<String>()) } returns mockBuilder
+        every { mockBuilder.shouldSkipNegotiate(any<Boolean>()) } returns mockBuilder
+        every { mockBuilder.build() } returns mockHub
+    }
+
+    @After
+    fun tearDown() {
+        client.dispose()
+        unmockkStatic(HubConnectionBuilder::class)
+        Dispatchers.resetMain()
+    }
+
+    private fun wearableData() = WearableData("client-1", 140, 500, "2026-01-01T00:00:00Z")
+
+    @Test
+    fun `sendWearableData triggers RECONNECTING when hub reports DISCONNECTED`() = testScope.runTest {
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        // Hub now reports DISCONNECTED while our logical state is still CONNECTED
+        every { mockHub.connectionState } returns HubConnectionState.DISCONNECTED
+
+        client.sendWearableData("realm-abc", wearableData())
+
+        assertEquals(ConnectionState.RECONNECTING, client.connectionState.value)
+    }
+
+    @Test
+    fun `sendWearableData triggers RECONNECTING when send throws`() = testScope.runTest {
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+
+        // send() throws to simulate a dead connection
+        every { mockHub.send(eq("SendWearableData"), any(), any<HashMap<String, Any>>()) } throws RuntimeException("broken pipe")
+
+        client.sendWearableData("realm-abc", wearableData())
+
+        assertEquals(ConnectionState.RECONNECTING, client.connectionState.value)
+    }
+
+    @Test
+    fun `sendWearableData does NOT trigger reconnect after intentional disconnect`() = testScope.runTest {
+        client.connect("http://server:5062")
+        client.joinRealm("123456", "client-1")
+        client.disconnect()
+
+        // Hub reports DISCONNECTED and we ARE intentionally disconnected
+        every { mockHub.connectionState } returns HubConnectionState.DISCONNECTED
+
+        client.sendWearableData("realm-abc", wearableData())
+
+        // State must stay DISCONNECTED, not flip to RECONNECTING
+        assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+    }
+
+    @Test
+    fun `sendWearableData does NOT trigger reconnect when no joinCode`() = testScope.runTest {
+        // Connect but do NOT joinRealm — so currentJoinCode remains null
+        client.connect("http://server:5062")
+
+        every { mockHub.connectionState } returns HubConnectionState.DISCONNECTED
+
+        client.sendWearableData("realm-abc", wearableData())
+
+        // Guard condition requires joinCode != null — no reconnect should fire
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+}
+
+/**
+ * Tests for sendCalibrationData() and the calibration-related hub handlers
+ * (CalibrationComplete and JoinedCalibrationSession).
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class SignalRClientCalibrationTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
+    private lateinit var client: SignalRClient
+    private lateinit var mockHub: HubConnection
+    private lateinit var mockBuilder: com.microsoft.signalr.HttpHubConnectionBuilder
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        client = SignalRClient(
+            reconnectScope = testScope.backgroundScope,
+            healthCheckEnabled = false
+        )
+
+        mockHub = mockk(relaxed = true)
+        mockBuilder = mockk(relaxed = true)
+
+        every { mockHub.start() } returns Completable.complete()
+        every { mockHub.stop() } returns Completable.complete()
+        every { mockHub.connectionState } returns HubConnectionState.CONNECTED
+
+        mockkStatic(HubConnectionBuilder::class)
+        every { HubConnectionBuilder.create(any<String>()) } returns mockBuilder
+        every { mockBuilder.shouldSkipNegotiate(any<Boolean>()) } returns mockBuilder
+        every { mockBuilder.build() } returns mockHub
+    }
+
+    @After
+    fun tearDown() {
+        client.dispose()
+        unmockkStatic(HubConnectionBuilder::class)
+        Dispatchers.resetMain()
+    }
+
+    // --- sendCalibrationData ---
+
+    @Test
+    fun `sendCalibrationData sends to hub when connected`() = testScope.runTest {
+        client.connect("http://server:5062")
+
+        client.sendCalibrationData("session-42", 1200)
+
+        verify { mockHub.send("SendCalibrationData", "session-42", 1200) }
+    }
+
+    @Test
+    fun `sendCalibrationData does nothing when no hub connection`() {
+        // No connect() call — hubConnection is null, must not throw
+        client.sendCalibrationData("session-1", 500)
+        // Absence of exception is the assertion
+    }
+
+    @Test
+    fun `sendCalibrationData silently handles exception from send`() = testScope.runTest {
+        every { mockHub.send(eq("SendCalibrationData"), any(), any<Int>()) } throws RuntimeException("io error")
+
+        client.connect("http://server:5062")
+
+        // Must not throw or change connection state
+        client.sendCalibrationData("session-1", 300)
+        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+    }
+
+    // --- CalibrationComplete hub handler ---
+
+    @Test
+    fun `CalibrationComplete handler parses points and updates flow`() = testScope.runTest {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("CalibrationComplete"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+
+        val pointsList = listOf(
+            mapOf("speedKmh" to 6.0, "strideFactor" to 0.38),
+            mapOf("speedKmh" to 10.0, "strideFactor" to 0.52),
+            mapOf("speedKmh" to 14.0, "strideFactor" to 0.67)
+        )
+        handlerSlot.captured.invoke(pointsList)
+
+        val result = client.calibrationComplete.value
+        assertNotNull(result)
+        assertEquals(3, result!!.size)
+        assertEquals(6.0, result[0].speedKmh, 0.001)
+        assertEquals(0.38, result[0].strideFactor, 0.001)
+        assertEquals(10.0, result[1].speedKmh, 0.001)
+        assertEquals(14.0, result[2].speedKmh, 0.001)
+        assertEquals(0.67, result[2].strideFactor, 0.001)
+    }
+
+    @Test
+    fun `CalibrationComplete handler ignores empty list`() = testScope.runTest {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("CalibrationComplete"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+
+        handlerSlot.captured.invoke(emptyList<Any>())
+
+        // Empty list means no valid points — flow must stay null
+        assertNull(client.calibrationComplete.value)
+    }
+
+    @Test
+    fun `JoinedCalibrationSession handler sets calibrationSessionId flow`() = testScope.runTest {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<String>>()
+        every { mockHub.on(eq("JoinedCalibrationSession"), capture(handlerSlot), eq(String::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+
+        handlerSlot.captured.invoke("cal-session-xyz")
+
+        assertEquals("cal-session-xyz", client.calibrationSessionId.value)
+    }
+
+    @Test
+    fun `CalibrationComplete handler ignores malformed items missing required fields`() = testScope.runTest {
+        val handlerSlot = slot<com.microsoft.signalr.Action1<Any>>()
+        every { mockHub.on(eq("CalibrationComplete"), capture(handlerSlot), eq(Any::class.java)) } returns mockk()
+
+        client.connect("http://server:5062")
+
+        // Items missing speedKmh or strideFactor are filtered out via mapNotNull
+        val malformedList = listOf(
+            mapOf("speedKmh" to 8.0),          // missing strideFactor
+            mapOf("strideFactor" to 0.45),      // missing speedKmh
+            mapOf<String, Any>()                // completely empty
+        )
+        handlerSlot.captured.invoke(malformedList)
+
+        // All items filtered → empty list → flow stays null (isEmpty check in handler)
+        assertNull(client.calibrationComplete.value)
+    }
+}
+
+/**
+ * Tests for the StrideCalibrationPoint data class.
+ */
+class StrideCalibrationPointTest {
+
+    @Test
+    fun `default values are zero`() {
+        val point = StrideCalibrationPoint()
+        assertEquals(0.0, point.speedKmh, 0.001)
+        assertEquals(0.0, point.strideFactor, 0.001)
+    }
+
+    @Test
+    fun `custom values are stored correctly`() {
+        val point = StrideCalibrationPoint(speedKmh = 10.5, strideFactor = 0.54)
+        assertEquals(10.5, point.speedKmh, 0.001)
+        assertEquals(0.54, point.strideFactor, 0.001)
+    }
+
+    @Test
+    fun `equality holds for identical values`() {
+        val a = StrideCalibrationPoint(speedKmh = 8.0, strideFactor = 0.42)
+        val b = StrideCalibrationPoint(speedKmh = 8.0, strideFactor = 0.42)
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `inequality holds for different values`() {
+        val a = StrideCalibrationPoint(speedKmh = 8.0, strideFactor = 0.42)
+        val b = StrideCalibrationPoint(speedKmh = 9.0, strideFactor = 0.42)
+        assertNotEquals(a, b)
+    }
+
+    @Test
+    fun `copy produces independent instance with overridden field`() {
+        val original = StrideCalibrationPoint(speedKmh = 6.0, strideFactor = 0.38)
+        val copy = original.copy(strideFactor = 0.40)
+        assertEquals(6.0, copy.speedKmh, 0.001)
+        assertEquals(0.40, copy.strideFactor, 0.001)
+        // Original is unchanged
+        assertEquals(0.38, original.strideFactor, 0.001)
+    }
+
+    @Test
+    fun `destructuring returns correct components`() {
+        val point = StrideCalibrationPoint(speedKmh = 12.0, strideFactor = 0.60)
+        val (speed, stride) = point
+        assertEquals(12.0, speed, 0.001)
+        assertEquals(0.60, stride, 0.001)
+    }
+}
+
+/**
+ * Tests for the top-level parseStrideCalibration() function.
+ */
+class ParseStrideCalibrationTest {
+
+    @Test
+    fun `null input returns null`() {
+        assertNull(parseStrideCalibration(null))
+    }
+
+    @Test
+    fun `empty string returns null`() {
+        assertNull(parseStrideCalibration(""))
+    }
+
+    @Test
+    fun `blank string returns null`() {
+        assertNull(parseStrideCalibration("   "))
+    }
+
+    @Test
+    fun `valid JSON array returns list of points`() {
+        val json = """[{"speedKmh":6.0,"strideFactor":0.38},{"speedKmh":10.0,"strideFactor":0.52}]"""
+        val result = parseStrideCalibration(json)
+        assertNotNull(result)
+        assertEquals(2, result!!.size)
+        assertEquals(6.0, result[0].speedKmh, 0.001)
+        assertEquals(0.38, result[0].strideFactor, 0.001)
+        assertEquals(10.0, result[1].speedKmh, 0.001)
+        assertEquals(0.52, result[1].strideFactor, 0.001)
+    }
+
+    @Test
+    fun `malformed JSON returns null`() {
+        assertNull(parseStrideCalibration("{not valid json"))
+        assertNull(parseStrideCalibration("not json at all"))
+        assertNull(parseStrideCalibration("[{broken"))
+    }
+
+    @Test
+    fun `empty JSON array returns empty list`() {
+        val result = parseStrideCalibration("[]")
+        assertNotNull(result)
+        assertTrue(result!!.isEmpty())
+    }
+
+    @Test
+    fun `JSON array with missing required field returns null`() {
+        // getDouble("speedKmh") will throw JSONException if key is absent, caught → null
+        val json = """[{"onlyStrideFactor":0.42}]"""
+        assertNull(parseStrideCalibration(json))
+    }
+}
