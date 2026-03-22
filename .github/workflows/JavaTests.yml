@@ -35,6 +35,7 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Run tests
+        working-directory: client/android
         run: |
           if [ -n "${{ github.event.inputs.module }}" ] && [ -n "${{ github.event.inputs.test_filter }}" ]; then
             ./gradlew :${{ github.event.inputs.module }}:test --tests "${{ github.event.inputs.test_filter }}"
@@ -49,5 +50,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: '**/build/reports/tests/'
+          path: 'client/android/**/build/reports/tests/'
           retention-days: 7
