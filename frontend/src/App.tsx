@@ -611,6 +611,9 @@ function App() {
           </div>
         )}
         {showJoinModal && virtualKeyboardOpen && (
+          <div className="join-bar-backdrop" onClick={() => { setShowJoinModal(false); setJoinCodeInput(""); setHostKeyInput(""); setJoinError(""); }} />
+        )}
+        {showJoinModal && virtualKeyboardOpen && (
           <div className="join-bar" role="dialog" aria-modal="true">
             <div className="join-bar-row">
               <label htmlFor="join-code-input-bar" style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
