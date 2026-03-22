@@ -1,0 +1,230 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using PulseRealm.Server.Filters;
+using PulseRealm.Server.Hubs;
+using PulseRealm.Server.Models;
+using PulseRealm.Server.Services;
+
+namespace PulseRealm.Server.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AdminController : ControllerBase
+{
+    private readonly AdminAuthService _auth;
+    private readonly AdminConfigService _configService;
+    private readonly RealmManager _realmManager;
+    private readonly IHubContext<RealmHub> _hubContext;
+    private readonly RealmStatsTracker _statsTracker;
+    private readonly IConfiguration _configuration;
+
+    public AdminController(AdminAuthService auth, AdminConfigService configService, RealmManager realmManager, IHubContext<RealmHub> hubContext, RealmStatsTracker statsTracker, IConfiguration configuration)
+    {
+        _auth = auth;
+        _configService = configService;
+        _realmManager = realmManager;
+        _hubContext = hubContext;
+        _statsTracker = statsTracker;
+        _configuration = configuration;
+    }
+
+    [HttpPost("login")]
+    public IActionResult Login([FromBody] LoginRequest request)
+    {
+        if (!_auth.IsConfigured)
+            return StatusCode(403, new { error = "Admin not configured" });
+
+        var token = _auth.Login(request.Username, request.Password);
+        if (token == null)
+            return Unauthorized(new { error = "Invalid credentials" });
+
+        return Ok(new { token });
+    }
+
+    [HttpPost("logout")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public IActionResult Logout()
+    {
+        var header = Request.Headers.Authorization.ToString();
+        if (!header.StartsWith("Bearer ", StringComparison.Ordinal)) return BadRequest();
+        var token = header["Bearer ".Length..].Trim();
+        _auth.Logout(token);
+        return Ok();
+    }
+
+    [HttpGet("config")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public IActionResult GetConfig()
+    {
+        return Ok(_configService.GetConfig());
+    }
+
+    [HttpPut("config")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public IActionResult UpdateConfig([FromBody] AdminConfig config)
+    {
+        _configService.UpdateConfig(config);
+        return Ok(_configService.GetConfig());
+    }
+
+    [HttpGet("realms")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public IActionResult GetActiveRealms()
+    {
+        var realms = _realmManager.GetActiveRealms().Select(r => new
+        {
+            r.Id,
+            r.JoinCode,
+            r.HostSecret,
+            Mode = r.Mode.ToString(),
+            Status = r.Status.ToString(),
+            r.CreatedAt,
+            ConnectedClients = r.WithLock(realm => realm.ConnectedClientIds.Count),
+            MaxClients = r.MaxClients,
+        });
+        return Ok(realms);
+    }
+
+    [HttpPost("realms/{realmId}/end")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> EndRealm(string realmId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            return NotFound(new { error = "Realm not found" });
+
+        if (realm.Status == RealmStatus.Ended)
+            return Ok(new { message = "Realm already ended" });
+
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Ended;
+            r.EndedAt = DateTime.UtcNow;
+        });
+
+        var summary = _statsTracker.BuildSummary(realm);
+
+        var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+        RealmHub.CleanupRealmHubState(realmId, knownClientIds);
+        _statsTracker.CleanupRealm(realmId, knownClientIds);
+
+        await _hubContext.Clients.Group(realmId).SendAsync("RealmEnded", summary);
+
+        return Ok(new { message = "Realm ended" });
+    }
+    [HttpPost("realms/{realmId}/kick/{clientId}")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> KickClient(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            return NotFound(new { error = "Realm not found" });
+
+        var isConnected = realm.WithLock(r => r.ConnectedClientIds.Contains(clientId));
+        if (!isConnected)
+            return NotFound(new { error = "Client not found in realm" });
+
+        realm.WithLock(r => r.KickedClientIds.Add(clientId));
+        _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
+        RealmHub.CleanupRealmHubState(realmId, new[] { clientId });
+
+        await _hubContext.Clients.Group(realmId).SendAsync("ClientKicked", clientId);
+
+        // Find the kicked client's connection so we can send YouWereKicked directly
+        // RealmHub._connectionMap is a ConcurrentDictionary so enumeration is safe here
+        string? kickedConnectionId = null;
+        foreach (var kvp in RealmHub._connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+            {
+                kickedConnectionId = kvp.Key;
+                break;
+            }
+        }
+        if (kickedConnectionId is not null)
+        {
+            await _hubContext.Clients.Client(kickedConnectionId).SendAsync("YouWereKicked");
+        }
+
+        return Ok(new { message = "Client kicked" });
+    }
+
+    [HttpGet("backup")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public IActionResult Backup()
+    {
+        var config = _configService.GetConfig();
+        var json = System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        });
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HHmmss");
+        return File(bytes, "application/json", $"pulserealm-backup-{timestamp}.json");
+    }
+
+    [HttpPost("restore")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> Restore(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file provided" });
+
+        if (file.Length > 10 * 1024 * 1024)
+            return BadRequest(new { error = "File exceeds 10 MB limit" });
+
+        try
+        {
+            using var reader = new StreamReader(file.OpenReadStream());
+            var json = await reader.ReadToEndAsync();
+            var config = System.Text.Json.JsonSerializer.Deserialize<AdminConfig>(json, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+            if (config is null)
+                return BadRequest(new { error = "Invalid backup file" });
+
+            _configService.UpdateConfig(config);
+            return Ok(_configService.GetConfig());
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return BadRequest(new { error = "Invalid backup file format" });
+        }
+    }
+
+    [HttpPost("thumbnails")]
+    [ServiceFilter(typeof(AdminAuthFilter))]
+    public async Task<IActionResult> UploadThumbnail(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file provided" });
+
+        if (file.Length > 5 * 1024 * 1024)
+            return BadRequest(new { error = "File exceeds 5 MB limit" });
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string[] allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+        if (!allowedExtensions.Contains(extension))
+            return BadRequest(new { error = "Only jpg, png, webp, and gif images are allowed" });
+
+        var dataDir = _configuration["DATA_DIR"] ?? "data";
+        var thumbnailsDir = Path.Combine(dataDir, "thumbnails");
+        Directory.CreateDirectory(thumbnailsDir);
+
+        var filename = $"{Guid.NewGuid()}{extension}";
+        var filePath = Path.Combine(thumbnailsDir, filename);
+
+        await using var stream = System.IO.File.Create(filePath);
+        await file.CopyToAsync(stream);
+
+        return Ok(new { url = $"/thumbnails/{filename}" });
+    }
+}
+
+public class LoginRequest
+{
+    public string Username { get; set; } = "";
+    public string Password { get; set; } = "";
+}

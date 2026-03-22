@@ -1,0 +1,24 @@
+services:
+  pulserealm:
+    build:
+      context: .
+      args:
+        VITE_API_URL: ""
+        VITE_HUB_URL: "/hubs/realm"
+    ports:
+      - "8080:8080"
+      - "5063:5063/udp"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - SERVER_NAME=PulseRealm
+      - Discovery__Enabled=true
+      - Discovery__BroadcastPort=5063
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+    volumes:
+      - pulserealm-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  pulserealm-data:

@@ -1,0 +1,135 @@
+:root {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #FF5C75;
+  --accent-secondary: #33DFFF;
+  --accent2: #33DFFF;
+  --accent-bg: rgba(255, 61, 90, 0.15);
+  --accent-border: rgba(255, 61, 90, 0.5);
+  --gradient: linear-gradient(135deg, #FF5C75 0%, #D06ACA 50%, #33DFFF 100%);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root { font-size: 15px; }
+  h1 { font-size: 28px; margin: 16px 0; }
+  h2 { font-size: 18px; }
+  input, select, textarea { font-size: 16px; }
+}
+
+@media (max-width: 480px) {
+  :root { font-size: 14px; }
+  h1 { font-size: 22px; margin: 12px 0; }
+  h2 { font-size: 16px; }
+}
+
+#social .button-icon {
+  filter: invert(1) brightness(2);
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  text-align: center;
+  min-height: calc(var(--vh, 1vh) * 100);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+h1 {
+  font-size: 56px;
+  letter-spacing: -1.68px;
+  margin: 32px 0;
+}
+h2 {
+  font-size: 24px;
+  line-height: 118%;
+  letter-spacing: -0.24px;
+  margin: 0 0 8px;
+}
+
+@media (max-width: 1024px) {
+  h1 {
+    font-size: 36px;
+    margin: 20px 0;
+  }
+  h2 {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 28px;
+    margin: 16px 0;
+  }
+  h2 {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 22px;
+    margin: 12px 0;
+  }
+  h2 {
+    font-size: 16px;
+  }
+}
+p {
+  margin: 0;
+}
+
+code,
+.counter {
+  font-family: var(--mono);
+  display: inline-flex;
+  border-radius: 4px;
+  color: var(--text-h);
+}
+
+code {
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  background: var(--code-bg);
+}

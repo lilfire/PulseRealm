@@ -1,0 +1,1158 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using Microsoft.AspNetCore.SignalR;
+using PulseRealm.Server.Models;
+using PulseRealm.Server.Services;
+using PulseRealm.Server.Utils;
+
+namespace PulseRealm.Server.Hubs;
+
+public class RealmHub : Hub
+{
+    private readonly RealmManager _realmManager;
+    private readonly AdminConfigService _adminConfig;
+    private readonly RealmStatsTracker _statsTracker;
+
+    /// <summary>Tracks the last raw steps and receive time per client for speed and offset calculation.</summary>
+    private static readonly ConcurrentDictionary<string, (int RawSteps, DateTime ReceivedAt, double SmoothedSpeed, DateTime LastStepTime)> _lastData = new();
+
+    /// <summary>Maps SignalR connection IDs to (realmId, clientId) for disconnect handling.</summary>
+    internal static readonly ConcurrentDictionary<string, (string RealmId, string ClientId)> _connectionMap = new();
+
+    /// <summary>Step offset per client to handle app restarts where the step counter resets to 0.</summary>
+    private static readonly ConcurrentDictionary<string, int> _stepOffsets = new();
+
+    /// <summary>Connection IDs of clients that explicitly called LeaveRealm (intentional leave, not connection loss).</summary>
+    private static readonly ConcurrentDictionary<string, bool> _pendingLeaves = new();
+
+    /// <summary>Maps host connection IDs to realm IDs for disconnect cleanup.</summary>
+    private static readonly ConcurrentDictionary<string, string> _hostConnectionMap = new();
+
+    /// <summary>Tracks the last accepted wearable message time per client for rate limiting.</summary>
+    private static readonly ConcurrentDictionary<string, DateTime> _lastAcceptedTime = new();
+
+    /// <summary>Tracks calibration session state per session ID.</summary>
+    internal static readonly ConcurrentDictionary<string, CalibrationSession> _calibrationSessions = new();
+
+    /// <summary>Maps calibration join codes to session IDs.</summary>
+    internal static readonly ConcurrentDictionary<string, string> _calibrationJoinCodes = new();
+
+    /// <summary>EMA smoothing factor (higher = more responsive, noisier).</summary>
+    private const double EmaAlpha = 0.15;
+    /// <summary>Seconds after last step before speed starts decaying.</summary>
+    private const double IdleGraceSec = 3.0;
+    /// <summary>Seconds for linear decay from grace end to zero speed.</summary>
+    private const double IdleDecaySec = 4.0;
+
+    public RealmHub(RealmManager realmManager, AdminConfigService adminConfig, RealmStatsTracker statsTracker)
+    {
+        _realmManager = realmManager;
+        _adminConfig = adminConfig;
+        _statsTracker = statsTracker;
+    }
+
+    /// <summary>
+    /// Lightweight health-check ping. Returns true so clients can verify the connection is alive.
+    /// </summary>
+    public bool Ping() => true;
+
+    /// <summary>
+    /// Called by the dashboard to authenticate as the host of a realm.
+    /// Must be called before any privileged operations (StartRealm, EndRealm, etc.).
+    /// </summary>
+    public Task AuthenticateAsHost(string realmId, string hostSecret)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            throw new HubException("Realm not found.");
+        if (realm.HostSecret != hostSecret)
+            throw new HubException("Invalid host secret.");
+
+        realm.WithLock(r =>
+        {
+            r.HostConnectionId = Context.ConnectionId;
+            r.TouchActivity();
+        });
+        _hostConnectionMap[Context.ConnectionId] = realmId;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Called by the host dashboard to broadcast lobby settings to all clients in the realm.
+    /// Stores the settings on the realm so late-joining clients receive them on connect.
+    /// </summary>
+    public async Task UpdateLobbySettings(string realmId, string settingsJson)
+    {
+        var realm = GetRealmAsHost(realmId);
+
+        realm.WithLock(r => r.LobbySettings = settingsJson);
+        await Clients.Group(realmId).SendAsync("LobbySettingsUpdated", settingsJson);
+    }
+
+    private Realm GetRealmAsHost(string realmId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            throw new HubException("Realm not found.");
+        if (realm.HostConnectionId != Context.ConnectionId)
+            throw new HubException("Not authorized. Only the host can perform this action.");
+        return realm;
+    }
+
+    /// <summary>
+    /// Called by a wearable client to join a realm using a short code.
+    /// </summary>
+    public async Task JoinRealm(string joinCode, string clientId, ClientProfile? profile = null)
+    {
+        if (profile is not null)
+        {
+            if (string.IsNullOrWhiteSpace(profile.Name))
+                throw new HubException("Name cannot be blank or empty.");
+            if (profile.Name.Length > 50)
+                throw new HubException("Name is too long (max 50 characters).");
+            if (profile.Age is < 5 or > 120)
+                throw new HubException("Age must be between 5 and 120.");
+            if (profile.HeightCm is < 50 or > 250)
+                throw new HubException("Height must be between 50 and 250 cm.");
+            if (profile.WeightKg is < 10 or > 500)
+                throw new HubException("Weight must be between 10 and 500 kg.");
+            if (profile.StrideFactor is < 0.3 or > 0.6)
+                profile.StrideFactor = 0;
+
+            // Validate stride calibration: each point must have valid speed and factor
+            if (profile.StrideCalibration is { Length: > 0 } sc)
+            {
+                var validPoints = sc.Where(p => p.SpeedKmh is >= 0 and <= 30 && p.StrideFactor is >= 0.2 and <= 1.0).ToArray();
+                profile.StrideCalibration = validPoints.Length >= 2 ? validPoints : null;
+            }
+
+            // Validate zone bounds: must be 4 elements, each 0.01–0.99, strictly increasing
+            if (profile.ZoneBounds is { Length: 4 } zb)
+            {
+                var valid = true;
+                for (var i = 0; i < 4; i++)
+                {
+                    if (zb[i] is < 0.01 or > 0.99) { valid = false; break; }
+                    if (i > 0 && zb[i] <= zb[i - 1]) { valid = false; break; }
+                }
+                if (!valid) profile.ZoneBounds = null;
+            }
+            else if (profile.ZoneBounds is not null)
+            {
+                profile.ZoneBounds = null;
+            }
+
+            // Validate max HR override: must be 100–250
+            if (profile.MaxHr is not (>= 100 and <= 250))
+                profile.MaxHr = 0;
+        }
+
+        // Check if this is a calibration join code — route to calibration flow
+        if (_calibrationJoinCodes.ContainsKey(joinCode))
+        {
+            var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
+            await JoinCalibrationSession(joinCode, clientId, heightCm);
+            return;
+        }
+
+        var realm = _realmManager.GetByJoinCode(joinCode);
+        if (realm is null)
+        {
+            throw new HubException("Invalid join code.");
+        }
+
+        // Read realm state under lock for thread-safe checks
+        var (status, isKnown, isKicked) = realm.WithLock(r => (
+            r.Status,
+            r.KnownClientIds.Contains(clientId),
+            r.KickedClientIds.Contains(clientId)
+        ));
+
+        if (isKicked)
+        {
+            throw new HubException("You have been kicked from this realm.");
+        }
+
+        if (status == RealmStatus.Ended)
+        {
+            throw new HubException("Realm has ended.");
+        }
+
+        if (status == RealmStatus.Started && !isKnown)
+        {
+            throw new HubException("Realm has already started.");
+        }
+
+        var isReconnect = status == RealmStatus.Started;
+
+        // Clear any stale step data from a previous realm so steps start fresh.
+        // On reconnect to the same realm we keep the existing offsets.
+        if (!isReconnect)
+        {
+            _lastData.TryRemove(clientId, out _);
+            _stepOffsets.TryRemove(clientId, out _);
+            _lastAcceptedTime.TryRemove(clientId, out _);
+        }
+
+        try
+        {
+            _realmManager.AddClient(realm.Id, clientId, profile);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new HubException(ex.Message);
+        }
+        realm.TouchActivity();
+        _connectionMap[Context.ConnectionId] = (realm.Id, clientId);
+        await Groups.AddToGroupAsync(Context.ConnectionId, realm.Id);
+
+        var joinedProfile = profile ?? new ClientProfile { ClientId = clientId };
+        joinedProfile.ClientId = clientId;
+        await Clients.Group(realm.Id).SendAsync("ClientJoined", joinedProfile);
+
+        // If reconnecting to a started realm, send the current state so the client can catch up
+        if (isReconnect)
+        {
+            await Clients.Caller.SendAsync("RealmStarted", realm.RealmConfig);
+        }
+
+        // Send current lobby settings to the joining client so they see the host's configuration
+        var lobbySettings = realm.WithLock(r => r.LobbySettings);
+        if (lobbySettings is not null)
+        {
+            await Clients.Caller.SendAsync("LobbySettingsUpdated", lobbySettings);
+        }
+    }
+
+    /// <summary>
+    /// Called by the dashboard to start the realm. No new clients can join after this.
+    /// Optionally accepts a JSON config blob for mode-specific settings.
+    /// </summary>
+    public async Task StartRealm(string realmId, string? config = null)
+    {
+        var realm = GetRealmAsHost(realmId);
+
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Started;
+            r.RealmConfig = config;
+            r.TouchActivity();
+        });
+
+        // Clear pre-start step data so steps begin at 0 for all clients
+        var clientIds = realm.WithLock(r => new List<string>(r.ConnectedClientIds));
+        foreach (var clientId in clientIds)
+        {
+            _lastData.TryRemove(clientId, out _);
+            _stepOffsets.TryRemove(clientId, out _);
+        }
+
+        TrackPopularity(realm.Mode, config);
+
+        await Clients.Group(realmId).SendAsync("RealmStarted", config);
+    }
+
+    private void TrackPopularity(RealmMode mode, string? config)
+    {
+        if (config is null) return;
+        try
+        {
+            using var doc = JsonDocument.Parse(config);
+            var root = doc.RootElement;
+            string? key = null;
+
+            if (mode == RealmMode.YouTubeTrail && root.TryGetProperty("videoId", out var vid))
+                key = $"youtube:{vid.GetString()}";
+            else if (mode == RealmMode.StreetView && root.TryGetProperty("lat", out var lat) && root.TryGetProperty("lng", out var lng))
+                key = $"streetview:{Math.Round(lat.GetDouble(), 4)},{Math.Round(lng.GetDouble(), 4)}";
+            else if (mode == RealmMode.Route && root.TryGetProperty("from", out var from) && root.TryGetProperty("to", out var to))
+            {
+                var fLat = Math.Round(from.GetProperty("lat").GetDouble(), 4);
+                var fLng = Math.Round(from.GetProperty("lng").GetDouble(), 4);
+                var tLat = Math.Round(to.GetProperty("lat").GetDouble(), 4);
+                var tLng = Math.Round(to.GetProperty("lng").GetDouble(), 4);
+                key = $"route:{fLat},{fLng}:{tLat},{tLng}";
+            }
+
+            if (key is not null)
+                _adminConfig.IncrementPopularity(key);
+        }
+        catch { /* malformed config, skip tracking */ }
+    }
+
+    /// <summary>
+    /// Called by a wearable client to stream live data (steps, heart rate).
+    /// The server forwards it to the dashboard in the same realm group.
+    /// </summary>
+    public async Task SendWearableData(string realmId, WearableData data)
+    {
+        // Verify the connection owns the claimed clientId to prevent spoofing
+        if (_connectionMap.TryGetValue(Context.ConnectionId, out var mapping) && mapping.ClientId != data.ClientId)
+            return;
+
+        // Rate limiting: drop messages arriving faster than configured rate
+        var maxRate = _adminConfig.GetConfig().MaxWearableMessagesPerSecond;
+        if (maxRate > 0)
+        {
+            var now = DateTime.UtcNow;
+            var minIntervalMs = 1000.0 / maxRate;
+            var lastTime = _lastAcceptedTime.GetValueOrDefault(data.ClientId);
+            if (lastTime != default && (now - lastTime).TotalMilliseconds < minIntervalMs)
+                return;
+            _lastAcceptedTime[data.ClientId] = now;
+        }
+
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) return;
+
+        realm.TouchActivity();
+
+        var status = realm.WithLock(r => r.Status);
+
+        // Only process steps and speed when the realm is actively running.
+        // During lobby, forward heart rate only (steps zeroed, no speed).
+        if (status != RealmStatus.Started)
+        {
+            data.Steps = 0;
+            data.SpeedKmh = 0;
+            await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
+            return;
+        }
+
+        var rawSteps = data.Steps;
+
+        // Detect client restart: if incoming steps are lower than the last known raw value,
+        // the client's counter reset — accumulate the previous raw total as an offset.
+        var previous = _lastData.GetValueOrDefault(data.ClientId);
+        if (previous.RawSteps > 0 && rawSteps < previous.RawSteps)
+        {
+            _stepOffsets.AddOrUpdate(data.ClientId, previous.RawSteps, (_, existing) => existing + previous.RawSteps);
+        }
+
+        // Dashboard speed override takes priority; otherwise estimate from step cadence.
+        var speedOverride = realm.WithLock(r =>
+            r.ClientSpeedOverrides.TryGetValue(data.ClientId, out var s) ? s : 0);
+        if (speedOverride > 0)
+        {
+            data.SpeedKmh = speedOverride;
+            _lastData[data.ClientId] = (rawSteps, DateTime.UtcNow, speedOverride, DateTime.UtcNow);
+        }
+        else
+        {
+            data.SpeedKmh = EstimateSpeed(realmId, rawSteps, data.ClientId);
+        }
+
+        // Apply offset to outgoing steps
+        data.Steps = rawSteps + _stepOffsets.GetValueOrDefault(data.ClientId, 0);
+
+        // Accumulate stats for the summary
+        var profile = _realmManager.GetClientProfile(realmId, data.ClientId);
+        _statsTracker.Record(realmId, data.ClientId, data.Steps, data.HeartRate, data.SpeedKmh, profile);
+
+        // Forward enriched data to all dashboard listeners in this realm
+        await Clients.Group(realmId).SendAsync("WearableDataReceived", data);
+    }
+
+    /// <summary>
+    /// Estimates current speed (km/h) from step deltas and the client's height.
+    /// Stride length ≈ heightCm × 0.415 / 100 (standard biomechanics approximation).
+    /// </summary>
+    private double EstimateSpeed(string realmId, int rawSteps, string clientId)
+    {
+        var now = DateTime.UtcNow;
+        var previous = _lastData.GetValueOrDefault(clientId);
+
+        // First message for this client — initialize and return 0
+        if (previous.ReceivedAt == default)
+        {
+            _lastData[clientId] = (rawSteps, now, 0, now);
+            return 0;
+        }
+
+        var timeDelta = (now - previous.ReceivedAt).TotalSeconds;
+        var stepDelta = rawSteps - previous.RawSteps;
+
+        if (stepDelta > 0)
+        {
+            // Steps received — compute instantaneous speed, pre-clamp outliers, apply EMA
+            if (timeDelta < 0.1)
+            {
+                // Too-fast message — return previous smoothed speed instead of flickering to 0
+                _lastData[clientId] = (rawSteps, now, previous.SmoothedSpeed, now);
+                return Math.Round(previous.SmoothedSpeed, 1);
+            }
+
+            var profile = _realmManager.GetClientProfile(realmId, clientId);
+            var heightCm = profile?.HeightCm > 0 ? profile.HeightCm : 170.0;
+            var strideLengthM = StrideModel.GetStrideLength(heightCm, previous.SmoothedSpeed, profile);
+            var distanceM = stepDelta * strideLengthM;
+            var instantaneous = distanceM / timeDelta * 3.6;
+
+            // Pre-clamp outliers before EMA to prevent single burst from spiking
+            var maxChange = Math.Max(2.0, previous.SmoothedSpeed * 0.3);
+            var clamped = Math.Clamp(instantaneous, previous.SmoothedSpeed - maxChange, previous.SmoothedSpeed + maxChange);
+
+            // Apply EMA
+            var smoothed = EmaAlpha * clamped + (1 - EmaAlpha) * previous.SmoothedSpeed;
+            smoothed = Math.Clamp(smoothed, 0, 25);
+
+            _lastData[clientId] = (rawSteps, now, smoothed, now);
+            return Math.Round(smoothed, 1);
+        }
+
+        // No new steps — check idle decay
+        var secSinceLastStep = (now - previous.LastStepTime).TotalSeconds;
+
+        if (secSinceLastStep <= IdleGraceSec)
+        {
+            // Within grace period — hold previous smoothed speed
+            _lastData[clientId] = (rawSteps, now, previous.SmoothedSpeed, previous.LastStepTime);
+            return Math.Round(previous.SmoothedSpeed, 1);
+        }
+
+        // Past grace period — linearly decay to 0
+        var decayElapsed = secSinceLastStep - IdleGraceSec;
+        var decayFactor = Math.Clamp(1.0 - decayElapsed / IdleDecaySec, 0, 1);
+        var decayed = previous.SmoothedSpeed * decayFactor;
+
+        _lastData[clientId] = (rawSteps, now, decayed, previous.LastStepTime);
+        return Math.Round(decayed, 1);
+    }
+
+    /// <summary>
+    /// Called by a dashboard to request binding to a specific wearable client.
+    /// Generates a 4-digit code and sends it to both the dashboard and the wearable client.
+    /// </summary>
+    public async Task RequestBind(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        var (status, alreadyBound) = realm.WithLock(r => (r.Status, r.ClientBindings.ContainsKey(clientId)));
+        if (status == RealmStatus.Started) throw new HubException("Cannot bind after realm has started.");
+        if (alreadyBound) throw new HubException("Client is already bound.");
+
+        var code = Random.Shared.Next(1000, 10000).ToString();
+        realm.WithLock(r => r.PendingBindCodes[clientId] = (code, Context.ConnectionId));
+
+        // Send code to the requesting dashboard
+        await Clients.Caller.SendAsync("BindCodeGenerated", code, clientId);
+
+        // Send code to the wearable client
+        string? clientConnectionId = null;
+        foreach (var kvp in _connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+            {
+                clientConnectionId = kvp.Key;
+                break;
+            }
+        }
+        if (clientConnectionId != null)
+        {
+            await Clients.Client(clientConnectionId).SendAsync("BindRequest", code);
+        }
+    }
+
+    /// <summary>
+    /// Called by a wearable client to approve or decline a bind request.
+    /// </summary>
+    public async Task RespondBind(string realmId, bool approved)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        // Find the pending bind for this client
+        if (!_connectionMap.TryGetValue(Context.ConnectionId, out var mapping))
+            throw new HubException("Not in a realm.");
+
+        var clientId = mapping.ClientId;
+
+        var pending = realm.WithLock(r =>
+        {
+            r.PendingBindCodes.TryGetValue(clientId, out var p);
+            r.PendingBindCodes.Remove(clientId);
+            return p;
+        });
+
+        if (pending == default) throw new HubException("No pending bind request.");
+
+        if (approved)
+        {
+            realm.WithLock(r => r.ClientBindings[clientId] = pending.DashboardConnectionId);
+            await Clients.Client(pending.DashboardConnectionId).SendAsync("BindResponse", clientId, true);
+            await Clients.Group(realmId).SendAsync("ClientBound", clientId);
+        }
+        else
+        {
+            await Clients.Client(pending.DashboardConnectionId).SendAsync("BindResponse", clientId, false);
+        }
+    }
+
+    /// <summary>
+    /// Called by a dashboard to cancel a pending bind request.
+    /// </summary>
+    public async Task CancelBind(string realmId, string clientId)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) return;
+
+        var pending = realm.WithLock(r =>
+        {
+            r.PendingBindCodes.TryGetValue(clientId, out var p);
+            if (p.DashboardConnectionId == Context.ConnectionId)
+                r.PendingBindCodes.Remove(clientId);
+            return p;
+        });
+
+        // Notify the wearable client to dismiss
+        if (pending != default)
+        {
+            string? clientConnectionId = null;
+            foreach (var kvp in _connectionMap)
+            {
+                if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+                {
+                    clientConnectionId = kvp.Key;
+                    break;
+                }
+            }
+            if (clientConnectionId != null)
+            {
+                await Clients.Client(clientConnectionId).SendAsync("BindCancelled");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called by a bound dashboard to set the incline for a client's treadmill.
+    /// Validates that the caller is bound to the client, stores the incline, and broadcasts.
+    /// </summary>
+    public async Task SetIncline(string realmId, string clientId, double inclinePercent)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        inclinePercent = Math.Clamp(inclinePercent, 0, 15);
+
+        var isBound = realm.WithLock(r =>
+            r.ClientBindings.TryGetValue(clientId, out var boundTo) && boundTo == Context.ConnectionId
+        );
+        if (!isBound) throw new HubException("Not bound to this client.");
+
+        realm.WithLock(r => r.ClientInclines[clientId] = inclinePercent);
+        _statsTracker.UpdateIncline(realmId, clientId, inclinePercent);
+
+        await Clients.Group(realmId).SendAsync("InclineChanged", clientId, inclinePercent);
+    }
+
+    /// <summary>
+    /// Called by a bound dashboard to set or clear a speed override for a client.
+    /// When speedKmh > 0, the server uses this instead of calculating from steps.
+    /// When speedKmh == 0, reverts to automatic speed calculation.
+    /// </summary>
+    public async Task SetSpeedOverride(string realmId, string clientId, double speedKmh)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null) throw new HubException("Realm not found.");
+
+        speedKmh = Math.Max(0, Math.Min(speedKmh, 30));
+
+        var isBound = realm.WithLock(r =>
+            r.ClientBindings.TryGetValue(clientId, out var boundTo) && boundTo == Context.ConnectionId
+        );
+        if (!isBound) throw new HubException("Not bound to this client.");
+
+        realm.WithLock(r =>
+        {
+            if (speedKmh > 0)
+                r.ClientSpeedOverrides[clientId] = speedKmh;
+            else
+                r.ClientSpeedOverrides.Remove(clientId);
+        });
+
+        await Clients.Group(realmId).SendAsync("SpeedOverrideChanged", clientId, speedKmh);
+    }
+
+    /// <summary>
+    /// Called by the dashboard to notify a client they have been eliminated.
+    /// </summary>
+    public async Task NotifyEliminated(string realmId, string clientId)
+    {
+        GetRealmAsHost(realmId);
+        await Clients.Group(realmId).SendAsync("ClientEliminated", clientId);
+    }
+
+    /// <summary>
+    /// Called by the host or admin dashboard to kick a client from a realm.
+    /// Performs full cleanup and prevents reconnection by removing from KnownClientIds.
+    /// </summary>
+    public async Task KickClient(string realmId, string clientId)
+    {
+        var realm = GetRealmAsHost(realmId);
+
+        // Find the kicked client's connection ID so we can remove them from the SignalR group
+        string? kickedConnectionId = null;
+        foreach (var kvp in _connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId && kvp.Value.ClientId == clientId)
+            {
+                kickedConnectionId = kvp.Key;
+                break;
+            }
+        }
+
+        // Full removal including KnownClientIds so the client cannot reconnect
+        realm.WithLock(r => r.KickedClientIds.Add(clientId));
+        _realmManager.RemoveClient(realmId, clientId, removeFromKnown: true);
+        _lastData.TryRemove(clientId, out _);
+        _stepOffsets.TryRemove(clientId, out _);
+        _lastAcceptedTime.TryRemove(clientId, out _);
+
+        if (kickedConnectionId != null)
+        {
+            _connectionMap.TryRemove(kickedConnectionId, out _);
+            _pendingLeaves[kickedConnectionId] = true; // prevent OnDisconnectedAsync from sending ClientDisconnected
+            await Groups.RemoveFromGroupAsync(kickedConnectionId, realmId);
+        }
+
+        // Notify the rest of the group that this client was removed
+        await Clients.Group(realmId).SendAsync("ClientKicked", clientId);
+        // Tell the kicked client directly so they can disconnect
+        if (kickedConnectionId != null)
+        {
+            await Clients.Client(kickedConnectionId).SendAsync("YouWereKicked");
+        }
+    }
+
+    /// <summary>
+    /// Called by the dashboard to end a realm. Broadcasts a summary to all clients.
+    /// Accepts optional overrides (e.g. totalDistanceMeters, isTeamFormat) from the dashboard
+    /// that get merged into the server-built summary.
+    /// </summary>
+    public async Task EndRealm(string realmId, RealmSummary? overrides = null)
+    {
+        var realm = GetRealmAsHost(realmId);
+
+        // Guard against double-cleanup if the realm was already ended by auto-end or admin
+        var alreadyEnded = realm.WithLock(r => r.Status == RealmStatus.Ended);
+        if (alreadyEnded) return;
+
+        realm.WithLock(r =>
+        {
+            r.Status = RealmStatus.Ended;
+            r.EndedAt = DateTime.UtcNow;
+        });
+
+        var summary = _statsTracker.BuildSummary(realm);
+
+        // Allow the dashboard to override specific fields (e.g. distance from GPS, team format)
+        if (overrides is not null)
+        {
+            if (overrides.TotalDistanceMeters > 0)
+                summary.TotalDistanceMeters = overrides.TotalDistanceMeters;
+            if (overrides.IsTeamFormat)
+                summary.IsTeamFormat = true;
+            // Merge per-client team assignments from dashboard
+            if (overrides.ClientSummaries is not null)
+            {
+                foreach (var ocs in overrides.ClientSummaries)
+                {
+                    var existing = summary.ClientSummaries?.FirstOrDefault(c => c.ClientId == ocs.ClientId);
+                    if (existing is not null)
+                    {
+                        if (ocs.DistanceMeters > 0)
+                            existing.DistanceMeters = ocs.DistanceMeters;
+                        existing.TeamName = ocs.TeamName;
+                        existing.TeamColor = ocs.TeamColor;
+                    }
+                }
+            }
+        }
+
+        // Clean up hub state for all clients that were in this realm (including disconnected ones)
+        var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+        CleanupRealmHubState(realmId, knownClientIds);
+        _statsTracker.CleanupRealm(realmId, knownClientIds);
+
+        await Clients.Group(realmId).SendAsync("RealmEnded", summary);
+    }
+
+    /// <summary>
+    /// Called by the dashboard to join a realm's broadcast group.
+    /// Returns the current realm state so late-joining viewers can catch up.
+    /// </summary>
+    public async Task JoinRealmAsDashboard(string realmId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, realmId);
+
+        var realm = _realmManager.GetById(realmId);
+        object state;
+        if (realm is not null)
+        {
+            state = realm.WithLock(r => new
+            {
+                RealmId = realmId,
+                Status = r.Status.ToString(),
+                ConnectedClientIds = new List<string>(r.ConnectedClientIds),
+                ClientProfiles = new Dictionary<string, ClientProfile>(r.ClientProfiles),
+                Config = r.RealmConfig,
+                ClientBindings = r.ClientBindings.Keys.ToList(),
+                ClientInclines = new Dictionary<string, double>(r.ClientInclines),
+                ClientSpeedOverrides = new Dictionary<string, double>(r.ClientSpeedOverrides),
+            });
+        }
+        else
+        {
+            state = new
+            {
+                RealmId = realmId,
+                Status = "Lobby",
+                ConnectedClientIds = new List<string>(),
+                ClientProfiles = new Dictionary<string, ClientProfile>(),
+                Config = (string?)null,
+                ClientBindings = new List<string>(),
+                ClientInclines = new Dictionary<string, double>(),
+                ClientSpeedOverrides = new Dictionary<string, double>(),
+            };
+        }
+        await Clients.Caller.SendAsync("JoinedRealm", state);
+    }
+
+    /// <summary>
+    /// Called by a client to intentionally leave a realm.
+    /// Marks the connection so that OnDisconnectedAsync performs full cleanup
+    /// and notifies others with "ClientLeft" instead of "ClientDisconnected".
+    /// </summary>
+    public async Task<bool> LeaveRealm()
+    {
+        _pendingLeaves[Context.ConnectionId] = true;
+
+        if (_connectionMap.TryRemove(Context.ConnectionId, out var mapping))
+        {
+            var realm = _realmManager.GetById(mapping.RealmId);
+            var wasStarted = realm is not null && realm.Status == RealmStatus.Started;
+
+            // If the realm was started, send the leaving client a full summary
+            if (wasStarted)
+            {
+                var summary = _statsTracker.BuildSummaryForClient(realm!, mapping.ClientId);
+                await Clients.Caller.SendAsync("RealmEnded", summary);
+            }
+
+            // Remove from connected list but keep in KnownClientIds and keep stats
+            // so that TryAutoEndRealm can include this client in the final summary.
+            realm?.WithLock(r => r.ConnectedClientIds.Remove(mapping.ClientId));
+            _lastData.TryRemove(mapping.ClientId, out _);
+            _stepOffsets.TryRemove(mapping.ClientId, out _);
+            _lastAcceptedTime.TryRemove(mapping.ClientId, out _);
+
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, mapping.RealmId);
+            await Clients.Group(mapping.RealmId).SendAsync("ClientLeft", mapping.ClientId);
+
+            // TryAutoEndRealm will build the full summary (including this client's stats)
+            // and handle cleanup if no connected clients remain.
+            var autoEnded = await TryAutoEndRealm(mapping.RealmId, clientLeft: true);
+
+            // If auto-end didn't fire (other clients still connected), clean up
+            // this client's stats now since they won't be needed for their personal summary.
+            if (!autoEnded)
+            {
+                _statsTracker.CleanupRealm(mapping.RealmId, new[] { mapping.ClientId });
+                _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId, removeFromKnown: true);
+            }
+            return wasStarted;
+        }
+        return false;
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        // Clear host association if this was a host connection
+        if (_hostConnectionMap.TryRemove(Context.ConnectionId, out var hostRealmId))
+        {
+            var hostRealm = _realmManager.GetById(hostRealmId);
+            hostRealm?.WithLock(r =>
+            {
+                if (r.HostConnectionId == Context.ConnectionId)
+                    r.HostConnectionId = null;
+            });
+        }
+
+        // If the client already called LeaveRealm, cleanup is done — just clear the flag.
+        if (_pendingLeaves.TryRemove(Context.ConnectionId, out _))
+        {
+            await base.OnDisconnectedAsync(exception);
+            return;
+        }
+
+        if (_connectionMap.TryRemove(Context.ConnectionId, out var mapping))
+        {
+            var realm = _realmManager.GetById(mapping.RealmId);
+            if (realm is not null && realm.Status == RealmStatus.Started)
+            {
+                // Started realm: only remove from connected list, keep profile and speed data for reconnect
+                realm.WithLock(r => r.ConnectedClientIds.Remove(mapping.ClientId));
+            }
+            else
+            {
+                _realmManager.RemoveClient(mapping.RealmId, mapping.ClientId);
+                _lastData.TryRemove(mapping.ClientId, out _);
+                _stepOffsets.TryRemove(mapping.ClientId, out _);
+                _lastAcceptedTime.TryRemove(mapping.ClientId, out _);
+            }
+            await Clients.Group(mapping.RealmId).SendAsync("ClientDisconnected", mapping.ClientId);
+            await TryAutoEndRealm(mapping.RealmId, clientLeft: false);
+        }
+
+        // Check if this connection was part of a calibration session
+        foreach (var kvp in _calibrationSessions)
+        {
+            var session = kvp.Value;
+            if (session.ClientConnectionId == Context.ConnectionId)
+            {
+                // Notify dashboard that the calibration client left
+                await Clients.Client(session.DashboardConnectionId)
+                    .SendAsync("CalibrationClientLeft", session.SessionId);
+                CleanupCalibrationSession(session.SessionId);
+                break;
+            }
+            if (session.DashboardConnectionId == Context.ConnectionId)
+            {
+                // Dashboard disconnected — clean up the session
+                if (session.ClientConnectionId is not null)
+                {
+                    await Clients.Client(session.ClientConnectionId)
+                        .SendAsync("CalibrationCancelled", session.SessionId);
+                }
+                CleanupCalibrationSession(session.SessionId);
+                break;
+            }
+        }
+
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Checks if a realm has no connected clients left and, if so, ends it automatically.
+    /// </summary>
+    private async Task<bool> TryAutoEndRealm(string realmId, bool clientLeft = false)
+    {
+        var realm = _realmManager.GetById(realmId);
+        if (realm is null)
+            return false;
+
+        var shouldEnd = realm.WithLock(r =>
+        {
+            if (r.Status != RealmStatus.Started)
+                return false;
+            if (r.ConnectedClientIds.Count > 0)
+                return false;
+            // If clients explicitly left, end even if the host dashboard is still watching.
+            // If clients lost connection, only end if the host is also gone.
+            if (!clientLeft && r.HostConnectionId is not null)
+                return false;
+            return true;
+        });
+
+        if (shouldEnd)
+        {
+            realm.WithLock(r =>
+            {
+                r.Status = RealmStatus.Ended;
+                r.EndedAt = DateTime.UtcNow;
+            });
+            var summary = _statsTracker.BuildSummary(realm);
+
+            var knownClientIds = realm.WithLock(r => new List<string>(r.KnownClientIds));
+            CleanupRealmHubState(realmId, knownClientIds);
+            _statsTracker.CleanupRealm(realmId, knownClientIds);
+            await Clients.Group(realmId).SendAsync("RealmEnded", summary);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Removes hub-level state (_lastData, _stepOffsets) for all clients associated with a realm.
+    /// Uses the provided client ID list (from KnownClientIds) so that disconnected clients
+    /// whose entries were already removed from _connectionMap are still cleaned up.
+    /// </summary>
+    internal static void CleanupRealmHubState(string realmId, IEnumerable<string> knownClientIds)
+    {
+        foreach (var clientId in knownClientIds)
+        {
+            _lastData.TryRemove(clientId, out _);
+            _stepOffsets.TryRemove(clientId, out _);
+            _lastAcceptedTime.TryRemove(clientId, out _);
+        }
+
+        foreach (var kvp in _connectionMap)
+        {
+            if (kvp.Value.RealmId == realmId)
+            {
+                _pendingLeaves.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+
+    // ── Stride Calibration Session ──────────────────────────────────────────
+
+    /// <summary>
+    /// Dashboard creates a standalone calibration session. Returns a 6-digit join code.
+    /// </summary>
+    public string CreateCalibrationSession()
+    {
+        var sessionId = Guid.NewGuid().ToString("N")[..12];
+        var joinCode = GenerateCalibrationJoinCode();
+
+        var session = new CalibrationSession
+        {
+            SessionId = sessionId,
+            JoinCode = joinCode,
+            DashboardConnectionId = Context.ConnectionId,
+        };
+
+        _calibrationSessions[sessionId] = session;
+        _calibrationJoinCodes[joinCode] = sessionId;
+
+        return joinCode;
+    }
+
+    /// <summary>
+    /// Wearable client joins a calibration session using the 6-digit code.
+    /// </summary>
+    public async Task JoinCalibrationSession(string joinCode, string clientId, double heightCm)
+    {
+        if (heightCm is < 50 or > 250)
+            throw new HubException("Height must be between 50 and 250 cm.");
+
+        if (!_calibrationJoinCodes.TryGetValue(joinCode, out var sessionId))
+            throw new HubException("Invalid calibration code.");
+
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        string dashboardConnectionId;
+        lock (session.Lock)
+        {
+            if (session.ClientId is not null)
+                throw new HubException("A client is already connected to this calibration session.");
+
+            session.ClientId = clientId;
+            session.ClientConnectionId = Context.ConnectionId;
+            session.HeightCm = heightCm;
+            dashboardConnectionId = session.DashboardConnectionId;
+        }
+
+        // Notify the joining client so it knows this is a calibration session
+        await Clients.Caller.SendAsync("JoinedCalibrationSession", sessionId);
+
+        // Notify dashboard that the client has connected (include height from client profile)
+        await Clients.Client(dashboardConnectionId)
+            .SendAsync("CalibrationClientJoined", sessionId, clientId, heightCm);
+    }
+
+    /// <summary>
+    /// Wearable sends step data during a calibration session.
+    /// </summary>
+    public async Task SendCalibrationData(string sessionId, int steps)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        string dashboardConnectionId;
+        lock (session.Lock)
+        {
+            if (session.ClientConnectionId != Context.ConnectionId)
+                throw new HubException("Not the connected client for this session.");
+
+            session.LatestSteps = steps;
+            dashboardConnectionId = session.DashboardConnectionId;
+        }
+
+        // Forward step data to the dashboard for UI updates
+        await Clients.Client(dashboardConnectionId)
+            .SendAsync("CalibrationDataReceived", sessionId, steps);
+    }
+
+    /// <summary>
+    /// Dashboard starts recording a calibration sample at a target speed.
+    /// </summary>
+    public void StartCalibrationSample(string sessionId, double targetSpeedKmh)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        if (targetSpeedKmh is <= 0 or > 30)
+            throw new HubException("Target speed must be between 0 and 30 km/h.");
+
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId)
+                throw new HubException("Not the dashboard for this session.");
+
+            session.CurrentTargetSpeedKmh = targetSpeedKmh;
+            session.SampleStartSteps = session.LatestSteps;
+            session.SampleStartTime = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Dashboard ends the current calibration sample. Server computes stride factor and returns the result.
+    /// </summary>
+    public async Task EndCalibrationSample(string sessionId)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        StrideCalibrationPoint point;
+        string dashboardConnectionId;
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId)
+                throw new HubException("Not the dashboard for this session.");
+
+            if (session.SampleStartTime is null || session.CurrentTargetSpeedKmh is null)
+                throw new HubException("No active sample to end.");
+
+            var elapsed = (DateTime.UtcNow - session.SampleStartTime.Value).TotalSeconds;
+            if (elapsed < 5)
+                throw new HubException("Sample duration too short (minimum 5 seconds).");
+
+            var stepDelta = session.LatestSteps - (session.SampleStartSteps ?? 0);
+            if (stepDelta <= 0)
+                throw new HubException("No steps recorded during the sample.");
+
+            var stepRate = stepDelta / elapsed; // steps per second
+            var speedMs = session.CurrentTargetSpeedKmh.Value / 3.6;
+            var strideLengthM = speedMs / stepRate;
+            var strideFactor = strideLengthM / (session.HeightCm / 100.0);
+
+            // Clamp to reasonable range
+            strideFactor = Math.Clamp(strideFactor, 0.2, 1.0);
+
+            point = new StrideCalibrationPoint
+            {
+                SpeedKmh = session.CurrentTargetSpeedKmh.Value,
+                StrideFactor = Math.Round(strideFactor, 4),
+            };
+            session.CollectedPoints.Add(point);
+
+            // Reset sample state
+            session.CurrentTargetSpeedKmh = null;
+            session.SampleStartSteps = null;
+            session.SampleStartTime = null;
+
+            dashboardConnectionId = session.DashboardConnectionId;
+        }
+
+        await Clients.Client(dashboardConnectionId)
+            .SendAsync("CalibrationSampleResult", sessionId, point);
+    }
+
+    /// <summary>
+    /// Dashboard saves calibration results. Sends the collected data points to the wearable
+    /// client so it can store them for future realm sessions.
+    /// </summary>
+    public async Task SaveCalibration(string sessionId)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            throw new HubException("Calibration session not found.");
+
+        StrideCalibrationPoint[] points;
+        string dashboardConnectionId;
+        string? clientConnectionId;
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId)
+                throw new HubException("Not the dashboard for this session.");
+
+            if (session.CollectedPoints.Count < 2)
+                throw new HubException("At least 2 calibration samples are required.");
+
+            points = session.CollectedPoints
+                .OrderBy(p => p.SpeedKmh)
+                .ToArray();
+
+            dashboardConnectionId = session.DashboardConnectionId;
+            clientConnectionId = session.ClientConnectionId;
+        }
+
+        // Send calibration data to the wearable client for storage
+        if (clientConnectionId is not null)
+        {
+            await Clients.Client(clientConnectionId)
+                .SendAsync("CalibrationComplete", points);
+        }
+
+        // Notify dashboard of completion
+        await Clients.Client(dashboardConnectionId)
+            .SendAsync("CalibrationSaved", sessionId, points);
+
+        // Clean up session
+        CleanupCalibrationSession(sessionId);
+    }
+
+    /// <summary>
+    /// Cancels a calibration session without saving.
+    /// </summary>
+    public void CancelCalibration(string sessionId)
+    {
+        if (!_calibrationSessions.TryGetValue(sessionId, out var session))
+            return;
+
+        lock (session.Lock)
+        {
+            if (session.DashboardConnectionId != Context.ConnectionId &&
+                session.ClientConnectionId != Context.ConnectionId)
+                return;
+        }
+
+        CleanupCalibrationSession(sessionId);
+    }
+
+    private static void CleanupCalibrationSession(string sessionId)
+    {
+        if (_calibrationSessions.TryRemove(sessionId, out var session))
+        {
+            _calibrationJoinCodes.TryRemove(session.JoinCode, out _);
+        }
+    }
+
+    private static string GenerateCalibrationJoinCode()
+    {
+        string code;
+        do
+        {
+            // Upper bound is exclusive, so 1000000 gives codes 100000–999999
+            code = Random.Shared.Next(100000, 1000000).ToString();
+        } while (_calibrationJoinCodes.ContainsKey(code));
+        return code;
+    }
+
+    internal class CalibrationSession
+    {
+        /// <summary>Lock guarding all mutable state on this session.</summary>
+        public readonly object Lock = new();
+
+        public string SessionId { get; set; } = string.Empty;
+        public string JoinCode { get; set; } = string.Empty;
+        public string DashboardConnectionId { get; set; } = string.Empty;
+        public string? ClientId { get; set; }
+        public string? ClientConnectionId { get; set; }
+        public double HeightCm { get; set; }
+        public int LatestSteps { get; set; }
+
+        /// <summary>When this session was created, used for TTL-based cleanup.</summary>
+        public DateTime CreatedAt { get; } = DateTime.UtcNow;
+
+        // Current sample state
+        public double? CurrentTargetSpeedKmh { get; set; }
+        public int? SampleStartSteps { get; set; }
+        public DateTime? SampleStartTime { get; set; }
+
+        public List<StrideCalibrationPoint> CollectedPoints { get; } = new();
+    }
+}
