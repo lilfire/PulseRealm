@@ -1,0 +1,15 @@
+project.manifest = manifest.xml
+base.sourcePath = source
+base.resourcePath = resources
+
+# WebSocket exclusion strategy:
+#   (:websocket)   — real implementation, for CIQ 4.0+ devices
+#   (:noWebSocket) — stub implementation, for older devices
+#
+# base: exclude stubs (use real WebSocket code for devices not listed below)
+base.excludeAnnotations = noWebSocket
+#
+# Locally-installed devices without Communications.WebSocket (CIQ < 4.0):
+# Override base to exclude the real WS code instead; stubs are compiled.
+vivoactive5.excludeAnnotations = websocket
+vivoactive6.excludeAnnotations = websocket

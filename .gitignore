@@ -43,6 +43,11 @@ local.properties
 *.keystore
 *.jks
 
+# Garmin Connect IQ
+*.der
+*.pem
+developer_key_base64.txt
+
 # Build output
 *.log
 coverage/

@@ -1,0 +1,69 @@
+name: Build Garmin IQ App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Garmin IQ App
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Connect IQ SDK
+        uses: nhedger/setup-connect-iq@v1
+        with:
+          sdk-version: "7.2.1"
+          developer-key: ${{ secrets.GARMIN_DEVELOPER_KEY }}
+
+      - name: Restore developer key
+        working-directory: client/garmin
+        run: echo "${{ secrets.GARMIN_DEVELOPER_KEY }}" | base64 -d > developer_key.der
+
+      - name: Build IQ app
+        working-directory: client/garmin
+        run: |
+          mkdir -p build
+          monkeyc \
+            -o build/PulseRealm.iq \
+            -f monkey.jungle \
+            -y developer_key.der \
+            -d vivoactive5
+
+      - name: Upload IQ artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulserealm-iq
+          path: client/garmin/build/PulseRealm.iq
+          retention-days: 30
+
+      - name: Get version and tag
+        if: github.ref == 'refs/heads/main'
+        id: version
+        working-directory: client/garmin
+        run: |
+          VERSION=$(grep -oP 'version="\K[^"]+' manifest.xml | head -1)
+          TAG="garmin-v${VERSION}"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+            TAG="garmin-v${VERSION}-${TIMESTAMP}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: PulseRealm Garmin v${{ steps.version.outputs.name }}
+          body: |
+            Garmin Connect IQ app built from main branch.
+
+            Commit: ${{ github.sha }}
+          files: client/garmin/build/PulseRealm.iq
+          make_latest: false
