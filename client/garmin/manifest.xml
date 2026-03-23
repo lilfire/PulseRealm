@@ -12,7 +12,6 @@
     <iq:products>
       <!-- Locally installed SDK devices (available for simulator builds) -->
       <iq:product id="vivoactive5"/>
-      <iq:product id="vivoactive6"/>
       <!-- Additional target devices (require device download from SDK manager) -->
       <iq:product id="fenix6"/>
       <iq:product id="fenix6s"/>

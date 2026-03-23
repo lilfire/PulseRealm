@@ -12,4 +12,3 @@ base.excludeAnnotations = noWebSocket
 # Locally-installed devices without Communications.WebSocket (CIQ < 4.0):
 # Override base to exclude the real WS code instead; stubs are compiled.
 vivoactive5.excludeAnnotations = websocket
-vivoactive6.excludeAnnotations = websocket
