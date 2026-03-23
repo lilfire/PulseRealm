@@ -33,6 +33,12 @@ jobs:
           unzip -q sdk.zip -d "$HOME/connectiq-sdk"
           echo "$HOME/connectiq-sdk/bin" >> "$GITHUB_PATH"
 
+      - name: Install device profiles
+        run: |
+          DEVICES_DIR="$HOME/.Garmin/ConnectIQ/Devices"
+          mkdir -p "$DEVICES_DIR"
+          cp -r client/garmin/devices/* "$DEVICES_DIR/"
+
       - name: Restore developer key
         working-directory: client/garmin
         run: echo "${{ secrets.GARMIN_DEVELOPER_KEY }}" | base64 -d > developer_key.der
