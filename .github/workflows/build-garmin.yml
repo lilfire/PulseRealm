@@ -10,15 +10,28 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      CIQ_SDK_VERSION: "8.1.0"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Connect IQ SDK
-        uses: nhedger/setup-connect-iq@v1
-        with:
-          sdk-version: "7.2.1"
-          developer-key: ${{ secrets.GARMIN_DEVELOPER_KEY }}
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y openjdk-17-jre-headless unzip wget jq
+
+      - name: Download Connect IQ SDK
+        run: |
+          SDK_FILE=$(wget -qO- https://developer.garmin.com/downloads/connect-iq/sdks/sdks.json \
+            | jq -r --arg v "$CIQ_SDK_VERSION" '.[] | select(.version==$v) | .linux')
+          if [ -z "$SDK_FILE" ]; then
+            echo "::error::SDK version $CIQ_SDK_VERSION not found in sdks.json"
+            exit 1
+          fi
+          wget -q "https://developer.garmin.com/downloads/connect-iq/sdks/${SDK_FILE}" -O sdk.zip
+          mkdir -p "$HOME/connectiq-sdk"
+          unzip -q sdk.zip -d "$HOME/connectiq-sdk"
+          echo "$HOME/connectiq-sdk/bin" >> "$GITHUB_PATH"
 
       - name: Restore developer key
         working-directory: client/garmin
