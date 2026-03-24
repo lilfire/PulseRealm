@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     name: Build Garmin IQ App
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
 
@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre-headless unzip wget jq \
-            xvfb libsecret-1-0 libgtk-3-0 libglib2.0-0
+            xvfb libsecret-1-0 libgtk-3-0 libwebkit2gtk-4.0-37 libglib2.0-0
 
       - name: Download Connect IQ SDK
         run: |
@@ -58,14 +58,30 @@ jobs:
             -d vivoactive5 \
             --unit-test
 
-      - name: Run unit tests
-        working-directory: client/garmin
+      - name: Start simulator
         run: |
           export DISPLAY=:99
           Xvfb :99 -screen 0 1280x1024x24 &
           sleep 2
           connectiq &
-          sleep 5
+          SIM_PID=$!
+          echo "Simulator PID: $SIM_PID"
+          for i in $(seq 1 30); do
+            if ss -tln | grep -q ':1234 '; then
+              echo "Simulator ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          ss -tln
+          ps aux | grep -i simul || true
+
+      - name: Run unit tests
+        working-directory: client/garmin
+        timeout-minutes: 5
+        env:
+          DISPLAY: ":99"
+        run: |
           monkeydo build/PulseRealmTests.prg vivoactive5 -t
 
       - name: Build IQ app
