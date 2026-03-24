@@ -45,8 +45,9 @@ jobs:
             -scheme "PulseRealm Watch App" \
             -destination "platform=watchOS Simulator,name=${{ steps.simulator.outputs.name }}" \
             -resultBundlePath build/TestResults.xcresult \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
             2>&1 | tee build/xcodebuild.log
 
       - name: Upload test results
