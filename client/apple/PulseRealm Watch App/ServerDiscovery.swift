@@ -37,7 +37,7 @@ final class ServerDiscoveryManager: ObservableObject {
         discoveredServers = []
 
         let found = await Task.detached(priority: .userInitiated) {
-            return ServerDiscoveryManager.performUDPScan()
+            return await ServerDiscoveryManager.performUDPScan()
         }.value
 
         // Deduplicate by IP address.
