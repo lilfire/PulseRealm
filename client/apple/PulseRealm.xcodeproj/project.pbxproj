@@ -27,13 +27,6 @@
 		AABBCC000000000000000074 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000064 /* AppStateTests.swift */; };
 		AABBCC000000000000000075 /* HealthKitManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000065 /* HealthKitManagerTests.swift */; };
 		AABBCC000000000000000076 /* ServerDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000066 /* ServerDiscoveryTests.swift */; };
-		AABBCC0000000000000000A1 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000032 /* Models.swift */; };
-		AABBCC0000000000000000A2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000033 /* AppState.swift */; };
-		AABBCC0000000000000000A3 /* SignalRClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000034 /* SignalRClient.swift */; };
-		AABBCC0000000000000000A4 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000035 /* HealthKitManager.swift */; };
-		AABBCC0000000000000000A5 /* ServerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000036 /* ServerDiscovery.swift */; };
-		AABBCC0000000000000000A6 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABBCC00000000000000003F /* HealthKit.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
-		AABBCC0000000000000000A7 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AABBCC000000000000000040 /* CoreMotion.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -87,8 +80,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AABBCC0000000000000000A6 /* HealthKit.framework in Frameworks */,
-				AABBCC0000000000000000A7 /* CoreMotion.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,6 +187,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				AABBCC000000000000000085 /* PBXTargetDependency */,
 			);
 			name = PulseRealmTests;
 			productName = PulseRealmTests;
@@ -281,11 +273,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AABBCC0000000000000000A1 /* Models.swift in Sources */,
-				AABBCC0000000000000000A2 /* AppState.swift in Sources */,
-				AABBCC0000000000000000A3 /* SignalRClient.swift in Sources */,
-				AABBCC0000000000000000A4 /* HealthKitManager.swift in Sources */,
-				AABBCC0000000000000000A5 /* ServerDiscovery.swift in Sources */,
 				AABBCC000000000000000071 /* ModelsTests.swift in Sources */,
 				AABBCC000000000000000072 /* AnyCodableTests.swift in Sources */,
 				AABBCC000000000000000073 /* SignalRClientTests.swift in Sources */,
@@ -475,6 +462,7 @@
 		AABBCC000000000000000092 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -485,6 +473,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PulseRealm Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PulseRealm Watch App";
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
@@ -492,6 +481,7 @@
 		AABBCC000000000000000093 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -502,6 +492,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PulseRealm Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PulseRealm Watch App";
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
