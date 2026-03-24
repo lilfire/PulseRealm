@@ -91,6 +91,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: client/garmin
+        timeout-minutes: 5
         env:
           DISPLAY: ":99"
         run: |
