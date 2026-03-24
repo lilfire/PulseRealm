@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre-headless unzip wget jq \
-            xvfb libsecret-1-0 libgtk-3-0 libwebkit2gtk-4.0-37 libglib2.0-0
+            xvfb libsecret-1-0 libgtk-3-0 libglib2.0-0
 
       - name: Download Connect IQ SDK
         run: |
