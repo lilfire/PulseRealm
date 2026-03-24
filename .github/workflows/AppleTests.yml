@@ -15,6 +15,10 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: List project info
+        working-directory: client/apple
+        run: xcodebuild -list -project PulseRealm.xcodeproj
+
       - name: Find watchOS simulator
         id: simulator
         run: |
@@ -35,20 +39,29 @@ jobs:
           echo "name=$DEST" >> "$GITHUB_OUTPUT"
           echo "Using simulator: $DEST"
 
+      - name: Build for testing
+        working-directory: client/apple
+        run: |
+          mkdir -p build
+          xcodebuild build-for-testing \
+            -project PulseRealm.xcodeproj \
+            -scheme "PulseRealm Watch App" \
+            -destination "platform=watchOS Simulator,name=${{ steps.simulator.outputs.name }}" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            2>&1 | tee build/xcodebuild-build.log
+
       - name: Run tests
         working-directory: client/apple
         run: |
           set -o pipefail
-          mkdir -p build
-          xcodebuild test \
+          xcodebuild test-without-building \
             -project PulseRealm.xcodeproj \
             -scheme "PulseRealm Watch App" \
             -destination "platform=watchOS Simulator,name=${{ steps.simulator.outputs.name }}" \
             -resultBundlePath build/TestResults.xcresult \
-            CODE_SIGN_IDENTITY=- \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
-            2>&1 | tee build/xcodebuild.log
+            2>&1 | tee build/xcodebuild-test.log
 
       - name: Upload test results
         if: always()
