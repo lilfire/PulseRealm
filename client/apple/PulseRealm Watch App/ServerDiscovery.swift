@@ -37,7 +37,7 @@ final class ServerDiscoveryManager: ObservableObject {
         discoveredServers = []
 
         let found = await Task.detached(priority: .userInitiated) {
-            return await ServerDiscoveryManager.performUDPScan()
+            return ServerDiscoveryManager.performUDPScan()
         }.value
 
         // Deduplicate by IP address.
@@ -55,7 +55,7 @@ final class ServerDiscoveryManager: ObservableObject {
     // MARK: - POSIX Socket Implementation
 
     /// Runs entirely on a background thread. Returns any discovered servers.
-    private static func performUDPScan() -> [DiscoveredServer] {
+    nonisolated private static func performUDPScan() -> [DiscoveredServer] {
         var results: [DiscoveredServer] = []
 
         // Create UDP socket.
@@ -140,7 +140,7 @@ final class ServerDiscoveryManager: ObservableObject {
         return results
     }
 
-    static func parseResponse(data: Data, senderIP: String) -> DiscoveredServer? {
+    nonisolated static func parseResponse(data: Data, senderIP: String) -> DiscoveredServer? {
         guard let decoded = try? JSONDecoder().decode(DiscoveryResponse.self, from: data),
               decoded.service == "PulseRealm" else {
             return nil
@@ -161,7 +161,7 @@ final class ServerDiscoveryManager: ObservableObject {
 
     // MARK: - Helpers
 
-    static func ipString(from addr: in_addr) -> String {
+    nonisolated static func ipString(from addr: in_addr) -> String {
         var mutableAddr = addr
         var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         inet_ntop(AF_INET, &mutableAddr, &buffer, socklen_t(INET_ADDRSTRLEN))
