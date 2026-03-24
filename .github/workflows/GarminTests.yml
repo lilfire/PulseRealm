@@ -6,7 +6,7 @@ on:
 jobs:
   unit-tests:
     name: Garmin Connect IQ Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     env:
       CIQ_SDK_VERSION: "9.1.0"
@@ -19,7 +19,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre-headless unzip wget jq \
-            xvfb libsecret-1-0 libgtk-3-0 libglib2.0-0
+            xvfb libsecret-1-0 libgtk-3-0 libwebkit2gtk-4.0-37 libglib2.0-0
 
       - name: Cache Connect IQ SDK
         id: cache-sdk
