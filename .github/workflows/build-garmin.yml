@@ -44,13 +44,23 @@ jobs:
         working-directory: client/garmin
         run: echo "${{ secrets.GARMIN_DEVELOPER_KEY }}" | base64 -d > developer_key.der
 
+      - name: Compile test build
+        working-directory: client/garmin
+        run: |
+          mkdir -p build
+          monkeyc \
+            -o build/PulseRealmTests.prg \
+            -f monkey.jungle \
+            -y developer_key.der \
+            -d vivoactive5 \
+            --unit-test
+
       - name: Run unit tests
         working-directory: client/garmin
         run: |
-          monkeytest \
-            -f monkey.jungle \
-            -y developer_key.der \
-            -d vivoactive5
+          connectiq &
+          sleep 5
+          monkeydo build/PulseRealmTests.prg vivoactive5 -t
 
       - name: Build IQ app
         working-directory: client/garmin
