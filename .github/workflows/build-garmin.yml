@@ -11,7 +11,7 @@ jobs:
       contents: write
 
     env:
-      CIQ_SDK_VERSION: "8.1.0"
+      CIQ_SDK_VERSION: "9.1.0"
 
     steps:
       - name: Checkout repository

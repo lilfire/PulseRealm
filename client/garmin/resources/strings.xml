@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<strings>
+  <string id="AppName">PulseRealm</string>
+  <string id="LabelJoinCode">Enter Join Code</string>
+  <string id="LabelConnecting">Connecting...</string>
+  <string id="LabelJoining">Joining realm...</string>
+  <string id="LabelStreaming">Streaming</string>
+  <string id="LabelHeartRate">HR</string>
+  <string id="LabelSteps">Steps</string>
+  <string id="LabelDisconnected">Disconnected</string>
+  <string id="LabelNoWebSocket">WebSocket not supported on this device</string>
+  <string id="LabelServerUrl">Server URL</string>
+  <string id="LabelBack">Back</string>
+  <string id="LabelInvalidCode">Code must be 6 digits</string>
+  <string id="LabelConnected">Connected</string>
+  <string id="LabelBpm">bpm</string>
+</strings>
