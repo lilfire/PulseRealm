@@ -1,0 +1,68 @@
+name: Run Garmin Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Garmin Connect IQ Unit Tests
+    runs-on: ubuntu-latest
+
+    env:
+      CIQ_SDK_VERSION: "9.1.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y openjdk-17-jre-headless unzip wget jq
+
+      - name: Cache Connect IQ SDK
+        id: cache-sdk
+        uses: actions/cache@v4
+        with:
+          path: ~/connectiq-sdk
+          key: connectiq-sdk-${{ env.CIQ_SDK_VERSION }}-linux
+
+      - name: Download Connect IQ SDK
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        run: |
+          SDK_FILE=$(wget -qO- https://developer.garmin.com/downloads/connect-iq/sdks/sdks.json \
+            | jq -r --arg v "$CIQ_SDK_VERSION" '.[] | select(.version==$v) | .linux')
+          if [ -z "$SDK_FILE" ]; then
+            echo "::error::SDK version $CIQ_SDK_VERSION not found in sdks.json"
+            exit 1
+          fi
+          wget -q "https://developer.garmin.com/downloads/connect-iq/sdks/${SDK_FILE}" -O sdk.zip
+          mkdir -p "$HOME/connectiq-sdk"
+          unzip -q sdk.zip -d "$HOME/connectiq-sdk"
+
+      - name: Add SDK to PATH
+        run: echo "$HOME/connectiq-sdk/bin" >> "$GITHUB_PATH"
+
+      - name: Install device profiles
+        run: |
+          DEVICES_DIR="$HOME/.Garmin/ConnectIQ/Devices"
+          mkdir -p "$DEVICES_DIR"
+          cp -r client/garmin/devices/* "$DEVICES_DIR/"
+
+      - name: Restore developer key
+        working-directory: client/garmin
+        run: echo "${{ secrets.GARMIN_DEVELOPER_KEY }}" | base64 -d > developer_key.der
+
+      - name: Run unit tests
+        working-directory: client/garmin
+        run: |
+          monkeytest \
+            -f monkey.jungle \
+            -y developer_key.der \
+            -d vivoactive5
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garmin-test-results
+          path: client/garmin/build/test/
+          retention-days: 7

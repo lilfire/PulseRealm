@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import kotlinx.coroutines.rx3.await
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -158,7 +159,7 @@ class SignalRClient(
         registerHubHandlers(connection)
 
         try {
-            connection.start()?.blockingAwait()
+            connection.start()?.await()
             hubConnection = connection
             _connectionState.value = ConnectionState.CONNECTED
             startHealthCheck()
@@ -302,7 +303,7 @@ class SignalRClient(
         val profile = buildProfile(clientId, name, age, heightCm, weightKg, strideFactor, strideCalibration, zoneBounds, maxHr)
 
         try {
-            hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
+            hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.await()
         } catch (e: Exception) {
             val friendlyMessage = UserFriendlyErrors.fromException(e, "Could not join the realm")
             _error.value = friendlyMessage
@@ -399,7 +400,7 @@ class SignalRClient(
         try {
             val hasSummary = hubConnection
                 ?.invoke(Boolean::class.java, "LeaveRealm")
-                ?.blockingGet() ?: false
+                ?.await() ?: false
             if (hasSummary) return@withContext true
         } catch (_: Exception) { }
         disconnectInternal()
@@ -416,15 +417,19 @@ class SignalRClient(
         disconnectInternal()
     }
 
-    private fun disconnectInternal() {
+    private suspend fun disconnectInternal() {
         healthCheckJob?.cancel()
         healthCheckJob = null
         reconnectJob?.cancel()
         reconnectJob = null
         try {
-            hubConnection?.stop()?.blockingAwait()
+            hubConnection?.stop()?.await()
         } catch (_: Exception) {
         }
+        resetConnectionState()
+    }
+
+    private fun resetConnectionState() {
         hubConnection = null
         currentServerUrl = null
         currentJoinCode = null
@@ -489,7 +494,7 @@ class SignalRClient(
                 try {
                     conn.invoke(Boolean::class.java, "Ping")
                         .timeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                        .blockingGet()
+                        .await()
                     consecutiveFailures = 0
                 } catch (_: Exception) {
                     consecutiveFailures++
@@ -531,7 +536,7 @@ class SignalRClient(
                         .shouldSkipNegotiate(false)
                         .build()
                     registerHubHandlers(newConnection)
-                    newConnection.start()?.blockingAwait()
+                    newConnection.start()?.await()
                     hubConnection = newConnection
                     _connectionState.value = ConnectionState.CONNECTED
 
@@ -540,7 +545,7 @@ class SignalRClient(
                         clientId, currentName, currentAge, currentHeightCm, currentWeightKg,
                         currentStrideFactor, currentStrideCalibration, currentZoneBounds, currentMaxHr
                     )
-                    hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.blockingAwait()
+                    hubConnection?.invoke("JoinRealm", joinCode, clientId, profile)?.await()
                     startHealthCheck()
                     return@launch
                 } catch (_: Exception) {
@@ -562,11 +567,18 @@ class SignalRClient(
     }
 
     fun dispose() {
-        // Call disconnectInternal() directly (non-suspend) so dispose() itself
-        // does not need to be a suspend function. This is safe because dispose()
-        // is only called during app teardown (e.g. ViewModel.onCleared via scope).
+        // Inline blocking cleanup so dispose() stays non-suspend. This is safe
+        // because dispose() is only called during app teardown (e.g. ViewModel.onCleared).
         intentionalDisconnect.set(true)
-        disconnectInternal()
+        healthCheckJob?.cancel()
+        healthCheckJob = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        try {
+            hubConnection?.stop()?.blockingAwait()
+        } catch (_: Exception) {
+        }
+        resetConnectionState()
         reconnectScope.coroutineContext[Job]?.cancel()
     }
 }

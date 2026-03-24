@@ -1,5 +1,5 @@
 project.manifest = manifest.xml
-base.sourcePath = source
+base.sourcePath = source;source/test
 base.resourcePath = resources
 
 # WebSocket exclusion strategy:
