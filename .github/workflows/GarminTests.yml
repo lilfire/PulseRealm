@@ -39,7 +39,12 @@ jobs:
           unzip -q sdk.zip -d "$HOME/connectiq-sdk"
 
       - name: Add SDK to PATH
-        run: echo "$HOME/connectiq-sdk/bin" >> "$GITHUB_PATH"
+        run: |
+          chmod -R +x "$HOME/connectiq-sdk/bin" 2>/dev/null || true
+          echo "$HOME/connectiq-sdk/bin" >> "$GITHUB_PATH"
+          echo "::group::SDK bin contents"
+          ls -la "$HOME/connectiq-sdk/bin" || echo "bin dir not found"
+          echo "::endgroup::"
 
       - name: Install device profiles
         run: |
