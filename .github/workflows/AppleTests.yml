@@ -19,10 +19,9 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Find and boot watchOS simulator
+      - name: Find watchOS simulator
         id: simulator
         run: |
-          # Find the first available Apple Watch simulator
           INFO=$(xcrun simctl list devices watchOS available -j \
             | python3 -c "
           import json, sys
@@ -45,47 +44,29 @@ jobs:
           echo "os=$SIM_OS" >> "$GITHUB_OUTPUT"
           echo "Using simulator: $SIM_NAME (OS $SIM_OS, UDID $SIM_UDID)"
 
-          # Pre-boot the simulator
-          xcrun simctl boot "$SIM_UDID" 2>/dev/null || true
-          echo "Waiting for simulator to finish booting..."
-          xcrun simctl bootstatus "$SIM_UDID" -b
-
-      - name: Build for testing
+      - name: Build and run tests
         working-directory: client/apple
+        timeout-minutes: 10
         run: |
           set -o pipefail
           mkdir -p build
 
           DEST="platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}"
 
-          xcodebuild build-for-testing \
+          xcodebuild test \
             -project PulseRealm.xcodeproj \
             -scheme "PulseRealm Watch App" \
             -destination "$DEST" \
+            -only-testing:PulseRealmTests \
             -derivedDataPath build/DerivedData \
+            -resultBundlePath build/TestResults.xcresult \
             CODE_SIGN_IDENTITY=- \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=YES \
-            2>&1 | tee build/xcodebuild-build.log
-
-      - name: Run tests
-        working-directory: client/apple
-        timeout-minutes: 5
-        run: |
-          set -o pipefail
-
-          DEST="platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}"
-          TESTRUN=$(find build/DerivedData -name '*.xctestrun' -type f | head -1)
-          echo "Found xctestrun: $TESTRUN"
-
-          xcodebuild test-without-building \
-            -xctestrun "$TESTRUN" \
-            -destination "$DEST" \
-            -resultBundlePath build/TestResults.xcresult \
             -test-timeouts-enabled YES \
-            -maximum-test-execution-time-allowance 120 \
             -default-test-execution-time-allowance 30 \
-            2>&1 | tee build/xcodebuild-test.log
+            -maximum-test-execution-time-allowance 120 \
+            2>&1 | tee build/xcodebuild.log
 
       - name: Upload test results
         if: always()

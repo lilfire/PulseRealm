@@ -1,5 +1,5 @@
 import XCTest
-@testable import PulseRealm_Watch_App
+
 
 final class ClientProfileTests: XCTestCase {
 
