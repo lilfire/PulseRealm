@@ -21,6 +21,20 @@
                ReferencedContainer = "container:PulseRealm.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "AABBCC000000000000000080"
+               BuildableName = "PulseRealmTests.xctest"
+               BlueprintName = "PulseRealmTests"
+               ReferencedContainer = "container:PulseRealm.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
