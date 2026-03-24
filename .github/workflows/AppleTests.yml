@@ -1,0 +1,38 @@
+name: Run Apple Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Apple watchOS Unit Tests
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: List available watchOS simulators
+        run: xcrun simctl list devices watchOS available
+
+      - name: Run tests
+        working-directory: client/apple
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project PulseRealm.xcodeproj \
+            -scheme "PulseRealm Watch App" \
+            -destination 'platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)' \
+            -resultBundlePath build/TestResults.xcresult \
+            2>&1 | tee build/xcodebuild.log
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-test-results
+          path: client/apple/build/
+          retention-days: 7
