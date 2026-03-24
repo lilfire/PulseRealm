@@ -3,7 +3,7 @@ import Darwin
 
 // MARK: - UDP Discovery Response
 
-private struct DiscoveryResponse: Decodable {
+struct DiscoveryResponse: Decodable {
     let service: String?
     let name: String?
     let hostname: String?
@@ -140,7 +140,7 @@ final class ServerDiscoveryManager: ObservableObject {
         return results
     }
 
-    private static func parseResponse(data: Data, senderIP: String) -> DiscoveredServer? {
+    static func parseResponse(data: Data, senderIP: String) -> DiscoveredServer? {
         guard let decoded = try? JSONDecoder().decode(DiscoveryResponse.self, from: data),
               decoded.service == "PulseRealm" else {
             return nil
@@ -161,7 +161,7 @@ final class ServerDiscoveryManager: ObservableObject {
 
     // MARK: - Helpers
 
-    private static func ipString(from addr: in_addr) -> String {
+    static func ipString(from addr: in_addr) -> String {
         var mutableAddr = addr
         var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         inet_ntop(AF_INET, &mutableAddr, &buffer, socklen_t(INET_ADDRSTRLEN))

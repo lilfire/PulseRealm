@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - SignalR Message Types
 
-private struct SignalRMessage: Codable {
+struct SignalRMessage: Codable {
     let type: Int
     let invocationId: String?
     let target: String?
@@ -244,7 +244,7 @@ final class SignalRClient: NSObject, ObservableObject {
 
         // Step 2: Build WebSocket URL
         let baseUrl = serverUrl.hasSuffix("/") ? String(serverUrl.dropLast()) : serverUrl
-        guard let wsUrl = buildWebSocketUrl(baseUrl: baseUrl, connectionToken: connectionToken) else {
+        guard let wsUrl = Self.buildWebSocketUrl(baseUrl: baseUrl, connectionToken: connectionToken) else {
             throw SignalRError.invalidUrl
         }
 
@@ -295,7 +295,7 @@ final class SignalRClient: NSObject, ObservableObject {
         return token
     }
 
-    private func buildWebSocketUrl(baseUrl: String, connectionToken: String) -> URL? {
+    static func buildWebSocketUrl(baseUrl: String, connectionToken: String) -> URL? {
         var wsBase = baseUrl
         if wsBase.hasPrefix("https://") {
             wsBase = "wss://" + wsBase.dropFirst("https://".count)
