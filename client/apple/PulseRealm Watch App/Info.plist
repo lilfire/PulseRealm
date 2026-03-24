@@ -24,6 +24,8 @@
     <string>PulseRealm reads your heart rate and step count to stream workout data during your session.</string>
     <key>NSHealthUpdateUsageDescription</key>
     <string>PulseRealm saves workout data from your session.</string>
+    <key>WKApplication</key>
+    <true/>
     <key>WKWatchOnly</key>
     <true/>
     <key>UISupportedInterfaceOrientations</key>
