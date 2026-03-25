@@ -5,9 +5,9 @@ on:
 
 jobs:
   unit-tests:
-    name: Apple watchOS Unit Tests
+    name: Apple SPM Unit Tests
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -16,87 +16,9 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Find and boot watchOS simulator
-        id: simulator
-        run: |
-          INFO=$(xcrun simctl list devices watchOS available -j \
-            | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime, devices in data['devices'].items():
-              if 'watchOS' not in runtime:
-                  continue
-              for d in devices:
-                  if d.get('isAvailable') and 'Apple Watch' in d['name']:
-                      parts = runtime.rsplit('.', 1)[-1].replace('watchOS-', '').replace('-', '.')
-                      print(f'{d[\"name\"]}|{d[\"udid\"]}|{parts}')
-                      sys.exit(0)
-          sys.exit(1)
-          ")
-          SIM_NAME=$(echo "$INFO" | cut -d'|' -f1)
-          SIM_UDID=$(echo "$INFO" | cut -d'|' -f2)
-          SIM_OS=$(echo "$INFO" | cut -d'|' -f3)
-          echo "name=$SIM_NAME" >> "$GITHUB_OUTPUT"
-          echo "udid=$SIM_UDID" >> "$GITHUB_OUTPUT"
-          echo "os=$SIM_OS" >> "$GITHUB_OUTPUT"
-          echo "Using simulator: $SIM_NAME (OS $SIM_OS, UDID $SIM_UDID)"
-
-          # Boot the simulator
-          xcrun simctl boot "$SIM_UDID" 2>/dev/null || true
-          xcrun simctl bootstatus "$SIM_UDID" -b
-
-      - name: Build for testing
-        working-directory: client/apple
-        run: |
-          set -o pipefail
-          mkdir -p build
-
-          DEST="platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}"
-
-          xcodebuild build-for-testing \
-            -project PulseRealm.xcodeproj \
-            -scheme "PulseRealm Watch App" \
-            -destination "$DEST" \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGN_IDENTITY=- \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
-            2>&1 | tee build/xcodebuild-build.log
-
-      - name: Install app on simulator
-        working-directory: client/apple
-        run: |
-          APP_PATH=$(find build/DerivedData -name "PulseRealm Watch App.app" -path "*/Debug-watchsimulator/*" -type d | head -1)
-          echo "Installing app: $APP_PATH"
-          xcrun simctl install "${{ steps.simulator.outputs.udid }}" "$APP_PATH"
-          echo "App installed successfully"
+      - name: Show Swift version
+        run: swift --version
 
       - name: Run tests
         working-directory: client/apple
-        timeout-minutes: 5
-        run: |
-          set -o pipefail
-
-          DEST="platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}"
-          TESTRUN=$(find build/DerivedData -name '*.xctestrun' -type f | head -1)
-          echo "Found xctestrun: $TESTRUN"
-
-          xcodebuild test-without-building \
-            -xctestrun "$TESTRUN" \
-            -destination "$DEST" \
-            -resultBundlePath build/TestResults.xcresult \
-            -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 30 \
-            -maximum-test-execution-time-allowance 120 \
-            2>&1 | tee build/xcodebuild-test.log
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: apple-test-results
-          path: client/apple/build/
-          retention-days: 7
+        run: swift test

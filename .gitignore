@@ -48,6 +48,11 @@ local.properties
 *.pem
 developer_key_base64.txt
 
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
 # Build output
 *.log
 coverage/
