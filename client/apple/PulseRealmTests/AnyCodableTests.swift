@@ -17,7 +17,8 @@ final class AnyCodableTests: XCTestCase {
     func testDecodeDouble() throws {
         let json = "3.14"
         let value = try decoder.decode(AnyCodable.self, from: Data(json.utf8))
-        XCTAssertEqual(value.value as? Double, 3.14, accuracy: 0.001)
+        let doubleValue = try XCTUnwrap(value.value as? Double)
+        XCTAssertEqual(doubleValue, 3.14, accuracy: 0.001)
     }
 
     func testDecodeBool() throws {
@@ -82,7 +83,8 @@ final class AnyCodableTests: XCTestCase {
         let value = AnyCodable(3.14)
         let data = try encoder.encode(value)
         let decoded = try decoder.decode(AnyCodable.self, from: data)
-        XCTAssertEqual(decoded.value as? Double, 3.14, accuracy: 0.001)
+        let decodedDouble = try XCTUnwrap(decoded.value as? Double)
+        XCTAssertEqual(decodedDouble, 3.14, accuracy: 0.001)
     }
 
     func testEncodeString() throws {
